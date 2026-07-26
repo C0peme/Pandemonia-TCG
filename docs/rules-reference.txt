@@ -1,0 +1,248 @@
+PANDEMONIA TCG — RULES REFERENCE
+=================================
+
+--- OVERVIEW ---
+
+Pandemonia is a two-player lane-based card game. Each player controls a Leader and a 30-card deck. Players take turns playing units, spells, foundations, and environments, attacking the opponent's units and leader. The first player to reduce the opponent's leader to 0 HP wins.
+
+
+--- THE BOARD ---
+
+Each player has four lanes:
+
+  Heights   — airborne combat; only Airborne units attack/block here by default
+  Ground 1  — standard ground lane
+  Ground 2  — standard ground lane
+  Water     — aquatic combat; non-aquatic, non-airborne units Drown here
+
+Lanes are mirrored: your Heights faces the opponent's Heights, etc. Each lane can hold at most one unit unless Double Team is active (then front + back slots).
+
+Foundations occupy a standalone slot in a lane. They bond to the next unit placed there. While unattended (no unit on top), a standalone foundation does not attack on its owner's turn, but it defends the lane like a unit — it absorbs the attack that would otherwise hit the leader, takes damage through the full defense set (Shield, Tough, True Shield, Immunity), and retaliates with its own Attack. It can also be targeted by spells/abilities.
+
+
+--- LEADERS ---
+
+Each leader has:
+  - 30 HP
+  - A Hero Power (active ability with an energy cost, usable once per turn)
+  - Four element banking caps (fire, water, nature, earth), each between 1–4, summing to exactly 8
+  - A Signature Card — delivered to hand when the leader's HP drops to HALF their own maximum HP or below
+    (triggers once). For the standard 30 HP leader that's 15, but the rule is proportional, not a fixed
+    number — a leader with a different max HP (e.g. a reduced-HP Adventure enemy) unlocks at half of theirs.
+
+The four elements and their general playstyle:
+  Fire    — Aggressive and direct
+  Water   — Control and presence
+  Nature  — Resource management and growth
+  Earth   — Defensive and counter
+
+Leaders can be targeted by spells and triggered effects but cannot be attacked directly except when a lane is empty (the unit's attack bleeds through to the opposing leader).
+
+
+--- ENERGY AND ELEMENTS ---
+
+Universal Energy:
+  - Round 1: 1 energy. Each subsequent round: +1 (round 2 = 2, round 3 = 3, etc.).
+  - All cards with an energy cost spend from this pool.
+  - Unused energy at end of turn may be banked as element energy (see below).
+
+Element Energy (Banking):
+  - At end of turn, the active player may convert leftover universal energy into one or more elements, up to each element's individual cap (set by the leader).
+  - Element energy persists across turns. Cards with an element cost (e.g. "2 Fire") require that amount from the element bank in addition to universal energy.
+  - Maximum element cost on any single card: 4 (a 4-pip card is a core finisher for a
+    specific archetype, castable only by a leader with a 4-cap in that element).
+
+Producer units bank element energy for their owner at the end of each of their own turns, up to the leader's cap for that element.
+
+
+--- TURN STRUCTURE ---
+
+1. Declare Attack
+   - The active player's non-sleeping, non-frozen units that have not just been placed attack their opposing lane.
+   - If the opposing lane slot is empty, damage bleeds through to the opponent's leader.
+   - The first player cannot attack on Round 1.
+
+2. Main Phase (play cards freely in any order)
+   - Play units (pay energy cost, place in a lane)
+   - Cast spells (pay cost, resolve effects)
+   - Play foundations (pay cost, place in a lane as a standalone)
+   - Play environments (pay cost, place in a lane)
+   - Use Hero Power (pay cost, once per turn)
+
+3. End Turn (resolves in this order, for the player whose turn is ending)
+   - End-of-turn triggers resolve FIRST, for the active player's units, right after their Declare
+     Attack: Burn clears, Smelt, Growth buffs, Sleep heal + duration tick, end-of-turn Healers,
+     and Poison ticks. (Poison hits BOTH players' poisoned units; everything else is the active
+     side only. Burn dealt its damage during combat — it only expires here.)
+   - Game-over check.
+   - Active player banks leftover energy (choosing element splits), up to each element's cap.
+   - Turn passes to the opponent, who then BEGINS their turn: their True Shields expire,
+     start-of-turn Healers fire, their energy is set to the round value, and they draw 1 card.
+
+
+--- COMBAT ---
+
+When a unit attacks:
+  1. The unit deals its Attack value as damage to the opposing unit (or leader if empty lane).
+  2. The defending unit (if any) deals its Attack as retaliation damage back to the attacker.
+  3. Modifiers apply: Shield, TrueShield, Tough, Spike, Immunity, etc.
+  4. On-hit effects fire (Burn, Poison, Sleep, Freeze, Zombified) when damage actually lands.
+  5. Units at 0 HP die. Death triggers (Kamikaze, Bloodlust, Zombified) resolve.
+
+Wakeup Shock (global rule): any damage dealt to a SLEEPING unit deals bonus damage equal to the
+unit's Sleep heal value (the `amount` it was put to Sleep with) on top of the hit, then clears the
+Sleep. A unit struck while asleep does NOT retaliate on the hit that wakes it — UNLESS it was
+already woken earlier the same combat (e.g. by a prior Sniper / Branch / Splash hit), in which case
+it retaliates normally. Wakeup Shock applies to every damage source that lands on a sleeper: combat,
+retaliation, Spike, Chain / Diminishing-Chain bounces, and raw spell/ability damage. It does NOT
+apply to Burn or Poison ticks (those would just overwrite/ignore the Sleep rather than shock it).
+
+Heights lane: only Airborne units attack or defend in the Heights lane. Non-airborne units in other lanes cannot attack into or be attacked from the Heights.
+
+Overshot / Undershot: Overshot bypasses the front units to strike the opposing leader directly (an Airborne defender in the lane can intercept it). Undershot strikes the deepest target — the foundation beneath the front unit, else the back unit — piercing defenses (Shield/Tough) and stopped only by Immunity. Branch Shot hits an adjacent ground lane simultaneously.
+
+Splash Damage: damage dealt to a front unit also hits the back unit in the same lane (half, or same amount depending on card).
+
+Double Strike: the unit attacks twice in one combat step (both hits trigger on-hit effects).
+
+Sniper: from the Heights lane (or while Airborne), the unit may choose which enemy lane to strike instead of its opposing lane; a grounded Sniper strikes straight across like any other unit.
+
+Lethal: any non-zero damage from this unit instantly kills the target (overrides remaining HP).
+
+Brittle: after attacking, the unit destroys itself.
+
+
+--- LANES: SPECIAL RULES ---
+
+Water Lane:
+  - Units without Aquatic or Airborne enter the Drowning state: their Attack becomes 0, and they take
+    1 damage at the start of their owner's turn. A drowning unit is still a body — it can block an
+    Aquatic attacker — but it is on a clock and will eventually go under.
+  - Aquatic units are unaffected and may receive bonus stats while in Water (if their Aquatic carries a StatMod).
+  - Airborne units can be placed in the Water lane without drowning but do not receive Aquatic's Water bonus.
+  - An Environment that grants Aquatic (e.g. Shallows, which may only be placed in Water) lifts Drowning
+    from every unit in the lane for as long as it stays in play.
+
+Heights Lane:
+  - Only Airborne units can attack or block in the Heights lane.
+  - Airborne units may also attack into any non-Heights lane (they can choose the target lane freely).
+
+
+--- STATUS EFFECTS ---
+
+Statuses are mutually exclusive: applying any status overwrites whatever the unit already
+had — EXCEPT Sleep and Freeze, which may coexist with each other (and only each other).
+
+Burn (N)   — resolves as a lane is engaged in combat, BEFORE the units there attack or retaliate
+             (a unit that cannot act — frozen/asleep/sick — or never acts takes none). A burned
+             defender that dies to Burn is removed before the attacker strikes, so the attack
+             carries through to the leader and takes no retaliation. Clears at the end of its
+             owner's turn. Re-applying replaces N.
+Poison     — at the end of EVERY turn, ALL poisoned units (both players) take damage equal to their
+             Poison level (default 1). While poisoned, a unit cannot be healed and cannot gain
+             stats. Permanent until cleansed.
+Sleep      — unit cannot attack; always lasts exactly ONE turn (it wakes at the end of its owner's
+             next turn). The value it is applied with (`amount`) is its Sleep HEAL: the unit heals
+             that much while it sleeps, and the SAME value is the bonus damage of Wakeup Shock if it
+             is struck while asleep (see Combat). Sleep and Freeze may coexist.
+Freeze     — unit cannot attack for 2 turns. Blocked hits (Shield/TrueShield) do not trigger Freeze
+             from on-hit. Sleep and Freeze may coexist (and only each other).
+Shield (N) — blocks N instances of damage entirely (each hit that would deal damage consumes 1 stack).
+True Shield — blocks ALL incoming damage while active; it expires at the start of the owner's next turn (it held through the opponent's turn). Not consumed per hit.
+Taunt      — enemies must target this unit before any other unit in the lane.
+Zombified  — when this unit's HP reaches 0 it revives at 1 HP instead (once per instance of the keyword).
+Drowning   — unit's Attack is 0 and it takes 1 damage at the start of its owner's turn (applied when a non-Aquatic, non-Airborne unit enters the Water lane, whether placed OR moved there; removed and its Attack restored if it later leaves the Water lane or gains Aquatic/Airborne — e.g. from a Shallows Environment).
+
+
+--- KEYWORDS ---
+
+Attack / Targeting
+  Overshot       — strikes the opposing leader over the lane's units (an Airborne defender can intercept).
+  Undershot      — strikes the deepest target (foundation beneath, else the back unit), piercing Shield/Tough; stopped only by Immunity.
+  Sniper         — from the Heights (or while Airborne), may choose which enemy lane to strike; no effect from a ground/water lane.
+  Branch Shot    — attack also hits an adjacent ground lane simultaneously.
+  Splash Damage  — damage to the front unit also hits the back unit.
+  Double Strike  — attacks twice per combat step (both hits trigger on-hit effects).
+  Airborne       — fights exclusively in the Heights lane; can attack into any lane.
+  Battle Ready   — ignores summoning sickness; may act the turn it enters play. (Bonding a unit
+                   onto a foundation already in play grants this for free — see FOUNDATIONS.)
+
+Defensive
+  Shield (N)     — blocks N incoming damage instances.
+  True Shield    — blocks ALL incoming damage while active; expires at the owner's next turn.
+  Taunt          — must be targeted first in its lane.
+  Spike (N)      — deals N damage back to any unit that attacks it (combat or ability), even when the hit deals no damage (e.g. absorbed by Shield/Tough). Bypassed by an effective Undershot.
+  Immunity       — immune to all unit-targeted effects (harmful and beneficial).
+  Tough (N)      — reduces all incoming damage by N (minimum 1 damage still gets through).
+  Double Team    — allows a second unit in the same lane (front + back slots).
+  Polish         — triggers when the unit takes any damage; may gain stats and/or triggers effects.
+
+Support / Triggered
+  Healer         — heals a target (ally unit or leader) by a chosen trigger.
+  Growth         — gains stat buffs at the end of each owner's turn.
+  Producer       — banks element energy for the owner at the end of each of their turns (capped).
+  Metamorphosis  — after a set number of turns, transforms into a different card.
+  Bloodlust      — triggers on kill; may gain stats and/or triggers effects each time it kills.
+  Kamikaze       — fires a final effect when this unit dies.
+  Sacrifice      — on play, may sacrifice up to N allied units; each sacrifice applies a buff.
+  Mover          — can move a unit (ally/enemy/self) to another lane.
+  Expel          — can return a unit (scope varies) to its owner's hand.
+  Debuff         — reduces a target's stats.
+  Zombified      — when HP reaches 0, revive at 1 HP instead (removes keyword after triggering).
+  Brittle        — destroys itself after attacking once.
+  Aquatic        — immune to Drowning in the Water lane; may carry bonus stats while in Water.
+  Smelt          — pay HP to activate an attached effect (unit cannot kill itself with Smelt).
+
+
+--- TARGETING SCOPES ---
+
+Effects and abilities specify a targeting scope:
+
+  self         — the triggering unit itself
+  leader       — own leader (beneficial) or enemy leader (harmful); always hits
+  killer       — the unit that delivered the killing blow (Kamikaze only)
+  any          — player picks any unit or leader (spells); auto-picks best unit (triggered)
+  ally         — single ally: most-hurt same-lane ally first, then board-wide; does nothing if no allies
+  enemy        — single enemy: same-lane enemy first, then weakest anywhere; does nothing if no enemies
+  all-ally     — AOE: every allied unit (excluding self); does nothing if no allies
+  all-enemy    — AOE: every enemy unit; does nothing if no enemies
+  lane-ally    — single ally in the same lane only; does nothing if lane is empty
+  lane-enemy   — single enemy in the same lane only; does nothing if lane is empty
+  leaderUnit   — the caster's own leader-unit (e.g. Riku's avatar); auto-resolved, no pick. Does
+                 nothing for leaders without a leader-unit.
+
+
+--- ENVIRONMENTS ---
+
+Environments are placed in a lane and remain until replaced.
+  - Effects activate EVERY combat: as a neutral lane fixture, the environment applies its effects
+    to all units in the lane (both players) at the start of each combat phase. This only SETS the
+    status (e.g. Molten Floor applies Burn) — Burn still only damages a unit that attacks/retaliates.
+  - Keyword grants (grantKeywords) apply persistently to all units in the lane; stripped when a unit leaves.
+  - Environments may restrict which lane groups they can be placed in (ground, heights, water). Empty = any lane.
+
+Current environments: Vent, Graveyard, Molten Floor, Sludge Pool, Watchtowers, Coffee Fields, Perfect Fortress, Pocket Dimension, Warehouse, Air Currents, Lilypad Overgrowth.
+
+
+--- FOUNDATIONS ---
+
+Foundations are placed standalone in a lane (not on top of a unit). When a unit is placed in the same lane, the foundation bonds beneath it, granting its bonuses to that unit. A foundation can grant stats, keywords, an on-hit status package, AND per-turn / before-attack effects — the bonded unit runs all of them as if printed on it. A bonded foundation is destroyed when its unit dies; if the foundation is destroyed first (e.g. by Undershot) the host loses everything it granted.
+
+Prepared position (Battle Ready on bond): a unit that bonds onto a foundation which was ALREADY in play (placed on a previous turn) deploys ready to fight — it ignores summoning sickness and may attack the same turn. A foundation and unit dropped on the SAME turn do not get this; the ground must have been set in advance.
+
+Standalone foundations can be targeted by spells/abilities and destroyed by damage; while standalone they defend the lane as a unit (taking combat damage through the full defense set and retaliating with their own Attack), but they do not attack on their owner's turn.
+
+
+--- HAND AND DECK ---
+
+  - Starting hand: 4 cards (each player then draws on their first turn, opening at 5).
+  - Draw 1 card at the start of each turn.
+  - Hand cap: 10 cards. Cards drawn beyond the cap are discarded.
+  - Deck-out: when a player draws from an empty deck, a Null card enters their hand. If a Null card dies in play, it deals damage directly to that player's own leader.
+  - Max 4 copies of any single card in a deck.
+  - Deck size: exactly 30 cards.
+
+
+--- WIN CONDITION ---
+
+Reduce the opponent's leader to 0 HP. There is no draw mechanic currently.

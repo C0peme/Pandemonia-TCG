@@ -1,0 +1,476 @@
+PANDEMONIA TCG — CARD & LEADER CREATION GUIDE
+=============================================
+
+All content lives in: src/cards/data/starter.ts
+Cards are plain JavaScript objects validated by Zod schemas (src/cards/schema.ts).
+All IDs must be unique kebab-case strings. Names are human-readable display strings.
+Do not duplicate an existing ID.
+
+
+===================
+  THE FOUR ELEMENTS
+===================
+
+Each card belongs to one of four elements. Elements define playstyle identity and
+determine which leaders can efficiently use element-cost cards.
+
+  Fire    — Aggressive and direct. Fast, high-attack units; direct damage; burn synergies.
+  Water   — Control and presence. Disruption, freeze, sleep, expel; aquatic synergies.
+  Nature  — Resource management and growth. Ramp (Producers), Bloodlust, Growth, Metamorphosis.
+  Earth   — Defensive and counter. Tough, Spike, Polish, Taunt; strong foundations.
+
+  ---------------------------------------------------------------------------------
+  ELEMENT TOOLKITS — what each element typically has access to
+  ---------------------------------------------------------------------------------
+  These are design conventions, not hard engine rules: the schema lets any card take
+  any keyword. But keeping to an element's toolkit is what makes the elements feel
+  distinct, and it is the basis for element-conditional content (e.g. Adventure relics
+  that grant a keyword to units of one element — grant the element's SIGNATURE keyword).
+
+  Fire   — tempo & self-sacrifice. Signature: Battle Ready (attack the turn it enters).
+           Also: Strike Through, Double Strike, Branch Shot, Brittle, Kamikaze,
+           Sacrifice. Status: Burn. Theme — hit first, hit hard, trade the body.
+
+  Water  — control & positioning. Signature: Aquatic (owns the Water lane; no drowning).
+           Also: Sniper, Overshot, Splash Damage, Shield, Taunt. Status: Freeze, Sleep.
+           Theme — pick your targets, deny theirs, hold the board.
+
+  Nature — growth & resources. Signature: Growth (+X/+X each turn) and Bloodlust
+           (grow on kill). Also: Producer (banks energy), Airborne, Spike, Lethal,
+           Metamorphosis. Status: Poison. Theme — start small, snowball, out-resource.
+
+  Earth  — defense & counter-punch. Signature: Tough (damage reduction). Also: Taunt,
+           Spike (retaliate when hit), Polish, Shield, strong Foundations. Theme —
+           absorb, punish attackers, win the long game.
+
+  When adding element-scoped effects, prefer each element's signature keyword above:
+  Fire→Battle Ready, Water→Aquatic, Nature→Growth/Bloodlust, Earth→Tough. NOTE: Aquatic
+  is engine-special-cased and NOT in the grantable-keyword subset, so effects that GRANT
+  a keyword (relic/enhancement keyword grants) use the element's next best instead —
+  for Water that is Taunt (presence) or Sniper (control).
+
+
+===================
+  CARD TYPES
+===================
+
+All cards share these base fields:
+
+  id          string (kebab-case, unique)
+  name        string (display name)
+  element     "fire" | "water" | "nature" | "earth"
+  type        "unit" | "spell" | "foundation" | "environment"
+  cost        { energy: number, elements?: [{ type: element, amount: 1–4 }, ...] }
+  text        string (optional — human-readable rules text shown on card)
+  tags        string[] (optional — e.g. ["signature"] hides the card in deck builder)
+  wip         boolean (default false — marks unimplemented mechanics)
+
+
+--- UNITS ---
+
+Required extra fields:
+  attack    number (≥ 0)
+  hp        number (≥ 1)
+  keywords  object (see KEYWORDS section; default {})
+
+Optional:
+  onHit     object (see ON-HIT section)
+  onPlay    Effect[] (triggers when unit enters play)
+  onAttack  Effect[] (triggers just before this unit attacks)
+  endOfTurn Effect[] (triggers at end of this unit's owner's turn)
+  startOfTurn Effect[] (triggers at start of this unit's owner's turn)
+
+
+--- SPELLS ---
+
+Required extra fields:
+  effects   Effect[] (at least one; see EFFECTS section)
+
+
+--- FOUNDATIONS ---
+
+Required extra fields:
+  attack    number (default 0)
+  hp        number (≥ 1)
+  keywords  object (foundation's OWN keywords while standalone)
+  grants    {
+    stat?:        { attack?: number, hp?: number }
+    keywords?:    KeywordsObject
+    onHit?:       OnHit
+    onAttack?:    Effect[]
+    endOfTurn?:   Effect[]
+    startOfTurn?: Effect[]
+  }
+
+Foundations are placed standalone in a lane and bond with the next unit placed there.
+The bonded unit receives grants for as long as they are stacked. Grants are full
+value-transfer — the host runs them through normal engine machinery.
+
+Note: expansion-only keywords (producer, healer, debuff, mover, expel) do NOT work
+as granted `keywords` entries. Grant their behaviour via trigger effects instead.
+Example: a producer grant = grants: { endOfTurn: [{ kind: 'energy', amount: 1, element: 'nature' }] }
+
+Battle Ready on bond: a unit placed on a foundation from a previous turn ignores
+summoning sickness and may attack immediately. Same-turn drops do not.
+
+
+--- ENVIRONMENTS ---
+
+Required extra fields:
+  lanes     string[] — which lane groups this env may be placed in.
+              Use [] for any lane, or any of ['ground', 'heights', 'water'].
+              'ground' matches both ground1 and ground2.
+  effects   Effect[] (at least one; fires once on enter for units in the lane)
+
+Optional:
+  grantKeywords  KeywordsObject — keywords granted persistently to every unit in the lane.
+
+
+===================
+  EFFECTS
+===================
+
+Effects are objects with a `kind` and optional parameters.
+They appear in: spell effects[], unit triggers, environment effects[], hero power effects[], kamikaze, polish effects[], bloodlust effects[].
+
+  kind      (required)
+  target    TargetScope (see TARGETING SCOPES)
+  amount    number (damage, heal, buff stacks, etc.)
+  status    status name (for applyStatus)
+  stat      { attack?: number, hp?: number } (for buff/debuff)
+  cardId    string (for conjure/summon)
+  lane      LaneId (for summon — fixed destination)
+  element   element name (for energy)
+  note      string (for custom — human description only)
+
+Kind reference:
+
+  damage       Deal `amount` damage to target.
+               chain: if the hit kills, splash `chain` damage to the weakest other enemy.
+               chainDiminish: self-diminishing chain (amount, amount-1, amount-2… on each kill).
+  heal         Restore `amount` HP to target (capped at maxHp).
+  buff         Give target +attack/+hp and/or keyword grants (immunity, overshot, lethal, taunt,
+               trueShield, airborne, battleReady, doubleStrike, bloodlust, undershot).
+  debuff       Reduce target's attack/hp. Blocked by Immunity.
+  applyStatus  Apply `status`: burn (amount=stacks), poison (amount=level), sleep, freeze,
+               shield (amount=stacks), trueShield, zombified, taunt.
+  draw         Draw `amount` cards.
+  energy       Add `amount` energy. With `element`, banks that element. `chooseElement: true`
+               lets the player pick at cast time.
+  move         Move target unit to another lane.
+  expel        Return target unit to its owner's hand.
+  forget       Remove `amount` cards from the top of a player's deck.
+               `target: 'enemy'` mills opponent; omit for self.
+  conjure      Create card `cardId` in a hand. `target: 'enemy'` = opponent's hand.
+  summon       Summon unit `cardId` onto the board. `lane` fixes destination.
+  extraAction  Grant target unit a bonus attack this turn (no retaliation).
+  costMod      Adjust costs. `cardType` selects type ('unit'|'spell'|'foundation'|'environment'|'all').
+               Positive raises cost, negative lowers it. `target: 'enemy'` hits the opponent.
+               -99 effectively makes a type free (engine clamps at 0). Lasts until end of turn.
+  setStats     Overwrite target's base attack / max HP to fixed values. Blocked by Immunity.
+  cleanse      Remove all status effects from target.
+  custom       Placeholder for unimplemented mechanics. Always include `note`.
+
+
+===================
+  TARGETING SCOPES
+===================
+
+  self         The triggering unit itself.
+  leader       Own leader (beneficial) or enemy leader (harmful). Always fires.
+  killer       The unit that dealt the killing blow (Kamikaze effects only).
+  any          Interactive: player picks any unit or leader on either side.
+  ally         Single ally: most-hurt same-lane first, then board-wide.
+  enemy        Single enemy: same-lane first, then weakest anywhere.
+  all-ally     AOE: every allied unit (excluding self).
+  all-enemy    AOE: every enemy unit.
+  lane-ally    Single ally in the same lane only.
+  lane-enemy   Single enemy in the same lane only.
+  leaderUnit   The caster's own leader-unit. Only valid for leaders with leaderUnitCardId.
+
+
+===================
+  KEYWORDS
+===================
+
+Keywords are fields on the `keywords` object. Omit (do not set false) to leave inactive.
+
+--- Attack / Targeting ---
+
+  overshot: true          Strikes the opposing leader over units (Airborne intercepts).
+  undershot: true         Strikes deepest target, piercing Shield/Tough (not Immunity).
+  sniper: true            From Heights or Airborne: choose which enemy lane to strike.
+  branchShot: true        Attack also hits an adjacent ground lane simultaneously.
+  splashDamage: true      Damage to front unit also hits the back unit in the same lane.
+  doubleStrike: true      Attacks twice per combat step; both hits trigger on-hit effects.
+  airborne: true          Fights in Heights. Can attack into any non-Heights lane.
+                          Cancels Aquatic's Water bonus.
+  battleReady: true       Ignores summoning sickness; may act the turn it enters play.
+
+--- Defensive ---
+
+  shield: N               Blocks N incoming damage instances entirely.
+  trueShield: true        Blocks ALL incoming damage until start of owner's next turn.
+  taunt: true             Enemies must target this unit before any other in its lane.
+  spike: N                Deals N damage back to any unit that attacks it.
+  immunity: true          Blocks harmful control effects: statuses, debuff, setStats,
+                          displacement (move/expel), and Lethal/Undershot. Does NOT block
+                          damage or beneficial effects.
+  tough: N                Reduces all incoming damage by N (minimum 1 gets through).
+  doubleTeam: true        Allows a second unit to occupy this lane alongside this unit.
+  polish: { stat?, effects? }
+                          Fires every time this unit takes damage. Applies stat gain and/or effects.
+                          Example: { stat: { attack: 1, hp: 0 } }
+
+--- Support / Triggered ---
+
+  healer: { amount, target, trigger }
+                          Heals `amount` to `target` when `trigger` fires.
+                          Trigger: 'onPlay' | 'onAttack' | 'endOfTurn' | 'startOfTurn'
+  growth: { attack?, hp? }
+                          Gains these stats at end of each owner's turn.
+  producer: { amount, element }
+                          Banks `amount` of `element` at end of each owner's turn (cap-limited).
+  metamorphosis: { everyTurns, into?, gains? }
+                          After `everyTurns` turns, transforms into card `into` or gains `gains`.
+  bloodlust: { buff?, effects? }
+                          Fires on each kill. Gains `buff` and/or runs `effects`.
+  kamikaze: Effect        Single effect that fires when this unit dies.
+  sacrifice: { max, buff }
+                          On play, may sacrifice up to `max` allies. Each sacrifice applies `buff`.
+  mover: { scope, trigger? }
+                          Moves a unit of `scope` ('ally'|'enemy'|'either'|'self').
+                          Without trigger: fires on play. With 'endOfTurn'/'startOfTurn': fires each turn.
+  expel: { scope }        Returns a unit to its owner's hand on play.
+  debuff: { attack?, hp?, target? }
+                          Stat reduction applied to target on play.
+  brittle: true           Destroys itself after attacking once.
+  zombified: true         On reaching 0 HP, revives at 1 HP once (then removed).
+  aquatic: true | StatMod true = immune to Drowning. StatMod = also gains those stats in Water.
+  smelt: { hpCost, effect }
+                          Pay `hpCost` HP to activate `effect`. Cannot be self-lethal.
+
+
+--- ON-HIT ---
+
+onHit fires when this unit's attack deals damage to another unit.
+
+  onHit: {
+    burn?: number        — inflict Burn N on the target
+    poison?: true | N    — inflict Poison (true = level 1; N = custom level)
+    sleep?: number       — put the target to Sleep (N = heal-per-sleeping-turn / Wakeup-Shock bonus)
+    freeze?: true        — inflict Freeze on the target
+    zombified?: true     — inflict Zombified on the target
+  }
+
+
+===================
+  LEADERS
+===================
+
+Leaders are objects in the rawLeaders array.
+
+  id              string (kebab-case, unique)
+  name            string
+  element         "fire" | "water" | "nature" | "earth"
+  elementCaps     { fire: N, water: N, nature: N, earth: N }  — must sum to exactly 8
+  heroPower       { name, cost, hpCost?, effects, text? }  — usable once per turn
+  signatureCardId string — card delivered to hand when leader HP drops to HALF its max
+                           (15 for the standard 30-HP leader; scales for other max HP)
+
+Element cap guidelines:
+  Primary element: 3–4. Secondary: 2. Remaining: 1 each.
+  Reserve cap 4 for archetypes with an expensive endgame payoff (Control, Stall, Ramp, Snowball, Combo).
+  Fast archetypes (Aggro, Swarm) should use even or low spreads (e.g. 2/2/2/2) — they never
+  bank 3–4 of one element, so a high cap wastes the slot.
+
+The Signature card should:
+  - Cost 0 energy
+  - Be powerful enough to turn a close game but not instantly win
+  - Match the leader's element and playstyle
+  - Have a unique id prefixed with 'sig-'
+
+
+===================
+  DECKS
+===================
+
+  parseDeck({ name, leaderId, cards: [{ cardId, count }, ...] })
+
+Rules:
+  - Exactly 30 cards total.
+  - Max 4 copies of any single card.
+  - leaderId must match an existing leader.
+  - All cardIds must match existing cards.
+
+Archetype descriptions:
+  Aggro        — cheap high-attack units; direct damage; win fast or lose
+  DoT          — spread Burn and Poison; win by chip damage over time
+  Control      — disable with Sleep/Freeze; deny the board; win late
+  Midrange     — flexible, no hard specialisation; wins on card quality
+  Stall        — wall every lane with Shield/Taunt/Tough; outlast
+  Guardian     — protect a leader-unit (Riku) and grow it into the win condition
+  Attrition    — Spike, Poison, Polish; punish every trade
+  Snowball     — grow units enormous via Growth/Bloodlust/Foundations
+  Ramp         — Producer units to play expensive cards early
+  Combo        — bond grant-foundations onto a body for a same-turn swing
+  Deck Out     — mill the opponent's deck; Null cards bleed their leader
+  Swarm        — go wide with many small bodies behind an anthem
+  Lane Control — Movers, Environments, hazard zones to control positioning
+
+
+===================
+  BALANCING GUIDELINES
+===================
+
+The budget calculator lives in src/cards/budget.ts. Run `npm test` and check
+src/cards/cost_diff.test.ts to see how your card's value compares to its energy cost.
+
+--- HOW BUDGET WORKS ---
+
+A card's energy cost converts to a budget:
+  budget = energy + 0.5 × (total element pip count)
+
+Example: cost { energy: 3, elements: [{ type: 'fire', amount: 1 }] } → budget = 3.5
+
+The card's computed value must roughly match its budget. A value ≈ budget ± 0.5 is fine.
+Slightly under is acceptable (a small efficiency incentive); significantly over is too strong.
+
+--- TWO KEY MULTIPLIERS ---
+
+All abilities (keywords, effects, on-hit) are discounted 20% versus raw stats:
+  effective ability cost = base cost × 0.8
+
+Recurring effects (endOfTurn / startOfTurn / onAttack) get an additional ×1.4:
+  effective recurring cost = base cost × 0.8 × 1.4
+
+AOE effects (all-ally / all-enemy scopes, and environment grantKeywords) get ×2.5:
+  effective AOE cost = base cost × 2.5 × 0.8
+
+--- STAT COSTS (GEOMETRIC) ---
+
+Unit base stats use a geometric curve — each extra point costs progressively more.
+Use the budget calculator (cost_diff test) to verify; the approximate values are:
+
+  attack 1 = 0.38 | 2 = 0.87 | 3 = 1.51 | 4 = 2.31 | 5 = 3.32 | 6 = 4.57
+  hp     1 = 0.38 | 2 = 0.91 | 3 = 1.65 | 4 = 2.67 | 5 = 4.07 | 6 = 5.99
+
+These are the unit body costs BEFORE any keyword or effect costs.
+For foundation grants and buff/debuff effects, stats use the flat rate: +0.2 per attack, +0.4 per hp (flat × 0.8).
+
+--- KEYWORD COSTS (effective, after ×0.8) ---
+
+Drawbacks:
+  Brittle                          −0.40
+  Kamikaze (+ effect cost)         −0.40  — effect's effective cost is added separately
+  Sacrifice (+ buff stat cost)     −0.40  — buff stats use the flat rate
+
+Positional / tactical:
+  Battle Ready                     +0.20
+  Sniper                           +0.60
+  Overshot                         +0.60
+  Airborne                         +0.60
+  Aquatic (true)                   +0.20  — bonus stats add flat cost
+  Taunt                            +0.80
+  Double Team                      +0.80
+  Branch Shot                      +1.20
+  Splash Damage                    +1.20
+  Strike Through                   +1.20
+  Double Strike                    +1.20
+
+Defensive:
+  Spike 1 / +0.40 each stage       +1.20
+  Tough 1 / +1.20 each stage       +1.60
+  Shield 1 / +0.40 each stage      +2.00
+  True Shield                      +2.40
+  Immunity                         +1.60
+  Undershot                        +1.60
+  Lethal                           +2.40
+
+Triggered:
+  Growth (+ flat buff cost)        +1.20
+  Bloodlust (+ flat buff cost)     +1.00
+  Polish (+ flat buff/effect cost) +0.80
+  Producer N (per unit output)     +0.56 each  — e.g. Producer 2 = +1.12
+  Healer N (per HP healed)         +0.56 each
+  Mover                            +1.12  — recurring move effect
+  Expel (keyword, on-play)         +2.80
+  Debuff (+ flat stat cost)        +1.40  — recurring debuff premium baked in
+  Zombified                        +2.20
+
+--- EFFECT COSTS (effective, after ×0.8) ---
+
+These are costs when effects appear in spells, onPlay, or triggered arrays:
+
+  damage N (single)                N × 0.40
+  damage N (all-enemy / all-ally)  N × 1.00
+  damage, chain / chainDiminish    add +0.80 on top
+  heal N (single)                  N × 0.40
+  buff stat (flat rates)           +0.20/attack, +0.40/hp + any keyword costs
+  debuff (single)                  +1.00 + flat stat cost
+  debuff (AOE)                     +2.50 + flat stat cost × 2.5
+  applyStatus burn 1 / +0.80 each  +0.80
+  applyStatus poison               +0.80
+  applyStatus sleep                +1.60
+  applyStatus freeze               +2.00
+  applyStatus shield 1 / +0.40 ea  +2.00
+  applyStatus trueShield           +2.40
+  applyStatus zombified            +2.20
+  applyStatus taunt                +0.80
+  draw 1 / +0.80 each              +0.80
+  energy N                         N × 0.40
+  move (single)                    +0.80
+  expel (single)                   +2.00
+  forget 1 / +1.20 each extra      +1.40
+  conjure                          +1.20
+  summon (value of the card)       full card value
+  extraAction                      +1.20
+  costMod                          +0.80
+  setStats                         +1.60
+  cleanse                          +0.80
+  custom                           +0.00
+
+Recurring trigger: multiply by 1.4. Example: endOfTurn heal 1 = 0.40 × 1.4 = 0.56.
+
+--- ON-HIT COSTS (effective) ---
+
+On-hit fires every time the unit's attack damages a target, so it has a ×1.5 recurrence
+premium on top of the ×0.8 ability factor (base × 1.5 × 0.8):
+
+  on-hit burn 1     +1.20
+  on-hit burn 2     +2.40
+  on-hit poison     +1.20
+  on-hit sleep      +2.40
+  on-hit freeze     +3.00
+
+--- ELEMENT COST ACCESSIBILITY ---
+
+  1 pip of any element  — accessible to all leaders
+  2 same-element pips   — accessible to most; some struggle
+  3 same-element pips   — restricted to leaders with a high cap; contains the strongest cards
+  4 same-element pips   — core payoff for a specific archetype
+
+--- WORKED EXAMPLE ---
+
+Magma Brute: cost { energy: 2, elements: [{ type: 'fire', amount: 1 }] }
+  → budget = 2.5
+  Stats: attack 3 → 1.51, hp 2 → 0.91 → body = 2.42
+  Brittle: −0.40
+  Total value = 2.02  ✓ (slightly under 2.5 — acceptable)
+
+Ember Tick: cost { energy: 2, elements: [{ type: 'fire', amount: 1 }] }
+  → budget = 2.5
+  Stats: attack 1 → 0.38, hp 2 → 0.91 → body = 1.29
+  on-hit burn 1 = 1.20
+  Total value = 2.49  ✓
+
+
+===================
+  ADDING CONTENT TO THE CODEBASE
+===================
+
+1. Add card objects to rawCards in src/cards/data/starter.ts (keep entries on one line).
+2. Add leader objects to rawLeaders in src/cards/data/starter.ts.
+3. Add deck objects at the bottom of starter.ts using parseDeck, exported as a named const.
+4. Run `npm test` to validate schemas and check cost_diff for budget alignment.
+5. All new card/leader IDs must be unique across the entire file.

@@ -1,0 +1,282 @@
+PANDEMONIA TCG — ABILITY SYNERGY GUIDE
+=======================================
+Ratings: S > A > B > C
+S = game-winning combo, win condition on its own
+A = meaningfully stronger than the sum of parts, often a deck's core plan
+B = real upside, requires setup or specific conditions
+C = situational bonus, niche but valid
+
+Synergies are keyword×keyword pairs (or keyword×environment/status). Three-way
+combos are noted where all three must be present to reach the listed tier.
+
+
+════════════════════════════════
+S-TIER — Win conditions
+════════════════════════════════
+
+▸ Overshot + Double Strike
+  Double Strike attacks twice; Overshot routes both hits directly to the enemy
+  leader past all blockers. A 4-attack body deals 8 face damage per turn with
+  zero counterplay except killing the unit outright. Top offensive combo in the
+  game — the Combo deck's endgame.
+
+▸ Lethal + Sniper
+  Lethal kills on any damage. Sniper can target any unit on the board from the
+  Heights lane. Together: one unit eliminates any threat on the enemy's entire
+  board every combat. No board position is safe, no back-row is protected.
+
+▸ Lethal + Double Strike
+  Two guaranteed kills per combat. Even a 1-attack Lethal+DoubleStrike body
+  dismantles wide boards in two swings. Massacres Swarm strategies entirely.
+
+▸ Polish + recurring damage environment (Cinder Field / burn lane)
+  Polish gains permanent stats on every damage event. A Cinder Field deals 1
+  damage/turn to all units in the lane — your Polish unit uses that tick to
+  snowball for free, every turn, without the opponent being able to stop it
+  short of removing the environment. Exponential scaling disguised as chip
+  damage. Enabled by: Cinder Field, Molten Floor (burn), or enemy burn spells
+  aimed at your lane.
+
+▸ Foundation grant → Battle Ready (Combo bond)
+  Pre-place a grant foundation (Overshot / Double Strike / Growth / Lethal).
+  On a later turn, bond a high-attack body: it arrives Battle Ready AND carries
+  the grant keyword. A 5-attack body + Overshot + Battle Ready = 5 unblockable
+  face damage the very turn it enters, before the opponent can respond. The
+  Combo deck's primary win condition.
+
+
+════════════════════════════════
+A-TIER — Core plan enablers
+════════════════════════════════
+
+▸ Airborne + Sniper
+  Sniper is normally restricted to the Heights lane ("from Heights, may attack
+  any lane"). Airborne makes ANY lane count as Heights for the unit. Result:
+  the Sniper's reach is always live regardless of where it sits, and one removal
+  answer (killing the Heights unit) no longer turns it off.
+
+▸ Bloodlust + Double Strike
+  Two attacks per combat = two chances to kill = two Bloodlust triggers.
+  A Bloodlust unit that gains +1/+1 per kill snowballs to a 6/6+ inside two
+  turns with Double Strike on an open board.
+
+▸ Bloodlust + Splash Damage
+  Splash Damage hits the unit's lane and both neighbouring lanes simultaneously.
+  If multiple units die in that sweep, each kill fires a separate Bloodlust
+  trigger. A Bloodlust+Splash unit can triple-stack in a single combat round.
+
+▸ Bloodlust + Lethal
+  Lethal kills on 1 damage. Bloodlust fires on each kill. Even into a row of
+  5-HP defenders a Lethal+Bloodlust unit trades up and grows from every kill.
+  The pair is an exponential kill machine that outscales any board if left alive.
+
+▸ Overshot + Lethal
+  Lethal kills on minimum damage; remaining attack overflows to the leader.
+  A 6-attack Lethal+Overshot unit vs a 3-HP blocker: 1 damage kills the body,
+  5 damage hits the leader. Against 1-HP tokens: 5 free face each swing.
+  Best with high attack; punishes token floods hard.
+
+▸ Growth + Immunity
+  Growth accumulates permanent stat increases. Immunity prevents targeting by
+  spells, abilities, and status effects. The opponent is forced to kill it with
+  combat bodies — which takes multiple turns — while it grows larger each turn.
+
+▸ Growth + Taunt
+  Paradox wall: Taunt forces the opponent to keep attacking it, which buys more
+  Growth turns. The more they commit to killing it, the bigger it gets. Stall
+  decks weaponise this to buy an insurmountable late game.
+
+▸ Spike + Taunt
+  Taunt funnels all enemy attacks into the Spike unit. Every attacker takes
+  reflected Spike damage just for engaging. High-Spike+Taunt bodies are
+  extremely punishing to attack into — the opponent must sacrifice HP from their
+  own units just to trade.
+
+▸ Tough + Spike
+  Tough reduces incoming damage; Spike returns damage at full value. The
+  attacker triggers Spike for full damage while Tough absorbs part of the return.
+  Very hard to profitably attack into — attackers take full Spike, deal
+  reduced damage, and cannot kill it efficiently.
+
+▸ Airborne + Overshot
+  Overshot hits the leader past blockers. Airborne means the unit can intercept
+  enemy Overshot attacks AND ignores lane positioning advantages. Airborne frees
+  the Overshot unit from being trapped in a crowded lane or countered by a
+  strategic ground block.
+
+▸ Aquatic + Overshot (or Double Strike / Sniper)
+  Non-aquatic enemies in the Water lane Drown to 0 attack — they become pure
+  bodies, unable to retaliate. Your aquatic aggressive unit hits face, picks
+  targets, or swings twice in total safety. The water lane becomes a one-way
+  kill box.
+
+
+════════════════════════════════
+B-TIER — Real upside, needs setup
+════════════════════════════════
+
+▸ Lethal + Splash Damage
+  Splash hits the unit's own lane and both neighbours. Lethal kills anything
+  it touches. With a wide enemy board, one Lethal+Splash attack can kill up to
+  three units simultaneously (one per lane). Hard counter to board-flooding.
+
+▸ Lethal + Branch Shot
+  Branch Shot attacks both neighbouring lanes (no retaliation). Lethal makes
+  both hits lethal. Two guaranteed kills, zero return damage.
+
+▸ Lethal + Undershot
+  Undershot bypasses Shield, Taunt, Spike, and Tough to hit the deepest unit.
+  Lethal kills it. Surgical removal of protected back-row supports or
+  growth engines that the enemy has walled off.
+
+▸ Lethal + Strike Through
+  Strike Through damages the blocker AND the enemy leader simultaneously.
+  Lethal kills the blocker; the leader also takes the full attack damage.
+  Guaranteed kill + guaranteed face damage in one swing.
+
+▸ True Shield + Spike
+  First hit is absorbed completely by True Shield (unit takes 0). The attacker
+  still triggers Spike and takes reflected damage. Extremely punishing to attack
+  into — the attacker eats Spike for free, the True Shield unit survives unharmed.
+
+▸ Shield + Spike
+  Same principle as True Shield + Spike but stackable: each shielded hit
+  triggers Spike while the unit takes 0 damage. Stack Shield charges for a
+  sustained Spike wall.
+
+▸ Zombified + Kamikaze
+  Zombified revives at 1 HP on first death; Kamikaze fires its death effect on
+  destruction. Result: Kamikaze fires TWICE — once on initial death (unit
+  revives), once on the second death. Double the on-death payload with a
+  single card.
+
+▸ Growth + Healer
+  Healer restores HP to keep the Growing unit's gains from being chipped away.
+  A Growth unit that also gets healed each turn maintains its investment and
+  compounds faster.
+
+▸ Smelt + Healer
+  Smelt pays HP each turn for a repeating effect. Healer restores HP.
+  If the Healer's output matches or exceeds the Smelt cost, the Smelt engine
+  runs indefinitely at no net HP loss.
+
+▸ Immunity + Taunt
+  Immunity blocks spells, debuffs, and status effects. Taunt forces combat
+  attacks into the unit. Together: spells can't remove it, status can't cripple
+  it, and the opponent must commit real combat bodies to kill it. Extremely
+  durable wall with no soft answer.
+
+▸ Sleep + Sniper
+  Sleep locks a target unit into place (heals but cannot act; wakes if hit).
+  Sniper skips the sleeping front unit entirely and picks a back-row target.
+  The sleeping blocker provides no protection while your Sniper freely eliminates
+  whatever is behind it.
+
+▸ Freeze (Tundra) + displacement (Reroute / Seaweed Octopus / Tidal Wave)
+  Shove an enemy unit into the Tundra lane. The moment it enters, it Freezes
+  (cannot act, blocks first hit but cannot retaliate). Your clock units freely
+  attack without taking return damage while the frozen unit helplessly waits.
+  Lane Control's primary tempo tool.
+
+▸ Aquatic (triggered) + repeated Water lane entry
+  Some Aquatic cards carry effect arrays that fire on entering the Water lane
+  (not just the `true` flag). If a Mover or repeated relocation effect cycles
+  a unit in and out of Water, the on-enter effects chain-fire. Niche but
+  potentially infinite-value with the right setup.
+
+▸ DoubleTeam + Overshot
+  DoubleTeam allows two units to share a lane. Two Overshot units in one lane
+  both push face damage every turn. Alternatively: Overshot in front + any
+  aggressive body in back, both contributing value from a single contested lane.
+
+▸ Bloodlust + Growth
+  Independent snowball engines on one body. Growth adds stats at end of turn;
+  Bloodlust adds stats on kills. They don't amplify each other directly, but
+  a unit with both compounds from two separate sources and becomes an extreme
+  long-game threat.
+
+▸ Producer + high-cost payoffs (Ramp core)
+  Producer generates element pips each turn, acting as a one-unit ramp engine.
+  Compresses 5–6 cost finishers by 1–2 turns. The Ramp deck's entire identity
+  depends on keeping Producers alive long enough to fire payoffs prematurely.
+
+▸ Brittle + Sacrifice pump
+  Brittle destroys itself after attacking once — but if that single attack is
+  boosted very high via Sacrifice (destroying your own units for buffs), the
+  one swing can be decisive. Brittle becomes a spike-damage delivery vehicle.
+
+
+════════════════════════════════
+C-TIER — Situational / minor upside
+════════════════════════════════
+
+▸ Taunt + Healer (self-target)
+  Taunt absorbs all attacks; a self-Healer restores HP after each combat round.
+  The wall becomes much harder to grind down, but neither keyword is dramatically
+  better for having the other — just sustained durability.
+
+▸ Undershot + high attack
+  Undershot ignores all defensive keywords and hits the deepest unit in the lane.
+  High attack ensures the undershot target (usually a low-HP support or Growth
+  engine tucked in the back) dies outright rather than just taking a chip.
+
+▸ Mover (self) + friendly lane hazards
+  A self-Mover wanders randomly each turn. If you own the hazard environments
+  (Cinder Field, Tundra) in specific lanes, position your Mover to wander AWAY
+  from them. Against enemy Movers, friendly hazards across multiple lanes trap
+  the wandering unit wherever it lands.
+
+▸ Metamorphosis + stat buffs (Growth / Bloodlust)
+  Metamorphosis transforms the unit every N turns. Buffs accumulated before
+  transformation (from Growth or Bloodlust) carry into the transformed form,
+  so the transformation fires from a stronger baseline. The window before
+  transformation is therefore worth spending resources on the unit.
+
+▸ DoubleTeam + Healer
+  Two units in a lane; the Healer restores the more-damaged one each turn.
+  Raw attrition advantage — opponents need to kill two bodies rather than one,
+  and both stay healthier. Low ceiling but reliable incremental value.
+
+▸ Burn / Poison (status) aimed at your own Polish unit
+  If your opponent's Burn or Poison ticks hit a Polish unit you control, Polish
+  triggers on each damage event and converts enemy status damage into permanent
+  stat gains. Punishes status-heavy archetypes (DoT, Attrition) that try to
+  grind your board.
+
+▸ Strike Through + high attack
+  Strike Through damages the blocker AND the leader simultaneously with the full
+  attack value. High attack means both the blocker AND the leader take meaningful
+  damage. Without high attack the leader ping is negligible; with it, Strike
+  Through becomes a reliable face-clock on top of normal combat.
+
+
+════════════════════════════════
+THREE-WAY COMBOS (all three needed)
+════════════════════════════════
+
+▸ Overshot + Double Strike + Battle Ready  [S-tier ceiling]
+  All three at once on a single body (via Combo foundation bond) is the
+  highest-damage single-turn play in the game. The unit arrives, attacks twice,
+  both hits bypass all blockers. Usually a game-ending swing.
+
+▸ Lethal + Double Strike + Splash Damage  [A-tier]
+  Double Strike attacks twice; each hit is Lethal; Splash covers three lanes.
+  Theoretically kills up to six units in one combat (three lanes × two swings),
+  clearing any board ever assembled.
+
+▸ Spike + Taunt + Tough  [A-tier]
+  Taunt pulls attacks in; Tough reduces damage taken; Spike fires at full value.
+  Attackers lose HP to Spike, deal reduced damage, and cannot kill it quickly.
+  Near-unkillable wall that punishes any attempt to engage.
+
+▸ Growth + Immunity + Taunt  [A-tier]
+  Immunity blocks removal; Taunt forces attacks in; Growth compounds each turn
+  the opponent fails to kill it. The opponent is stuck attacking into a growing
+  unit that cannot be removed by spells and must be killed by bodies — which is
+  exactly the pace Growth wins at.
+
+▸ Polish + Cinder Field + Bloodlust  [A-tier]
+  Cinder Field ticks 1/turn → Polish fires → stats grow. If the Polish unit also
+  has Bloodlust, each kill adds further stats on top. Two permanent-growth
+  engines running simultaneously on one body, one from the environment and one
+  from kills.

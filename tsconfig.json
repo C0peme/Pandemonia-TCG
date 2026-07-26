@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Strictness */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+
+    /* Path aliases (resolved relative to this tsconfig) */
+    "paths": {
+      "@engine/*": ["./src/engine/*"],
+      "@cards/*": ["./src/cards/*"],
+      "@ui/*": ["./src/ui/*"],
+      "@net/*": ["./src/net/*"],
+      "@adventure/*": ["./src/adventure/*"]
+    }
+  },
+  "include": ["src", "server", "vite.config.ts"]
+}
