@@ -263,3 +263,71 @@ Re-running the same sweep against the repriced table. Same methodology as the fi
 the numbers are directly comparable: if the corrections landed, the keywords that read +47.9,
 +38.9 and +33.3 should now read near zero. Anything still extreme is either under-corrected or
 compounding in a way the whole-deck probe overstates.
+
+**Result (IT5 convergence sweep).** Most keywords converged:
+battleReady +25.3 -> +3.1, airborne +11.8 -> +2.8, strikeThrough +9.4 -> +3.5,
+shield +8.7 -> +2.4, tough +12.8 -> +5.6, doubleStrike +23.6 -> +7.6,
+overshot +33.3 -> +12.5, splashDamage/spike now ~0.
+
+**Three did not, and they are the same three the methodology cannot measure properly:**
+
+- **growth +38.9** (was +47.9, at 3.5). But the META sim disagrees: at 3.5 Snowball sits at 51%,
+  and at 6.3 it collapsed to 34%. Growth applied to ~15 bodies compounds in a way one card
+  never does, so the whole-deck probe massively over-reads it. **Trusting the meta sim here.**
+- **branchShot +23.6** — same compounding shape (multi-target scales with board width).
+- **taunt -10.4 despite being priced at 0.2**, nearly free. Giving every small body Taunt forces
+  them all to be attacked, which is actively bad. Taunt is good on a big wall and terrible on
+  fifteen small ones — its value is context-dependent, not a price the table can express.
+
+**Stopping keyword tuning here.** For context-independent keywords the table has converged. The
+remaining three are artifacts of converting a whole deck at once, and chasing them with this
+tool would make the real meta worse — growth already demonstrated exactly that.
+
+---
+
+## Iteration 6 — final curve nudge (KEPT)
+
+**Change.** `STAT_R_ATK` 1.22 -> **1.26**, `STAT_R_HP` 1.30 -> **1.35**. VALUE_SCALE stays 1.09.
+
+**Result.** Combo 64, Ramp 60, Stall 53, Lane Control 53, Guardian 53, Attrition 53,
+Snowball 52, Swarm 50, DoT 48, Aggro 47, Midrange 44, Control 44, Deck Out 28.
+
+| config | spread | SD | within +-7 | found-corr | top |
+|---|---|---|---|---|---|
+| IT4 (1.22/1.30) | 28-65 | 8.8 | 10/13 | 0.58 | 65 |
+| **IT6 (1.26/1.35)** | **28-64** | **8.3** | 10/13 | 0.64 | **64** |
+
+Marginal but real: field SD 8.8 -> 8.3, top deck 65 -> 64. Foundation correlation ticks up
+slightly (0.58 -> 0.64), which is the acceptable side of the trade. Kept.
+
+---
+
+## FINAL STATE
+
+Starting point (pre-overnight) -> final (IT6):
+
+| measure | before | after |
+|---|---|---|
+| field SD | 11.1 | **8.3** |
+| spread | 28-73 | **28-64** |
+| top deck | Combo 73 | **Combo 64** |
+| decks within +-7 of even | 9/13 | **10/13** |
+| correlation(foundations, win rate) | 0.83 | 0.64 |
+
+Eight decks now sit between 44 and 53. The two remaining outliers are Combo 64 / Ramp 60 at
+the top and Deck Out 28 at the floor (accepted as a gimmick deck).
+
+### Formula changes that stuck
+
+- Stat curve 0.28/1.30/1.40 -> **0.29/1.26/1.35** (stats-per-energy spread 3.71x -> ~3.0x)
+- `VALUE_SCALE` 1.20 -> **1.09**, recalibrated twice to hold the pool price level at ~617
+- Foundation half-stat carryover: derived universally in registry.ts, and PRICED
+- Foundation grant discount (1.5) removed; foundation pip surcharge kept at +1
+- Environment `grantKeywords` multiplier **2.5 -> 1.0** (the grant is symmetric)
+- 16 keyword prices repriced from measured field data
+
+### Tooling left behind
+
+`.tuning/keywordField.ts` (field-based keyword probe, validated NO-OP = 0.0),
+`.tuning/measure.ts`, `.tuning/keywordSweep.test.ts.off` (rename to .ts under src/ to re-run).
+The sweep is deliberately parked outside src/ so `npm test` stays fast.

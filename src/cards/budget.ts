@@ -49,8 +49,8 @@ const statCost = (s: { attack?: number; hp?: number } | undefined | null): numbe
 // between the original 3.71x stats-per-energy spread and that 1.78x — about 2.86x, a real
 // premium for going tall without pricing big bodies out of the game.
 const STAT_BASE  = 0.29;
-const STAT_R_ATK = 1.22;
-const STAT_R_HP  = 1.30;
+const STAT_R_ATK = 1.26;
+const STAT_R_HP  = 1.35;
 
 /** Kept as a named constant so the old stats↔abilities fudge can be reintroduced in one place. */
 const ABILITY_FACTOR = 1.0;
