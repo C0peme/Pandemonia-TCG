@@ -55,7 +55,7 @@ export const ABILITY_INFO: Record<keyof Keywords, AbilityInfo> = {
   growth: { name: 'Growth', icon: '↥', describe: () => 'Gains stats at the end of each turn.' },
   brittle: { name: 'Brittle', icon: '✘', describe: () => 'Attacks once, then destroys itself.' },
   aquatic: { name: 'Aquatic', icon: '≈', describe: (v) => Array.isArray(v) && v.length ? `Triggers effects on entering the Water lane (forfeited if Airborne).` : 'Can be placed in the Water lane.' },
-  producer: { name: 'Producer', icon: '⌁', describe: (v) => `Banks ${n(obj(v).amount)} ${String(obj(v).element ?? '')} energy each turn.` },
+  producer: { name: 'Producer', icon: '⌁', describe: (v) => `Produces ${n(obj(v).amount)} energy each turn.` },
   metamorphosis: { name: 'Metamorphosis', icon: '⧖', describe: (v) => `Transforms every ${n(obj(v).everyTurns)} turns.` },
   smelt: { name: 'Smelt', icon: '⚒', describe: (v) => `Loses ${n(obj(v).hpCost)} HP each turn in exchange for an effect.` },
 };

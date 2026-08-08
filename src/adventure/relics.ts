@@ -193,12 +193,34 @@ export const applyDeckBuffs = (registry: Registry, deck: OwnedCard[], mods: Aggr
   });
 };
 
-/** 3 distinct unowned relics of a rarity band, seeded. Falls back across bands if short. */
+/** Rarity bands, weakest first — the order fallback descends through. */
+const RARITY_ORDER: RelicRarity[] = ['common', 'rare', 'boss'];
+
+/**
+ * 3 distinct unowned relics of a rarity band, seeded. Falls back across bands if short.
+ *
+ * Fallback goes DOWNWARD first (rarer bands are the last resort), so exhausting the
+ * common pool at a Trial can no longer hand out a boss-band relic — the band is what
+ * makes a boss reward feel like one, and padding indiscriminately undermined exactly
+ * the pacing it was meant to protect. Upward fallback still exists as the final tier so
+ * the caller is always offered `count` choices when that many unowned relics remain.
+ */
 export const rollRelicChoices = (seed: number, bands: RelicRarity[], owned: readonly string[], count = 3): string[] => {
   const roll = makeRoller(seed);
   const ownedSet = new Set(owned);
-  const inBand = RELICS.filter((r) => bands.includes(r.rarity) && !ownedSet.has(r.id));
-  const rest = RELICS.filter((r) => !bands.includes(r.rarity) && !ownedSet.has(r.id));
-  const picks = [...roll.shuffle(inBand), ...roll.shuffle(rest)].slice(0, count);
+  const available = RELICS.filter((r) => !ownedSet.has(r.id));
+  const highest = Math.max(...bands.map((b) => RARITY_ORDER.indexOf(b)));
+  const rank = (r: (typeof RELICS)[number]): number => RARITY_ORDER.indexOf(r.rarity);
+
+  const inBand = available.filter((r) => bands.includes(r.rarity));
+  const spare = available.filter((r) => !bands.includes(r.rarity));
+  // Descend one band at a time (rarest of the lower bands first), shuffling WITHIN each
+  // band so the fallback still varies by seed rather than always naming the same relic.
+  const below = [...RARITY_ORDER].reverse()
+    .filter((b) => RARITY_ORDER.indexOf(b) < highest)
+    .flatMap((b) => roll.shuffle(spare.filter((r) => r.rarity === b)));
+  const above = roll.shuffle(spare.filter((r) => rank(r) > highest));
+
+  const picks = [...roll.shuffle(inBand), ...below, ...above].slice(0, count);
   return picks.map((r) => r.id);
 };

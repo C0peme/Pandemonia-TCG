@@ -107,7 +107,7 @@ describe('chooseAction — engine valuation', () => {
     const s = blankState({ round: 3 });
     s.players[0].energy = 1;
     s.players[0].hand = [{ iid: 'h0', cardId: 'firebolt' }]; // 3 damage — kills either 0/3 body
-    const producer = unit({ owner: 1, attack: 0, hp: 3, cardId: 'kiln', keywords: { producer: { amount: 1, element: 'fire' } } });
+    const producer = unit({ owner: 1, attack: 0, hp: 3, cardId: 'kiln', keywords: { producer: { amount: 1 } } });
     const vanilla = unit({ owner: 1, attack: 0, hp: 3 });
     place(s, 1, 'ground1', producer);
     place(s, 1, 'ground2', vanilla);

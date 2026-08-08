@@ -61,8 +61,8 @@ describe('boss heroPowerOverride', () => {
     const baseLeader = base.leaders.get('cleath')!;
     const overridden = boss.heroPowerOverride!(structuredClone(baseLeader.heroPower));
     const buffEffect = overridden.effects.find((e) => e.kind === 'buff')!;
-    expect(buffEffect.stat).toEqual({ attack: 1, hp: 1 });
-    expect(baseLeader.heroPower.effects.find((e) => e.kind === 'buff')!.stat).toEqual({ hp: 1 }); // untouched
+    expect(buffEffect.stat).toEqual({ attack: 1, hp: 2 });
+    expect(baseLeader.heroPower.effects.find((e) => e.kind === 'buff')!.stat).toEqual({ hp: 2 }); // untouched
   });
 
   it("Autopus's Fallback Code summons a Techtacle instead of a Mechanical Failure", () => {

@@ -4,7 +4,7 @@ import { applyAction } from '@engine/engine';
 import { chooseAction } from '@engine/ai';
 import { resolveCombatByLane, type LaneCombatStep } from '@engine/combat';
 import { resolveEndOfTurn } from '@engine/endOfTurn';
-import type { Action, LanePosition, TargetRef } from '@engine/actions';
+import type { Action, DebugKeyword, LanePosition, TargetRef } from '@engine/actions';
 import { LANES, type Element, type LaneId } from '@engine/constants';
 import { canAfford } from '@engine/energy';
 import type { GameEvent } from '@engine/events';
@@ -66,8 +66,15 @@ export type CombatPhase = 'skip' | 'effects' | 'attack' | 'retaliate' | 'onhit';
 /** The lane currently highlighted during the combat-phase animation, and which sub-step. */
 export interface CombatAnim { lane: LaneId; phase: CombatPhase }
 
-/** Sandbox "brush": clicking a board unit applies this status (or removes the unit). */
-export type SandboxBrush = 'burn' | 'poison' | 'sleep' | 'freeze' | 'drowning' | 'clear' | 'remove';
+/**
+ * Sandbox "brush": what a click on a board unit does. A tagged union so the palette can grow
+ * (statuses, keyword grants, stat nudges) without the call sites guessing at string prefixes.
+ */
+export type SandboxBrush =
+  | { kind: 'status'; status: 'burn' | 'poison' | 'sleep' | 'freeze' | 'drowning' | 'shield' | 'clear' }
+  | { kind: 'keyword'; keyword: DebugKeyword }
+  | { kind: 'stat'; stat: 'attack' | 'hp'; delta: number }
+  | { kind: 'remove' };
 /** Sandbox tool state — where injected units are placed, and which brush is armed. */
 export interface SandboxState {
   /** Which side new units are placed on, relative to the player in control. */
@@ -502,14 +509,22 @@ export const useGame = (opts: UseGameOptions = {}) => {
     }
   };
 
-  /** Apply the armed brush to a board unit (status, clear, or remove). */
+  /** Apply the armed brush to a board unit (status, keyword, stat nudge, or remove). */
   const applyBrush = (iid: string): void => {
-    if (!sandbox.brush) return;
-    if (sandbox.brush === 'remove') dispatch({ type: 'debugRemoveUnit', iid });
-    else dispatch({ type: 'debugApplyStatus', iid, status: sandbox.brush });
+    const b = sandbox.brush;
+    if (!b) return;
+    if (b.kind === 'remove') dispatch({ type: 'debugRemoveUnit', iid });
+    else if (b.kind === 'status') dispatch({ type: 'debugApplyStatus', iid, status: b.status });
+    else if (b.kind === 'keyword') dispatch({ type: 'debugToggleKeyword', iid, keyword: b.keyword });
+    else dispatch({ type: 'debugAdjustStat', iid, stat: b.stat, delta: b.delta });
   };
 
   const clearBoard = (): void => { dispatch({ type: 'debugClearBoard' }); };
+
+  /** Sandbox: set either leader's HP — for testing the Signature threshold, lethal and game over. */
+  const setLeaderHp = (side: 'me' | 'foe', hp: number): void => {
+    dispatch({ type: 'debugSetLeaderHp', player: side === 'me' ? game.active : opponentOf(game.active), hp });
+  };
 
   /** Can this hand card currently be dragged? */
   const canDrag = (iid: string): boolean => {
@@ -953,5 +968,6 @@ export const useGame = (opts: UseGameOptions = {}) => {
     setSandbox,
     debugInject,
     clearBoard,
+    setLeaderHp,
   };
 };

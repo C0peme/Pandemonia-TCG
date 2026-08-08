@@ -86,9 +86,24 @@ export const sellPrice = (card: Card, owned: OwnedCard, leaderElement: Element, 
   return Math.max(ECON.SELL_MIN, round5(raw * (mods?.storeSellMult ?? 1)));
 };
 
-/** Cards a store never stocks: system cards, signatures, unfinished mechanics. */
+/**
+ * Cards a store never stocks: system cards, signatures, unfinished mechanics, and
+ * TOKENS.
+ *
+ * The `token` tag is the authoritative marker and the one new content should use — the
+ * id-pattern checks below are kept only for legacy ids. Relying on patterns alone let
+ * three summon/curse tokens (`critter-elite`, `cult-follower`, `dead-weight`) leak into
+ * shops, reward picks and Rest Site offers, where they were priced as if they were real
+ * cards despite never having been costed as ones. This pool feeds every "give the player
+ * a card" path, so anything not meant for a player's deck must be tagged.
+ */
 const storeStockable = (card: Card): boolean =>
-  !card.id.startsWith('__') && !card.id.startsWith('sig-') && !card.id.endsWith('-token') && !card.tags.includes('signature') && !card.wip;
+  !card.id.startsWith('__') &&
+  !card.id.startsWith('sig-') &&
+  !card.id.endsWith('-token') &&
+  !card.tags.includes('token') &&
+  !card.tags.includes('signature') &&
+  !card.wip;
 
 /**
  * Roll a store's stock: STORE_SLOTS distinct card ids, half biased to the leader's
@@ -110,20 +125,6 @@ export const rollStoreOffer = (registry: Registry, seed: number, leaderElement: 
   take(matched, Math.floor(slots / 2));
   take(anyPool, slots);
   return picks;
-};
-
-/**
- * Roll the card a Reforge service turns `card` into: a different card in a similar
- * total-cost band, seeded. Same stockable pool as the store.
- */
-export const rollReforge = (registry: Registry, seed: number, fromCardId: string): string => {
-  const roll = makeRoller(subSeed(seed, 'reforge', fromCardId));
-  const cost = (c: Card): number => c.cost.energy + (c.cost.elements ?? []).reduce((s, e) => s + e.amount, 0);
-  const from = registry.cards.get(fromCardId);
-  const target = from ? cost(from) : 3;
-  const pool = [...registry.cards.values()].filter((c) => storeStockable(c) && c.id !== fromCardId);
-  const band = pool.filter((c) => Math.abs(cost(c) - target) <= 1);
-  return roll.pick(band.length > 0 ? band : pool).id;
 };
 
 /**

@@ -42,7 +42,7 @@ describe('a Foundation that grants water compatibility', () => {
     reconcileDrowning(u, 'water');
     u.foundation = applyFoundation(u, foundation('roost-nest'), 'f1', 'water');
     expect(u.status.drowning).toBeUndefined();
-    expect(u.attack).toBe(2);
+    expect(u.attack).toBe(3); // 2 base + 1 from Roost Nest's half-stat grant (it is 2/3)
   });
 
   it('destroying it re-drowns a host that was only afloat on the grant', () => {
@@ -72,7 +72,7 @@ describe('a Foundation that grants water compatibility', () => {
     const u = unit({ owner: 0, attack: 3, hp: 5 });
     u.foundation = applyFoundation(u, foundation('tidal-dock'), 'f1', 'ground1');
     expect(u.status.drowning).toBeUndefined();
-    expect(u.attack).toBe(3);
+    expect(u.attack).toBe(4); // 3 base + 1 from Tidal Dock's half-stat grant (it is 2/3)
   });
 });
 

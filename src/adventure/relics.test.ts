@@ -253,4 +253,30 @@ describe('rollRelicChoices', () => {
     const choices = rollRelicChoices(3, ['common'], allCommon); // no commons left
     expect(choices.length).toBe(3); // filled from other bands
   });
+
+  // Regression: the fallback used to pad from EVERY other band indiscriminately, so a
+  // Trial asking for ['common','rare'] could hand out a boss-band relic — the band is
+  // what makes a boss reward feel like one.
+  it('exhausts lower bands before ever reaching into a higher one', () => {
+    const commonsAndRares = RELICS.filter((r) => r.rarity !== 'boss');
+    const bossIds = RELICS.filter((r) => r.rarity === 'boss').map((r) => r.id);
+    expect(bossIds.length).toBeGreaterThan(0);
+
+    // Own every rare: a ['rare'] request must fall DOWN to commons, not up to boss.
+    const ownedRares = RELICS.filter((r) => r.rarity === 'rare').map((r) => r.id);
+    for (let seed = 0; seed < 50; seed++) {
+      for (const id of rollRelicChoices(seed, ['rare'], ownedRares)) expect(bossIds).not.toContain(id);
+    }
+
+    // Only once nothing lower remains may it reach up.
+    const nothingLower = commonsAndRares.map((r) => r.id);
+    expect(rollRelicChoices(1, ['rare'], nothingLower).length).toBeGreaterThan(0);
+  });
+
+  it('still returns in-band choices when the band is plentiful', () => {
+    const byId = new Map(RELICS.map((r) => [r.id, r]));
+    for (let seed = 0; seed < 50; seed++) {
+      for (const id of rollRelicChoices(seed, ['common'], [])) expect(byId.get(id)!.rarity).toBe('common');
+    }
+  });
 });

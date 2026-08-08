@@ -100,13 +100,13 @@ describe('review fixes', () => {
 
     const support = parseCard({
       id: 'm3', name: 'M3', type: 'unit', element: 'fire', cost: { energy: 1 }, attack: 1, hp: 1,
-      keywords: { healer: { amount: 2, target: 'leader', trigger: 'endOfTurn' }, producer: { amount: 1, element: 'fire' } },
+      keywords: { healer: { amount: 2, target: 'leader', trigger: 'endOfTurn' }, producer: { amount: 1 } },
     });
     const ex3 = expandKeywordEffects(support);
     if (ex3.type !== 'unit') throw new Error('unit');
     expect(ex3.keywords.healer).toBeUndefined();
     expect(ex3.keywords.producer).toBeUndefined();
     expect(ex3.endOfTurn?.some((e) => e.kind === 'heal')).toBe(true);
-    expect(ex3.endOfTurn?.some((e) => e.kind === 'energy')).toBe(true);
+    expect(ex3.endOfTurn?.some((e) => e.kind === 'energyNext')).toBe(true);
   });
 });

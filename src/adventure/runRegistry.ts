@@ -68,6 +68,12 @@ export interface RunRegistryOpts {
    * never mutate the input, which may be shared with the base registry.
    */
   enemyHeroPowerOverride?: (hp: HeroPower) => HeroPower;
+  /**
+   * Extra leader definitions to seat in this registry — for encounters whose opponent is
+   * not a clone of an authored leader at all (the Copper Mech). Distinct from the
+   * `enemyLeaderId`/`enemyLeaderHp` path above, which re-HPs an EXISTING leader.
+   */
+  extraLeaders?: Leader[];
 }
 
 export const buildRunRegistry = (base: Registry, opts: RunRegistryOpts): Registry => {
@@ -107,6 +113,10 @@ export const buildRunRegistry = (base: Registry, opts: RunRegistryOpts): Registr
     const def = ownedCardDef({ cards, leaders }, owned);
     if (def) cards.set(def.id, def);
   }
+
+  // Synthetic leaders (Copper Mech). Seated before the enemy clone and the player's
+  // upgrades so neither path can be confused by them.
+  for (const leader of opts.extraLeaders ?? []) leaders.set(leader.id, leader);
 
   // Enemy leader at reduced/boosted HP, cloned so the player's own copy of the same
   // leader keeps its full HP. Built from the UNMODIFIED def before the player

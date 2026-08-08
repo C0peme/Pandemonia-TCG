@@ -2,6 +2,7 @@ import type { NodeKind, RunState } from '@adventure/schema';
 import { reachableNodeIds } from '@adventure/run';
 import { trialById } from '@adventure/trials';
 import { bossForAct } from '@adventure/data/bosses';
+import { COPPER_MECH_HP, COPPER_MECH_ICON, COPPER_MECH_NAME } from '@adventure/data/copperMech';
 import * as adv from '@adventure/store';
 
 const KIND_ICON: Record<NodeKind, string> = {
@@ -95,6 +96,50 @@ export function MapView({ run }: { run: RunState }) {
           ? 'Choose where to begin — any node on the bottom row.'
           : 'Follow the paths upward. The boss waits at the top.'}
       </p>
+      <CopperMechGate run={run} />
+    </div>
+  );
+}
+
+/**
+ * The always-available endgame challenge, anchored below the map rather than placed on
+ * it: the Copper Mech is not a node and belongs to no act, and it is reachable from the
+ * map at any time no matter where you stand.
+ */
+function CopperMechGate({ run }: { run: RunState }) {
+  const best = run.copperBest;
+  const pct = Math.round((best / COPPER_MECH_HP) * 100);
+  return (
+    <div className={run.adventureWon ? 'advcopper advcopper--won' : 'advcopper'}>
+      <div className="advcopper__head">
+        <span className="advcopper__icon">{COPPER_MECH_ICON}</span>
+        <div className="advcopper__title">
+          <strong>{COPPER_MECH_NAME}</strong>
+          <span className="muted">
+            {run.adventureWon
+              ? 'Destroyed. The Adventure is won — but it still stands, if you want a cleaner run.'
+              : `${COPPER_MECH_HP} HP · every element capped · the whole card pool · a new signature every round.`}
+          </span>
+        </div>
+      </div>
+      <p className="muted advcopper__blurb">
+        It is not a fair fight, and it is not meant to be. Deal as much damage as you can —
+        losing costs you nothing but the attempt, and your best score is kept. Destroy it and
+        you win the Adventure.
+      </p>
+      <div className="advcopper__foot">
+        {best > 0 ? (
+          <span className="advcopper__best" title={`${best} of ${COPPER_MECH_HP} damage`}>
+            ★ Best: {best} / {COPPER_MECH_HP} ({pct}%)
+            <span className="advcopper__bar"><span className="advcopper__fill" style={{ width: `${pct}%` }} /></span>
+          </span>
+        ) : (
+          <span className="muted">No attempt yet.</span>
+        )}
+        <button className="btn-end advcopper__go" onClick={() => adv.startCopperMech()}>
+          {COPPER_MECH_ICON} {best > 0 ? 'Challenge it again' : 'Challenge the Copper Mech'} →
+        </button>
+      </div>
     </div>
   );
 }

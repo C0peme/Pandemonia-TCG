@@ -47,13 +47,24 @@ export interface MatchResult {
   draws: number;
 }
 
-/** Total games a `playMatch` over these decks/seeds will run (both first-player assignments). */
-export const matchSize = (decks: Deck[], seeds: number[]): number => decks.length * seeds.length * 2;
+/**
+ * Total games a `playMatch` over these decks/seeds will run: every pairing × seed ×
+ * both first-player assignments × both DECK assignments.
+ */
+export const matchSize = (decks: Deck[], seeds: number[]): number => decks.length * seeds.length * 4;
 
 /**
  * A match between weight set A and weight set B: every deck paired with the next deck in the
- * list (varied archetype matchups), each seed, and BOTH first-player assignments to cancel
- * the first-move advantage. Returns A's and B's win counts.
+ * list (varied archetype matchups), each seed, and both first-player assignments to cancel the
+ * first-move advantage.
+ *
+ * It ALSO plays each pairing with the deck assignment swapped, which is what makes the result
+ * about the weights at all. `playGame` seats weight set A on `aSide`, and `aSide` always holds
+ * the first deck argument — so without this swap, A permanently played `deckA` and B played
+ * `deckB`, and the score just measured which of the two decks was stronger. That bias is large:
+ * with IDENTICAL weights on both sides, this harness returned 31%, 46% and 56% for side A on
+ * three different seed sets — swamping any real difference a candidate weight set could show,
+ * and silently making the tuner's accept/reject margin meaningless.
  */
 export const playMatch = (
   registry: Registry,
@@ -66,14 +77,17 @@ export const playMatch = (
   let b = 0;
   let draws = 0;
   for (let i = 0; i < decks.length; i++) {
-    const deckA = decks[i]!;
-    const deckB = decks[(i + 1) % decks.length]!;
-    for (const seed of seeds) {
-      for (const aSide of [0, 1] as PlayerId[]) {
-        const r = playGame(registry, deckA, deckB, wA, wB, seed, aSide);
-        if (r === 'A') a += 1;
-        else if (r === 'B') b += 1;
-        else draws += 1;
+    const first = decks[i]!;
+    const second = decks[(i + 1) % decks.length]!;
+    // [deck A plays, deck B plays] — both ways round, so deck strength cancels exactly.
+    for (const [deckForA, deckForB] of [[first, second], [second, first]] as [Deck, Deck][]) {
+      for (const seed of seeds) {
+        for (const aSide of [0, 1] as PlayerId[]) {
+          const r = playGame(registry, deckForA, deckForB, wA, wB, seed, aSide);
+          if (r === 'A') a += 1;
+          else if (r === 'B') b += 1;
+          else draws += 1;
+        }
       }
     }
   }

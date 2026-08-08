@@ -126,6 +126,27 @@ describe('applyTrialToState', () => {
     applyTrialToState(base, state, twist);
     expect(state.players[0].lanes.water.front?.status.drowning).toBe(true);
   });
+
+  // Regression: fixedUnits used to derive water compatibility inline from the card's own
+  // aquatic/airborne keywords, which ignored Environment grants entirely — so a composite
+  // twist that opens the Water with Shallows still drowned the units it placed there.
+  // Routing through refreshEnvironmentGrants + reconcileDrowning is what fixes it.
+  it('fixedUnits does NOT drown a unit whose lane a composite twist opened with Shallows', () => {
+    const twist: TrialTwist = {
+      id: 'x', name: 'X', blurb: '', kind: 'composite',
+      twists: [
+        { id: 'x-env', name: 'X', blurb: '', kind: 'fixedEnvironments', places: [{ lane: 'water', cardId: 'shallows' }] },
+        { id: 'x-units', name: 'X', blurb: '', kind: 'fixedUnits', cardId: 'coal-runner', lanes: ['water'], sides: [0] },
+      ],
+    };
+    const state = initGame({ registry: base, decks, seed: 1 });
+    applyTrialToState(base, state, twist);
+    const unit = state.players[0].lanes.water.front;
+    expect(unit?.cardId).toBe('coal-runner');
+    expect(unit?.status.drowning).toBeFalsy();
+    // ...and its real attack is intact rather than parked in predrownAttack.
+    expect(unit!.attack).toBeGreaterThan(0);
+  });
 });
 
 describe('boss-ignorance-is-bliss (cult-follower, end-to-end)', () => {

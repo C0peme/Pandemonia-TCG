@@ -106,9 +106,38 @@ Foundations are placed standalone in a lane and bond with the next unit placed t
 The bonded unit receives grants for as long as they are stacked. Grants are full
 value-transfer — the host runs them through normal engine machinery.
 
+STAT CARRYOVER IS AUTOMATIC. Do NOT author `grants.stat` — every Foundation passes on HALF
+its own printed stats, rounded down, and registry.ts derives that at build time. A 2/4
+Foundation grants +1/+2; a 2/3 grants +1/+1. Authoring a stat grant is pointless: the rule
+overrides it. Custom foundations from the Card Studio inherit it automatically.
+
+COSTING: a Foundation is priced as its own body PLUS its granted KEYWORDS, both at full
+value. Two things are deliberately NOT charged:
+  - the half-stat carryover, because you already paid for those stats in the body, and it is
+    a partial refund on a downside (bonding sacrifices the body; only half survives) rather
+    than upside;
+  - nothing else — the old 1.5 "delayed upside" discount on the whole grant is gone. A meta
+    sim showed a deck built to bond reliably (8 foundations behind 22 units) realised the
+    grant nearly every time, so that was a second discount stacked on the ability-pip one.
+
+SURCHARGE: a Foundation then pays ONE EXTRA PIP on top. At exactly unit rates the plain unit
+became pointless — same body, same keywords, same price, except the Foundation also hands half
+its stats and all its keywords to a host. The extra pip is what it pays for being strictly more
+flexible.
+
+The surcharge is a genuine premium, not another energy->pip conversion: recommendedEnergy
+subtracts only the ability-derived pips, so the pip is added with no energy coming off.
+
+Net effect: a Foundation costs what a regular unit with the same body and keywords would,
+PLUS one element pip. You pay unit rates and a premium, then trade the body away to move the
+abilities onto a host.
+
 Note: expansion-only keywords (producer, healer, debuff, mover, expel) do NOT work
 as granted `keywords` entries. Grant their behaviour via trigger effects instead.
-Example: a producer grant = grants: { endOfTurn: [{ kind: 'energy', amount: 1, element: 'nature' }] }
+Example: a producer grant = grants: { endOfTurn: [{ kind: 'energyNext', amount: 1 }] }
+Use `energyNext` for any END-OF-TURN energy (it lands on your next turn; plain `energy`
+would be wiped by the turn reset). Plain `energy` is for immediate grants during your own
+turn, and with an `element` it banks that element instead.
 
 Battle Ready on bond: a unit placed on a foundation from a previous turn ignores
 summoning sickness and may attack immediately. Same-turn drops do not.
@@ -155,8 +184,15 @@ Kind reference:
   applyStatus  Apply `status`: burn (amount=stacks), poison (amount=level), sleep, freeze,
                shield (amount=stacks), trueShield, zombified, taunt.
   draw         Draw `amount` cards.
-  energy       Add `amount` energy. With `element`, banks that element. `chooseElement: true`
-               lets the player pick at cast time.
+  energy       Add `amount` energy NOW. With `element`, banks that element instead.
+               `chooseElement: true` lets the player pick at cast time. Only valid during
+               your own turn — see energyNext.
+  energyNext   Queue `amount` energy onto the recipient's NEXT turn (consumed there).
+               Use this for anything that fires at END of turn: beginTurn overwrites
+               `energy` with the round number, so plain `energy` would be discarded.
+  bankMax      Fill every one of the target's element banks to its cap. Takes no `amount`.
+               How much it is worth depends on the leader's elementCaps and what is already
+               banked, so it is strongest for a leader with wide caps and an empty bank.
   move         Move target unit to another lane.
   expel        Return target unit to its owner's hand.
   forget       Remove `amount` cards from the top of a player's deck.
@@ -229,8 +265,14 @@ Keywords are fields on the `keywords` object. Omit (do not set false) to leave i
                           Trigger: 'onPlay' | 'onAttack' | 'endOfTurn' | 'startOfTurn'
   growth: { attack?, hp? }
                           Gains these stats at end of each owner's turn.
-  producer: { amount, element }
-                          Banks `amount` of `element` at end of each owner's turn (cap-limited).
+  producer: { amount }
+                          Queues `amount` GENERIC energy onto the owner's NEXT turn. Generic,
+                          not element-specific: pips are value-gated (see PIP_STEP), so most
+                          cards cost no pips and elemental output had little left to buy.
+                          Generic energy is always spendable and ignores the element caps.
+                          It expands to an `energyNext` effect, NOT `energy`: beginTurn
+                          overwrites `energy` with the round number, so end-of-turn energy
+                          added to the current pool would be silently discarded.
   metamorphosis: { everyTurns, into?, gains? }
                           After `everyTurns` turns, transforms into card `into` or gains `gains`.
   bloodlust: { buff?, effects? }
@@ -449,6 +491,47 @@ premium on top of the ×0.8 ability factor (base × 1.5 × 0.8):
   2 same-element pips   — accessible to most; some struggle
   3 same-element pips   — restricted to leaders with a high cap; contains the strongest cards
   4 same-element pips   — core payoff for a specific archetype
+
+--- HOW MANY PIPS? (ONE PER ABILITY) ---
+
+Do NOT hand-pick a cost. Both halves come from src/cards/budget.ts:
+
+  pips   = abilityCount, capped at 4 and at the card own rounded value
+  energy = round(value) - pips
+
+Each ability converts ONE point of cost out of generic energy and into an element pip.
+Nominally that is the same total cost, but it is cheaper in practice: a pip is paid from
+end-of-turn overflow that would otherwise evaporate, while generic energy competes with
+everything else you want to do this turn.
+
+That conversion is the whole reason ability cards can compete with vanilla stat-sticks.
+It replaced an older fudge where printed stats were taxed (STAT_BASE 0.38) and abilities
+discounted (ABILITY_FACTOR 0.8) so the two errors would cancel. Both are now honest
+(0.28 and 1.0) and the advantage is structural instead.
+
+It also gives elements a job. A vanilla body is pure energy and always castable; an ability
+card commits you to an element, so a leader elementCaps decide which ability cards their
+deck can support, and banking has a reason to exist.
+
+WHAT COUNTS AS AN ABILITY: anything that ADDS value - each value-positive keyword, each
+on-hit status, each trigger effect, each environment effect, and a foundation grants.
+A pure downside does NOT count (Brittle earns no pip). Stats are not abilities. Aquatic:true
+is a lane permission, not an ability; aquatic with effects is.
+
+EVERY type is included, spells among them. There is NO floor on the generic half either: an
+ability-dense card can convert its cost away entirely and print as 0 energy + N pips. That is
+safe because pips FALL BACK to generic energy - a 0-energy/2-pip card still costs 2 to a
+player who never banked the element, so it is free only to one who committed to it. Note that
+a 0-energy card cannot receive an Adventure cost-reduction enhancement (nothing left to cut).
+
+PAYING AN ELEMENT COST: pips draw from that element bank FIRST, and any shortfall is charged
+to generic energy at 1:1. So a pip is a DISCOUNT, never a gate - an ability card is cheaper
+when you have committed to its element and costs full face value when you have not. No card
+in hand is ever uncastable for want of the right bank.
+
+VALUE_SCALE (1.20) pins the pool absolute price level so removing the old fudges did not
+make every card cheaper. It is not a balance knob - scaling every card together changes no
+card cost relative to any other. Retune it only to move the game overall pace.
 
 --- WORKED EXAMPLE ---
 

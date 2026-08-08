@@ -85,7 +85,7 @@ describe('applyHeroUpgrades', () => {
 
   it('Cleath — The Architect adds attack alongside the existing HP buff', () => {
     const up = applyHeroUpgrades(leader('cleath'), [{ kind: 'unique' }]);
-    expect(up.heroPower.effects.find((e) => e.kind === 'buff')?.stat).toEqual({ hp: 1, attack: 1 });
+    expect(up.heroPower.effects.find((e) => e.kind === 'buff')?.stat).toEqual({ hp: 2, attack: 1 });
   });
 
   it('Noctua — Curse Bound keeps Growth and adds Zombified', () => {

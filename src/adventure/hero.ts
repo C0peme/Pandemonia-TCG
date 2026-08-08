@@ -1,9 +1,11 @@
 /**
- * Leader progression: the permanent upgrades a run buys at Rest Sites.
+ * Leader progression: a run's permanent leader upgrades.
  *
  * Two kinds (see `heroUpgradeSchema`):
  *  - `unique`   — the leader's own hand-authored upgrade, one per leader, one-time.
+ *                 AWARDED by the act 1 boss, not bought.
  *  - `attune`   — +1 to one element's banking cap, repeatable, available to everyone.
+ *                 Bought at Enhance nodes (not Rest Sites).
  *
  * Most uniques are a pure transform of the hero power, so they take effect for play
  * AND the AI with no engine change: the engine resolves hero powers from the registry
@@ -97,8 +99,8 @@ export const LEADER_UPGRADES: Record<string, LeaderUpgrade> = {
   corpselock: {
     name: 'Metastasis',
     icon: '🦠',
-    desc: 'Cancerous Growth banks a second element too.',
-    power: also({ kind: 'energy', amount: 2, chooseElement: true }),
+    desc: 'Cancerous Growth queues 3 energy instead of 2 — turning a break-even carry into a profit.',
+    power: also({ kind: 'energyNext', amount: 1 }),
   },
   // The bartender drinks with the house.
   johnpork: {
@@ -193,8 +195,12 @@ export const applyHeroUpgrades = (leader: Leader, upgrades: readonly HeroUpgrade
  * delivered to hand when the leader crosses the Signature threshold.
  *
  * NOTE: the per-leader effects are not yet authored — this is the delivery framework.
- * Add entries here (same shape as LEADER_UPGRADES) and they take effect immediately;
- * a leader with no entry simply keeps their base signature.
+ * Add entries here (same shape as LEADER_UPGRADES) and they take effect immediately.
+ *
+ * A leader with NO entry is not offered the unlock at all: `bossUnlock` (run.ts) reads
+ * this table, so the act 2 boss grants that leader a bonus relic instead of a reward
+ * screen promising an empowered Signature that does nothing. Authoring an entry here is
+ * the only step needed to turn the real unlock back on for that leader.
  */
 export interface SignatureUpgrade {
   name: string;

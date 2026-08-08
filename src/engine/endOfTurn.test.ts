@@ -31,12 +31,16 @@ describe('end-of-turn effects', () => {
     expect(u.hp).toBe(4);
   });
 
-  it('Producer banks element energy, capped at the per-element cap', () => {
-    const s = blankState(); // default fire cap is 2
-    place(s, 0, 'ground1', unit({ owner: 0, keywords: { producer: { amount: 2, element: 'fire' } } }));
-    s.players[0].bank.fire = 1; // cap 2, room for only 1 more
+  it('Producer queues generic energy for next turn, untouched by the per-element caps', () => {
+    const s = blankState();
+    place(s, 0, 'ground1', unit({ owner: 0, keywords: { producer: { amount: 2 } } }));
+    const before = s.players[0].energy;
+    s.players[0].bank.fire = 1; // fire is at cap 2 — irrelevant to a Producer now
     eot(s);
-    expect(s.players[0].bank.fire).toBe(2); // filled to cap, not 3
+    // Queued, not added to the current pool: beginTurn would overwrite `energy` anyway.
+    expect(s.players[0].energy).toBe(before);
+    expect(s.players[0].energyNext).toBe(2); // full output, never clipped by a cap
+    expect(s.players[0].bank.fire).toBe(1); // banks are not touched
   });
 
   it('Poison deals constant damage each turn and blocks stat gains', () => {

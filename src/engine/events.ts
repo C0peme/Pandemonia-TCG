@@ -30,6 +30,7 @@ export type GameEvent =
   | { t: 'burnTick'; iid: string; amount: number; hpAfter: number; victim?: PlayerId }
   | { t: 'growth'; iid: string; attack: number; hp: number }
   | { t: 'produce'; player: PlayerId; element: Element; amount: number }
+  | { t: 'energyNext'; player: PlayerId; amount: number; total: number }
   | { t: 'poisonTick'; iid: string; amount: number; hpAfter: number; victim?: PlayerId }
   | { t: 'drownTick'; iid: string; amount: number; hpAfter: number; victim?: PlayerId }
   | { t: 'spike'; attacker: string; defender: string; amount: number }
@@ -37,6 +38,8 @@ export type GameEvent =
   | { t: 'brittle'; iid: string }
   | { t: 'intercept'; by: string; kind: 'airborne' | 'taunt' }
   | { t: 'unitDestroyed'; iid: string; cardId: string }
+  /** A `turnDeckRaid` pulled cards from one pool into hand (Adventure endgame). */
+  | { t: 'deckRaid'; player: PlayerId; source: string; cardIds: string[] }
   | { t: 'signatureUnlocked'; player: PlayerId }
   | { t: 'signatureGranted'; player: PlayerId; cardId: string }
   | { t: 'bank'; player: PlayerId; element: Element; amount: number }

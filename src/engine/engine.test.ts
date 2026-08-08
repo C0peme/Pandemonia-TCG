@@ -214,21 +214,30 @@ describe('legalActions', () => {
   });
 });
 
-describe('endTurn banking + Producer', () => {
-  it('clamps banking instead of erroring when a Producer fills the element to its cap', () => {
-    // Regression: a Producer banks during resolveEndOfTurn, which runs BEFORE banking. If the
-    // banking choice plus the producer output exceeded the cap, endTurn used to ERROR — which
-    // left the turn un-ended and made the AI driver re-loop combat forever.
+describe('endTurn banking', () => {
+  it('clamps an over-cap banking choice instead of erroring', () => {
+    // Regression: an over-cap banking request used to ERROR, which left the turn un-ended and
+    // made the AI driver re-loop combat forever. Banking must clamp to what fits and hand off.
+    // (This was originally provoked via a Producer topping the element up first; Producers now
+    // add GENERIC energy and never touch a bank, so the overflow is set up directly.)
     const s = blankState();
-    s.players[0].energy = 2;
+    s.players[0].energy = 3;
     s.players[0].bank.fire = 1; // fire cap is 2 (default 2/2/2/2) → one slot left
-    place(s, 0, 'ground1', unit({ owner: 0, cardId: 'kiln', attack: 0, hp: 3, keywords: { producer: { amount: 1, element: 'fire' } } }));
 
-    // Round-1 first player → combat is skipped, but resolveEndOfTurn still fires the Producer
-    // (fire 1 → 2, the cap), then banking {fire:1} would overflow. It must clamp, not error.
-    const { state, events } = applyAction(testRegistry, s, { type: 'endTurn', bank: { fire: 1 } });
+    const { state, events } = applyAction(testRegistry, s, { type: 'endTurn', bank: { fire: 3 } });
     expect(events.some((e) => e.t === 'error')).toBe(false);
     expect(state.active).toBe(1); // the turn actually handed off
-    expect(state.players[0].bank.fire).toBe(2); // producer filled to cap; the banking added nothing
+    expect(state.players[0].bank.fire).toBe(2); // clamped to the cap, not 4
+  });
+
+  it('a Producer adds generic energy and leaves the banking choice intact', () => {
+    const s = blankState();
+    s.players[0].energy = 2;
+    s.players[0].bank.fire = 1;
+    place(s, 0, 'ground1', unit({ owner: 0, cardId: 'kiln', attack: 0, hp: 3, keywords: { producer: { amount: 1 } } }));
+
+    const { state, events } = applyAction(testRegistry, s, { type: 'endTurn', bank: { fire: 1 } });
+    expect(events.some((e) => e.t === 'error')).toBe(false);
+    expect(state.players[0].bank.fire).toBe(2); // the banking choice alone filled the cap
   });
 });

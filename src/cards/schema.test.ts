@@ -111,7 +111,7 @@ describe('buff-grant keyword contract', () => {
 
   it('rejects keywords that a bare keyword merge cannot wire up', () => {
     for (const kw of [
-      { producer: { amount: 1, element: 'nature' } }, // build-time expanded
+      { producer: { amount: 1 } }, // build-time expanded
       { healer: { amount: 1, target: 'ally', trigger: 'endOfTurn' } }, // build-time expanded
       { mover: { scope: 'enemy' } }, // build-time expanded
       { shield: 1 }, // live counter is unit.shield, seeded at creation
@@ -131,7 +131,7 @@ describe('buff-grant keyword contract', () => {
     expect(ok.success).toBe(true);
     const bad = cardSchema.safeParse({
       id: 'g', name: 'G', type: 'spell', element: 'nature', cost: { energy: 1 },
-      effects: [{ kind: 'buff', target: 'ally', keywords: { producer: { amount: 1, element: 'nature' } } }],
+      effects: [{ kind: 'buff', target: 'ally', keywords: { producer: { amount: 1 } } }],
     });
     expect(bad.success).toBe(false);
   });

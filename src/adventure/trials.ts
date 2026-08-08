@@ -23,6 +23,7 @@ import type { GameState, PlayerId } from '@engine/types';
 import { LANES, type LaneId } from '@engine/constants';
 import { refreshEnvironmentGrants } from '@engine/environment';
 import { createUnitInstance } from '@engine/board';
+import { reconcileDrowning } from '@engine/drowning';
 import { laneAllowed } from '@engine/engine';
 
 interface TwistBase {
@@ -130,9 +131,6 @@ export const TWISTS: TrialTwist[] = [
 /** Twists ordinary Trial/Elite nodes may roll (boss signatures excluded). */
 export const TRIAL_TWISTS: TrialTwist[] = TWISTS.filter((t) => !t.bossOnly);
 
-/** @deprecated kept as the rollable pool alias; prefer TRIAL_TWISTS. */
-export const TRIALS = TRIAL_TWISTS;
-
 export const trialById = (id: string): TrialTwist | undefined => TWISTS.find((t) => t.id === id);
 
 /**
@@ -166,8 +164,18 @@ export const applyTrialToState = (registry: Registry, state: GameState, twist: T
           const laneObj = state.players[side].lanes[lane];
           if (laneObj.front || laneObj.standaloneFoundation) continue; // don't clobber
           const iid = `fu${state.iidSeq++}`;
-          const drowning = lane === 'water' && !(def.keywords.aquatic || def.keywords.airborne);
-          laneObj.front = createUnitInstance(def, { iid, cardId: def.id }, side, drowning);
+          laneObj.front = createUnitInstance(def, { iid, cardId: def.id }, side, false);
+        }
+      }
+      // Environment grants first (a composite twist may have opened the Water with
+      // Shallows), THEN the shared drowning rule — rather than re-deriving water
+      // compatibility inline from `aquatic`/`airborne`, which is the duplication
+      // drowning.ts exists to prevent and would have ignored those grants entirely.
+      refreshEnvironmentGrants(registry, state);
+      for (const side of sides) {
+        for (const lane of lanes) {
+          const unit = state.players[side].lanes[lane].front;
+          if (unit) reconcileDrowning(unit, lane);
         }
       }
     }

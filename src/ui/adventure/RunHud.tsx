@@ -5,6 +5,7 @@ import { ELEMENT_SYMBOL } from '@ui/ElementRune';
 import type { RunState } from '@adventure/schema';
 import { ownedCardDef } from '@adventure/runRegistry';
 import { relicById } from '@adventure/data/relics';
+import { COPPER_MECH_HP, COPPER_MECH_ICON, COPPER_MECH_NAME } from '@adventure/data/copperMech';
 import * as adv from '@adventure/store';
 
 /** Persistent strip above every non-combat Adventure screen: act, coins, deck drawer. */
@@ -28,6 +29,12 @@ export function RunHud({ run, onDetail }: { run: RunState; onDetail: (d: Detail)
       {run.heroUpgrades.length > 0 && (
         <span className="advhud__stat" title={`Hero power upgraded ${run.heroUpgrades.length}×`}>↯×{run.heroUpgrades.length}</span>
       )}
+      {run.copperBest > 0 && (
+        <span className="advhud__stat" title={`Best damage dealt to ${COPPER_MECH_NAME}: ${run.copperBest} of ${COPPER_MECH_HP}.`}>
+          {COPPER_MECH_ICON} {run.copperBest}
+        </span>
+      )}
+      {run.adventureWon && <span className="advhud__stat advhud__stat--won" title="You destroyed the Copper Mech.">♛ VICTOR</span>}
       {run.relics.length > 0 && (
         <span className="advhud__relics">
           {run.relics.map((id) => {

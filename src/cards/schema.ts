@@ -138,6 +138,10 @@ export const effectSchema = z
       'conjure',
       'applyStatus',
       'energy',
+      /** Queue +N energy onto the target's NEXT turn only (Producers, Cancerous Growth). */
+      'energyNext',
+      /** Fill every one of the target's element banks to its cap (Corpselock's signature). */
+      'bankMax',
       'move',
       'expel',
       'forget',
@@ -250,8 +254,16 @@ export const keywordsSchema = z
 
     // --- Element exclusives ---
     aquatic: z.union([z.literal(true), z.array(effectSchema)]).optional(), // true = can use water; Effect[] = effects that fire on entering the Water lane (forfeited if also Airborne)
+    /**
+     * Producer banks GENERIC energy (spendable on anything), not element-specific energy.
+     * It used to produce a fixed element, which tied its value to how many cards actually
+     * demanded that element's pips — once pips became value-gated (`recommendedPips` in
+     * budget.ts) most cards cost no pips at all, so elemental output had little to buy and
+     * the keyword was near-dead. Generic energy is always spendable, so ramp is worth
+     * playing regardless of how the pip curve is tuned.
+     */
     producer: z
-      .object({ amount: z.number().int().min(1), element: elementSchema })
+      .object({ amount: z.number().int().min(1) })
       .strict()
       .optional(),
     metamorphosis: z

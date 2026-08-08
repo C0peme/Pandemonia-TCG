@@ -35,7 +35,9 @@ export const ownedCardSchema = z
 export type OwnedCard = z.infer<typeof ownedCardSchema>;
 
 /**
- * A permanent leader upgrade bought at a Rest Site.
+ * A permanent leader upgrade. `unique` is AWARDED by the act 1 boss (not bought), and
+ * `attune` is bought at Enhance nodes as the alternative to a card buff — neither is
+ * sold at Rest Sites, which stay low-stakes (heal / free card / kindle).
  *
  * The old generic trio (efficient/empowered/ruthless) was replaced because it landed
  * unevenly: `efficient` applied to all 13 leaders, `empowered` to 9, and `ruthless` to
@@ -73,7 +75,7 @@ export const mapNodeSchema = z
     next: z.array(z.string()),
     /** Per-node sub-seed fixed at map generation — offers/encounters can't be rerolled. */
     seed: z.number().int(),
-    /** Trial nodes: which twist from the TRIALS table applies. */
+    /** Trial nodes: which twist from the TWISTS table applies. */
     twistId: z.string().optional(),
     visited: z.boolean(),
     /** Store nodes: one sale per visit. */
@@ -129,6 +131,19 @@ export const runPhaseSchema = z.discriminatedUnion('t', [
     bonusRelic: z.boolean().optional(),
   }).strict(),
   z.object({ t: z.literal('dead'), act: z.number().int(), nodeId: z.string() }).strict(),
+  // --- Copper Mech (the endgame challenge) --------------------------------------
+  // Not a map node: it is entered from the map at any time and returns there, so it
+  // carries its own seed rather than a nodeId.
+  z.object({ t: z.literal('copper'), fightSeed: z.number().int() }).strict(),
+  // The post-attempt scoreboard. `damage` is what this attempt dealt; `killed` means
+  // the Mech actually fell, which wins the Adventure.
+  z.object({
+    t: z.literal('copperResult'),
+    damage: z.number().int().min(0),
+    killed: z.boolean(),
+    /** True when this attempt beat the run's previous best. */
+    record: z.boolean(),
+  }).strict(),
 ]);
 export type RunPhase = z.infer<typeof runPhaseSchema>;
 
@@ -164,6 +179,15 @@ export const runStateSchema = z
      * signature card def in the run registry.
      */
     signatureBuff: z.boolean().default(false),
+    /**
+     * Copper Mech (endgame) progress. `copperBest` is the most damage any attempt has
+     * dealt — the run's score — and `copperAttempts` both counts tries and varies each
+     * attempt's shuffle. `adventureWon` latches once the Mech has actually been killed.
+     * All defaulted, so runs saved before the endgame existed load unchanged.
+     */
+    copperBest: z.number().int().min(0).default(0),
+    copperAttempts: z.number().int().min(0).default(0),
+    adventureWon: z.boolean().default(false),
     /** Monotonic counter for OwnedCard uids. */
     nextUid: z.number().int().min(0),
     map: runMapSchema,

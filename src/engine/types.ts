@@ -144,6 +144,19 @@ export interface PlayerState {
   lanes: Lanes;
   heroPowerUsed: boolean;
   /**
+   * Energy QUEUED for this player's next turn, added on top of the round number in
+   * `beginTurn` and cleared as it is consumed — a one-turn carry, never permanent.
+   *
+   * This exists because `beginTurn` OVERWRITES `energy` with the round number, so anything
+   * added to `energy` outside your own turn is silently discarded. Producers fire at
+   * end-of-turn and so must queue here to pay out at all; Corpselock's Cancerous Growth
+   * uses it to trade surplus energy now for one extra energy next round.
+   *
+   * Optional: absent = 0, so older states need no migration. Distinct from `energy` (this
+   * turn's pool) and `bank` (element-specific, persists indefinitely).
+   */
+  energyNext?: number;
+  /**
    * TEMPORARY additive modifiers to this player's card energy costs, by type. Positive
    * = more expensive, negative = discount. Cleared at the end of this player's own turn
    * (e.g. Anti Magic Field). For run-long discounts, use `costBase` instead.
@@ -162,6 +175,26 @@ export interface PlayerState {
    * time, never by ordinary gameplay). Applied in `beginTurn` after the normal draw.
    */
   turnCardMod?: { extraDraws?: number; millSelf?: number };
+  /**
+   * Per-turn DECK RAID (Adventure endgame only — set once at encounter build time).
+   * Each of this player's turns, one pool is chosen at random and raided: `count` cards
+   * are pulled from it into hand, and its signature (if any) REPLACES this player's
+   * current signature and is re-delivered, so a fresh one arrives every round.
+   *
+   * Deliberately generic and fully data-driven: the engine never learns what a "leader
+   * archetype" is, it just raids id lists. The Adventure layer builds the pools.
+   */
+  turnDeckRaid?: { pools: DeckRaidPool[]; count: number };
+}
+
+/** One raidable pool for `turnDeckRaid` — typically one leader's deck + their signature. */
+export interface DeckRaidPool {
+  /** Display label for the event log (e.g. the leader whose deck is being raided). */
+  name: string;
+  /** Card ids the raid may pull from. Sampled WITH replacement. */
+  cardIds: string[];
+  /** Handed over alongside the raid, replacing the raider's current signature. */
+  signatureCardId?: string;
 }
 
 /**

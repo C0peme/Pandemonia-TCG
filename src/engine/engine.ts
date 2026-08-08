@@ -14,11 +14,13 @@ import { refreshLaneEnvironment } from '@engine/environment';
 import { resolveCombat, resolveExtraAction } from '@engine/combat';
 import { applyEffects, applyOnPlayEffects, processDeaths } from '@engine/effects';
 import { damageLeader, reconcileLeaderUnit } from '@engine/damage';
-import { applyBanking, canAfford } from '@engine/energy';
+import { applyBanking, canAfford, settleCost } from '@engine/energy';
 import { addCardToHand, forgetCard } from '@engine/hand';
 import { resolveEndOfTurn } from '@engine/endOfTurn';
 import type { ApplyResult, GameEvent } from '@engine/events';
 import { applyFoundation } from '@engine/foundation';
+import { applyStatus } from '@engine/status';
+import { addAttack, reconcileDrowning } from '@engine/drowning';
 import { beginTurn } from '@engine/turn';
 import {
   opponentOf,
@@ -229,10 +231,15 @@ const playFoundation = (
   };
 };
 
-/** Pay a cost in-place on a draft player (caller must have checked affordability). */
+/** Pay a cost in-place on a draft player (caller must have checked affordability).
+ *  Delegates to `settleCost` so this shares ONE settlement rule with `canAfford`/`payCost`:
+ *  element requirements draw from the bank first and fall back to generic energy. Deducting
+ *  `req.amount` from the bank directly here would drive it negative whenever the player is
+ *  covering a shortfall with energy. */
 const payInline = (player: PlayerState, cost: Cost): void => {
-  player.energy -= cost.energy;
-  for (const req of cost.elements ?? []) player.bank[req.type] -= req.amount;
+  const settled = settleCost(player, cost);
+  player.energy = settled.energy;
+  player.bank = settled.bank;
 };
 
 /**
@@ -533,7 +540,11 @@ export const applyAction = (
         const loc = locateUnit(draft, action.iid);
         if (!loc) return err(state, 'Unit not found.');
         const u = loc.unit;
-        if (action.status === 'clear') {
+        if (action.status === 'shield') {
+          // Shield is keyword-backed with a live counter; go through the shared helper rather
+          // than hand-rolling the two stores (see status.ts).
+          applyStatus(u, 'shield', { shield: 1 }, []);
+        } else if (action.status === 'clear') {
           if (u.status.drowning) u.attack = u.predrownAttack ?? u.attack;
           u.status = {};
         } else if (action.status === 'drowning') {
@@ -551,6 +562,47 @@ export const applyAction = (
         }
         return { state: draft, events: [] };
       }
+      case 'debugToggleKeyword': {
+        const draft: GameState = structuredClone(state);
+        const loc = locateUnit(draft, action.iid);
+        if (!loc) return err(state, 'Unit not found.');
+        const kw = loc.unit.keywords as Record<string, unknown>;
+        const k = action.keyword;
+        // Numeric keywords toggle unset ⇄ 1; the rest are plain boolean flags.
+        if (k === 'tough' || k === 'spike') {
+          if (kw[k]) delete kw[k];
+          else kw[k] = 1;
+        } else if (kw[k]) {
+          delete kw[k];
+        } else {
+          kw[k] = true;
+        }
+        // Airborne/Aquatic change Water compatibility, so the drowning state must be re-derived
+        // for the unit's lane (never left stale — see drowning.ts).
+        if (k === 'airborne' || k === 'aquatic') reconcileDrowning(loc.unit, loc.lane);
+        return { state: draft, events: [] };
+      }
+      case 'debugAdjustStat': {
+        const draft: GameState = structuredClone(state);
+        const loc = locateUnit(draft, action.iid);
+        if (!loc) return err(state, 'Unit not found.');
+        const u = loc.unit;
+        if (action.stat === 'attack') {
+          // Never assign `attack` directly — addAttack writes to whichever store is live
+          // (predrownAttack while drowning), preserving the Water invariant.
+          addAttack(u, action.delta);
+        } else {
+          u.hp = Math.max(1, u.hp + action.delta);
+          if (u.hp > u.maxHp) u.maxHp = u.hp;
+        }
+        return { state: draft, events: [] };
+      }
+      case 'debugSetLeaderHp': {
+        const draft: GameState = structuredClone(state);
+        const p = draft.players[action.player];
+        p.leaderHp = Math.max(0, Math.min(action.hp, p.leaderMaxHp ?? 30));
+        return { state: draft, events: [] };
+      }
       case 'debugRemoveUnit': {
         const draft: GameState = structuredClone(state);
         const loc = locateUnit(draft, action.iid);
@@ -564,6 +616,9 @@ export const applyAction = (
           for (const ln of LANES) {
             draft.players[pid].lanes[ln].front = undefined;
             draft.players[pid].lanes[ln].back = undefined;
+            // Standalone Foundations are board occupants too — leaving them behind meant
+            // "Clear board" didn't actually clear the board.
+            draft.players[pid].lanes[ln].standaloneFoundation = undefined;
           }
         }
         return { state: draft, events: [] };

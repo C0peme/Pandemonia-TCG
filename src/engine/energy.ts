@@ -3,8 +3,11 @@
  *
  * - The turn's universal `energy` pays a card's generic `cost.energy` and counts as
  *   any element for the generic portion.
- * - A card's optional element-specific cost is paid ONLY from BANKED element energy
- *   (Option A): banking is the "heavy investment" route to element-specialized cards.
+ * - A card's optional element-specific cost is paid from BANKED element energy FIRST, and
+ *   any shortfall falls back to the turn's generic `energy` at 1:1. So element costs are a
+ *   DISCOUNT, never a gate: an ability card is cheaper when you have committed to its
+ *   element, and simply costs its full face value when you have not. Nothing in a hand is
+ *   ever uncastable for want of the right bank.
  * - Banking has no global cap; each element is capped individually by the player's
  *   per-element caps (`player.elementCaps`), which come from their leader.
  */
@@ -21,29 +24,42 @@ export interface AffordResult {
   reason?: string;
 }
 
-export const canAfford = (player: PlayerState, cost: Cost): AffordResult => {
-  if (player.energy < cost.energy) {
-    return { ok: false, reason: `Need ${cost.energy} energy, have ${player.energy}` };
-  }
+/**
+ * How a cost actually gets paid: each element requirement draws from that element's bank
+ * first, and whatever the bank cannot cover is topped up from generic `energy` at 1:1.
+ * Shared by `canAfford` and `payCost` so the check and the charge can never disagree.
+ */
+export const settleCost = (
+  player: PlayerState,
+  cost: Cost,
+): { energy: number; bank: Record<Element, number> } => {
+  const bank = { ...player.bank };
+  let energy = player.energy - cost.energy;
   for (const req of cost.elements ?? []) {
-    const have = player.bank[req.type];
-    if (have < req.amount) {
-      return {
-        ok: false,
-        reason: `Need ${req.amount} banked ${req.type}, have ${have}`,
-      };
-    }
+    const fromBank = Math.min(bank[req.type], req.amount);
+    bank[req.type] -= fromBank;
+    energy -= req.amount - fromBank; // shortfall paid in generic energy
+  }
+  return { energy, bank };
+};
+
+export const canAfford = (player: PlayerState, cost: Cost): AffordResult => {
+  const { energy } = settleCost(player, cost);
+  if (energy < 0) {
+    // Report the FULL generic requirement, since the bank shortfall is payable in energy.
+    const total = (cost.elements ?? []).reduce(
+      (s, req) => s + Math.max(0, req.amount - player.bank[req.type]),
+      cost.energy,
+    );
+    return { ok: false, reason: `Need ${total} energy, have ${player.energy}` };
   }
   return { ok: true };
 };
 
 /** Returns a new PlayerState with the cost deducted. Caller must check canAfford first. */
 export const payCost = (player: PlayerState, cost: Cost): PlayerState => {
-  const bank = { ...player.bank };
-  for (const req of cost.elements ?? []) {
-    bank[req.type] -= req.amount;
-  }
-  return { ...player, energy: player.energy - cost.energy, bank };
+  const { energy, bank } = settleCost(player, cost);
+  return { ...player, energy, bank };
 };
 
 export interface BankResult {
@@ -58,9 +74,11 @@ export interface BankResult {
  * `PER_TURN_BANK_LIMIT` when set). Banking never fails: anything that doesn't fit is dropped
  * (the leftover energy would be lost at end of turn anyway).
  *
- * Clamping (rather than rejecting) matters because Producers bank into these same elements
- * during end-of-turn resolution, which runs BEFORE banking — so a near-cap element must not
- * turn "producer output + a banking choice" into a turn-ending error.
+ * Clamping (rather than rejecting) matters because an over-cap request must not become a
+ * turn-ending error: that leaves the turn un-ended and makes the AI driver re-loop forever.
+ * (Producers used to bank into these elements during end-of-turn resolution, which runs
+ * BEFORE banking, and were the original source of such overflows; they now add generic
+ * energy instead. Any other end-of-turn `energy` effect with a fixed element still can.)
  */
 export const applyBanking = (
   player: PlayerState,

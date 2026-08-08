@@ -8,6 +8,7 @@ import { millCards } from '@engine/hand';
 import { resolveStartOfTurn } from '@engine/endOfTurn';
 import type { GameEvent } from '@engine/events';
 import { grantSignatureIfRoom } from '@engine/signature';
+import { resolveDeckRaid } from '@engine/raid';
 import type { GameState, PlayerId } from '@engine/types';
 import type { Registry } from '@cards/registry';
 
@@ -22,10 +23,13 @@ export const beginTurn = (state: GameState, player: PlayerId, registry?: Registr
   const p = state.players[player];
 
   // Universal energy for the turn equals the current round number, unless a boss curse
-  // (Adventure only) fixes it to a constant.
+  // (Adventure only) fixes it to a constant. `energyNext` (queued by Producers and
+  // Cancerous Growth) is added on top and consumed here — it is a one-turn carry, so it
+  // must be cleared in the same breath or it would repeat every round.
   const updated = {
     ...p,
-    energy: state.energyOverride ?? state.round,
+    energy: (state.energyOverride ?? state.round) + (p.energyNext ?? 0),
+    energyNext: 0,
     heroPowerUsed: false,
     deck: [...p.deck],
     hand: [...p.hand],
@@ -47,6 +51,10 @@ export const beginTurn = (state: GameState, player: PlayerId, registry?: Registr
   if (updated.turnCardMod?.millSelf) {
     millCards(next, player, updated.turnCardMod.millSelf, events);
   }
+
+  // Per-turn deck raid (Adventure endgame): plunder a random pool for cards AND a fresh
+  // signature. Runs BEFORE the delivery below so the new signature is the one granted.
+  resolveDeckRaid(next, player, events);
 
   // Deliver a pending Signature card if the hand now has room.
   grantSignatureIfRoom(next, player, events);

@@ -15,6 +15,8 @@
  * values both forms equivalently: a recurring trigger effect is priced like its keyword.
  */
 
+import { RULES } from '@engine/constants';
+
 type Lookup = (id: string) => unknown;
 
 const num = (v: unknown, d = 0): number => (typeof v === 'number' ? v : d);
@@ -26,20 +28,19 @@ const statCost = (s: { attack?: number; hp?: number } | undefined | null): numbe
 // Geometric (progressive) stat cost for a unit's base stats.
 // Attack: geometric with r=1.30 (no cap — attack values rarely exceed 6).
 // HP: geometric with r=1.40, no cap — outlier tanks are balanced at the data level.
-// STAT_BASE raised 0.28 → 0.38: printed raw stats are deliberately LESS energy-efficient than
-// abilities, so vanilla stat-stick units (Midrange) pay a premium and ability cards out-value
-// them per energy. Tuned high enough that the efficient 2/3 and 3/4 vanilla bodies that anchor
-// goodstuff decks cost +1 (a 2/3 now ≈ 2.53 → 3e), which is what actually taxes vanilla-heavy
-// decks. Paired with ABILITY_FACTOR below. Note: `statCost` (incremental buff/grant stats) is
-// intentionally NOT raised — only PRINTED bodies cost more, not ability-granted stats.
-const STAT_BASE  = 0.38;
+// STAT_BASE returned 0.38 → 0.28 (its honest value) and ABILITY_FACTOR returned 0.8 → 1.0.
+// Both were thumbs on the scale to stop vanilla stat-sticks out-competing ability cards: stats
+// were taxed and abilities discounted, so the two error terms would cancel. That is no longer
+// needed. Abilities now earn their edge STRUCTURALLY, by moving cost out of generic energy and
+// into element pips (see recommendedPips) — a pip is cheaper in practice than the 0.5 energy the
+// budget charges for it, because it is paid from end-of-turn overflow that would otherwise be
+// lost. Value is therefore measured straight, with no per-category multiplier.
+const STAT_BASE  = 0.28;
 const STAT_R_ATK = 1.30;
 const STAT_R_HP  = 1.40;
 
-// Abilities (keywords, triggered/spell effects, on-hit statuses) are discounted 20%, so an
-// ability is worth more impact per energy than the equivalent raw stats. This is the second
-// half of the stats→abilities value shift (see STAT_BASE).
-const ABILITY_FACTOR = 0.8;
+/** Kept as a named constant so the old stats↔abilities fudge can be reintroduced in one place. */
+const ABILITY_FACTOR = 1.0;
 
 const attackCost = (n: number): number =>
   n <= 0 ? 0 : STAT_BASE * (Math.pow(STAT_R_ATK, n) - 1) / (STAT_R_ATK - 1);
@@ -76,6 +77,12 @@ function effectCostBase(e: any, lookup: Lookup, depth: number): number {
     case 'applyStatus': return statusCost(e.status, num(e.amount, 1));
     case 'draw': return num(e.amount, 1) * 1.0;
     case 'energy': return num(e.amount, 1) * 0.5;
+    // Same energy, one turn later: worth slightly less than immediate energy, never more.
+    case 'energyNext': return num(e.amount, 1) * 0.4;
+    // Fills all four banks to cap. Worth the energy it saves later, but the actual haul
+    // depends on the leader's caps and what is already banked, so price it at a typical
+    // refill (~6 points) times the 0.5 the budget charges per pip.
+    case 'bankMax': return 3.0;
     case 'move': return 1.0;
     case 'expel': return 2.5;
     case 'forget':
@@ -180,8 +187,18 @@ function onHitCost(oh: any): number {
 
 /** Total computed value (budget) of a card. Pass `lookup` so summon/metamorphosis
  *  references can be priced; default is a no-op (those references value as 0/fallback). */
+/**
+ * Global price level. The value function only ever determines RATIOS between cards — its
+ * absolute scale is arbitrary, and dropping the STAT_BASE/ABILITY_FACTOR fudges deflated it
+ * by 17.5%, which would have made the whole pool cheaper and sped the game up. VALUE_SCALE
+ * pins the scale so the pool's total cost matches the originally authored one (calibrated to
+ * 1.20 → −1.7% drift). Retune ONLY to move the game's overall pace; it is not a balance knob,
+ * because scaling every card together changes no card's cost relative to any other.
+ */
+const VALUE_SCALE = 1.20;
+
 export function cardBudgetValue(card: any, lookup: Lookup = () => undefined): number {
-  return valueOf(card, lookup, 0);
+  return valueOf(card, lookup, 0) * VALUE_SCALE;
 }
 
 function valueOf(card: any, lookup: Lookup, depth: number): number {
@@ -198,18 +215,32 @@ function valueOf(card: any, lookup: Lookup, depth: number): number {
     );
   }
   if (card.type === 'foundation') {
-    // A Foundation is a FULL UNIT (its own body, keywords, on-hit) that ALSO grants a bonus to a
-    // host placed on top. Price the body exactly like a unit, then add the grant as a discounted
-    // PREMIUM: the grant is delayed upside (you need a second card on top, and the Foundation can
-    // be killed first), so it is discounted by FOUND_GRANT_DISCOUNT — but always leaves a small
-    // positive premium so a Foundation is never cheaper than the equivalent vanilla unit (else
-    // everyone would run it purely as a body). The premium scales with how strong the grant is.
-    const FOUND_GRANT_DISCOUNT = 1.5;
+    // A Foundation is a FULL UNIT (its own body, keywords, on-hit) that ALSO grants a bonus to
+    // the host placed on top. Price the body exactly like a unit, then add the grant at FULL
+    // value.
+    //
+    // The grant used to be discounted by 1.5 as "delayed upside — you need a second card on top,
+    // and the Foundation can be killed first". That reasoning no longer holds. A deck built to
+    // bond reliably (Combo runs 8 foundations behind 22 units) realises the grant nearly every
+    // time, so the discount was a straight subsidy: ~12 budget of free value across its list,
+    // which is what carried it to a 66% field with no removal, no draw and no reach. It stacks
+    // on top of the ability-pip discount every card already gets, so foundations were being
+    // discounted twice.
     const body = unitStatCost(num(card.attack), num(card.hp)) +
       keywordsCost(card.keywords, false, lookup, depth) + onHitCost(card.onHit) +
       triggers(true, card.onAttack, card.endOfTurn, card.startOfTurn) + triggers(false, card.onPlay);
-    const grant = statCost(card.grants?.stat) + keywordsCost(card.grants?.keywords, false, lookup, depth);
-    const premium = Math.max(0.5, grant - FOUND_GRANT_DISCOUNT);
+    // `grants.stat` is deliberately NOT priced. It is no longer authored per card — every
+    // Foundation automatically passes on HALF its printed stats (see registry.ts), so charging
+    // for it would bill the same stats twice: once in the body above, again in the grant. And
+    // it is not upside anyway — bonding sacrifices the body and only half of it survives, so
+    // the carryover is a partial refund on a downside.
+    //
+    // What IS charged is what the Foundation genuinely hands over: its granted KEYWORDS. That
+    // lands a Foundation at roughly the cost of a regular unit with the same body and keywords,
+    // which is the intent — you pay unit rates, then trade the body away to move the abilities.
+    const grant = keywordsCost(card.grants?.keywords, false, lookup, depth);
+    // Floor keeps a Foundation from ever costing less than the equivalent vanilla body.
+    const premium = Math.max(0.5, grant);
     return body + premium;
   }
   if (card.type === 'spell') return effectsCost(card.effects, lookup);
@@ -219,9 +250,106 @@ function valueOf(card: any, lookup: Lookup, depth: number): number {
   return 0;
 }
 
-/** Recommended whole-number energy cost: value minus the budget already paid by element
- *  pips (each pip = 0.5), rounded, floored at 0. */
+// ── Element pips ──────────────────────────────────────────────────────────────
+// Pips are the BANKED-element portion of a cost. They were previously hand-authored per
+// card with only a loose relationship to value, which made low-value cards unplayably
+// gated: a 1-pip requirement on a 2-value card forces a bank-and-wait turn to cast
+// something that should be a curve filler, and every element has a bank cap, so a deck
+// full of small pipped cards deadlocks itself.
+//
+// Pips are DERIVED from how many ABILITIES a card has. Each ability converts one point of
+// the card's cost out of generic energy and into an element pip:
+//
+//   pips  = abilityCount, capped at MAX_ELEMENT_COST and at the card's own rounded value
+//   energy = round(value) − pips
+//
+// The card's face cost is unchanged in nominal terms — the energy removed is replaced by an
+// equal number of pips — but it is CHEAPER in practice, because a pip is paid from
+// end-of-turn overflow that would otherwise evaporate, while generic energy competes with
+// everything else you want to do that turn. That is the whole point: it lets ability cards
+// compete with vanilla stat-sticks structurally, instead of via the STAT_BASE/ABILITY_FACTOR
+// fudge that used to tax stats and discount abilities so the errors cancelled.
+//
+// It also gives elements a job. A vanilla body is pure energy and always castable; an
+// ability card commits you to an element, so a leader's `elementCaps` decide which ability
+// cards their deck can actually support, and banking has a reason to exist.
+//
+// There is deliberately NO floor on the generic half: an ability-dense card can convert its
+// cost away entirely and land at 0 energy + N pips. That is safe precisely because pips fall
+// back to generic energy (see energy.ts `settleCost`) — a 0-energy/2-pip card still costs 2
+// to a player who never banked the element, so it is free only to one who committed to it.
+const MAX_ABILITY_PIPS = RULES.MAX_ELEMENT_COST;
+
+/**
+ * How many distinct abilities a card has. Only abilities that ADD value count — a pure
+ * downside such as Brittle must not earn its card a pip. Stats are not abilities.
+ */
+export function abilityCount(card: any, lookup: Lookup = () => undefined): number {
+  if (!card) return 0;
+  let n = 0;
+  const countKeywords = (kw: any): void => {
+    for (const [k, v] of Object.entries<any>(kw ?? {})) {
+      // `aquatic: true` is a lane permission, not an ability; `aquatic: Effect[]` is one.
+      if (k === 'aquatic' && v === true) continue;
+      if (keywordsCost({ [k]: v }, false, lookup, 0) > 0) n++;
+    }
+  };
+  const countEffects = (arr: any[] | undefined): void => {
+    for (const e of arr ?? []) if (effectCost(e, lookup, false, 0) > 0) n++;
+  };
+  const countOnHit = (oh: any): void => {
+    if (!oh) return;
+    for (const k of ['burn', 'poison', 'sleep', 'freeze']) if (oh[k] !== undefined && oh[k] !== false) n++;
+  };
+
+  countKeywords(card.keywords);
+  countOnHit(card.onHit);
+  countEffects(card.onPlay); countEffects(card.onAttack);
+  countEffects(card.endOfTurn); countEffects(card.startOfTurn);
+  if (card.type === 'spell') countEffects(card.effects);
+  if (card.type === 'environment') { countEffects(card.effects); countKeywords(card.grantKeywords); }
+  if (card.type === 'foundation') {
+    countKeywords(card.grants?.keywords); countOnHit(card.grants?.onHit);
+    countEffects(card.grants?.onAttack); countEffects(card.grants?.endOfTurn); countEffects(card.grants?.startOfTurn);
+  }
+  return n;
+}
+
+/** Recommended element-pip count: one pip per ability, bounded only by the card's own cost. */
+/**
+ * FOUNDATION SURCHARGE — one extra pip, on top of whatever its abilities convert.
+ *
+ * Pricing a Foundation at exactly unit rates made the plain unit pointless: same body, same
+ * keywords, same cost, but the Foundation ALSO hands half its stats and all its keywords to a
+ * host. The surcharge is what a Foundation pays for being strictly more flexible.
+ *
+ * It is a genuine surcharge, NOT another energy→pip conversion: `recommendedEnergy` subtracts
+ * only the ability-derived pips, so the extra pip is added without any energy coming off. A
+ * Foundation therefore costs its unit-equivalent price plus one element pip.
+ */
+const FOUNDATION_PIP_SURCHARGE = 1;
+
+/** Pips a card's abilities convert, before any surcharge. Bounded by the card's own value. */
+const convertiblePips = (card: any, lookup: Lookup): number => {
+  const baseEnergy = Math.round(cardBudgetValue(card, lookup));
+  return Math.max(0, Math.min(abilityCount(card, lookup), MAX_ABILITY_PIPS, baseEnergy));
+};
+
+export function recommendedPips(card: any, lookup: Lookup = () => undefined): number {
+  const surcharge = card?.type === 'foundation' ? FOUNDATION_PIP_SURCHARGE : 0;
+  return Math.min(convertiblePips(card, lookup) + surcharge, RULES.MAX_ELEMENT_COST);
+}
+
+/**
+ * Recommended whole-number energy cost: the card's rounded value, minus one energy per
+ * ABILITY-derived pip. The conversion is 1:1 — an ability moves a full point of cost from
+ * energy into an element requirement, rather than the 0.5 the budget nominally charges for a
+ * pip. That gap IS the ability discount, and it is deliberate: it is what makes an ability
+ * card cheaper to deploy than the equivalent vanilla body.
+ *
+ * The Foundation surcharge is excluded here on purpose — subtracting it would turn the extra
+ * pip into a discount rather than the premium it is meant to be.
+ */
 export function recommendedEnergy(card: any, lookup: Lookup = () => undefined): number {
-  const pips = (card?.cost?.elements ?? []).reduce((s: number, e: any) => s + num(e.amount), 0);
-  return Math.max(0, Math.round(cardBudgetValue(card, lookup) - 0.5 * pips));
+  return Math.max(0, Math.round(cardBudgetValue(card, lookup)) - convertiblePips(card, lookup));
 }

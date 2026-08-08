@@ -90,8 +90,9 @@ describe('a Foundation survives its host transforming', () => {
     expect(u.cardId).toBe('imago');
     expect(u.foundation).toBeTruthy();
 
-    // Imago is 3/5, Metamorphosis grants +1 atk, the Plinth grants +2/+2.
-    expect(u.attack).toBe(3 + 1 + 2);
+    // Imago is 3/5, Metamorphosis grants +1 atk, and the Plinth (1/4) passes on half its
+    // own stats by the universal rule: +0/+2.
+    expect(u.attack).toBe(3 + 1 + 0);
     expect(u.maxHp).toBe(5 + 2);
     // Granted keyword survives, alongside the new form's own.
     expect(u.keywords.taunt).toBe(true);

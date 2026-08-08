@@ -11,7 +11,7 @@
  * forget, summon (a unit onto the board), conjure (a card into a hand). `custom` is a
  * placeholder for hand-coded effects.
  */
-import { LANES, type LaneId } from '@engine/constants';
+import { ELEMENTS, LANES, type LaneId } from '@engine/constants';
 import type { PlayerId, Lane } from '@engine/types';
 import type { Effect, UnitCard } from '@cards/schema';
 import type { Registry } from '@cards/registry';
@@ -251,6 +251,29 @@ const applyOne = (
       }
       return;
     }
+    case 'bankMax': {
+      // Fill every element bank to its cap. Reported as one `bank` event per element so the
+      // event log and the match-stats "banked" counter pick it up with no new plumbing.
+      const recipient = effect.target === 'enemy' ? opponentOf(caster) : caster;
+      const p = s.players[recipient];
+      for (const el of ELEMENTS) {
+        const add = p.elementCaps[el] - p.bank[el];
+        if (add <= 0) continue;
+        p.bank[el] += add;
+        events.push({ t: 'bank', player: recipient, element: el, amount: add });
+      }
+      return;
+    }
+    case 'energyNext': {
+      // Queue energy onto the recipient's NEXT turn (consumed and cleared by beginTurn).
+      // Adding to `energy` here would be discarded: beginTurn overwrites it with the round
+      // number, so anything granted outside your own turn — every Producer tick — is lost.
+      const recipient = effect.target === 'enemy' ? opponentOf(caster) : caster;
+      const p = s.players[recipient];
+      p.energyNext = (p.energyNext ?? 0) + amount;
+      events.push({ t: 'energyNext', player: recipient, amount, total: p.energyNext });
+      return;
+    }
     case 'draw': {
       const recipient = effect.target === 'enemy' ? opponentOf(caster) : caster;
       for (let i = 0; i < amount; i++) drawCard(s, recipient, events);
@@ -483,7 +506,7 @@ export const processDeaths = (s: GameState, events: GameEvent[], killerIid?: str
 };
 
 /** Effects that help their target (so 'leader'/'any' default to the caster's own side). */
-const BENEFICIAL: ReadonlySet<Effect['kind']> = new Set(['heal', 'buff', 'energy', 'draw', 'cleanse']);
+const BENEFICIAL: ReadonlySet<Effect['kind']> = new Set(['heal', 'buff', 'energy', 'energyNext', 'bankMax', 'draw', 'cleanse']);
 
 const unitsOf = (s: GameState, player: PlayerId): UnitInstance[] =>
   LANES.flatMap((l) => laneUnits(s.players[player].lanes[l]));
@@ -534,7 +557,13 @@ export const applyTriggeredEffects = (
     const beneficial = BENEFICIAL.has(effect.kind);
 
     // Player-scoped effects fire unconditionally — no unit target needed.
-    if (effect.kind === 'draw' || effect.kind === 'energy' || effect.kind === 'forget') {
+    if (
+      effect.kind === 'draw' ||
+      effect.kind === 'energy' ||
+      effect.kind === 'energyNext' ||
+      effect.kind === 'bankMax' ||
+      effect.kind === 'forget'
+    ) {
       applyOne(s, owner, effect, undefined, undefined, events, registry);
       continue;
     }

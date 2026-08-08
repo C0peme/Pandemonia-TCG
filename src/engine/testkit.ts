@@ -195,7 +195,7 @@ const cardDefs: Card[] = [
     cost: { energy: 1 },
     attack: 0,
     hp: 3,
-    keywords: { producer: { amount: 1, element: 'fire' } },
+    keywords: { producer: { amount: 1 } },
   }),
   parseCard({
     id: 'icebreaker',

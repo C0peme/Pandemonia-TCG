@@ -19,6 +19,7 @@ import { combatReward } from '@adventure/economy';
 import { advCardId, ENEMY_LEADER_ID } from '@adventure/runRegistry';
 import { applyTrialToState, trialById, TRIAL_TWISTS, type TrialTwist } from '@adventure/trials';
 import { bossForAct, type Boss } from '@adventure/data/bosses';
+import { copperMechDeck, copperMechRaidPools, COPPER_MECH_RAID_COUNT } from '@adventure/data/copperMech';
 
 export interface Encounter {
   enemyDeck: Deck;
@@ -80,7 +81,18 @@ export const rollEncounter = (base: Registry, node: MapNode, act: number, enemyH
   // A boss plays its named, curated archetype under a fixed gimmick; everything else
   // rolls a random archetype from the node seed.
   const boss = node.kind === 'boss' ? bossForAct(node.seed, act) : undefined;
-  const archetype = boss ? starterDecks.find((d) => d.leaderId === boss.leaderId) ?? roll.pick(starterDecks) : roll.pick(starterDecks);
+  // A boss MUST play its own archetype: its name, icon, gimmick, bonus HP and hero-power
+  // override are all authored against that deck. Silently falling back to a random deck
+  // produced a fight that looked like the boss but played as someone else, so a missing
+  // archetype is a content error and fails loudly instead.
+  let archetype: Deck;
+  if (boss) {
+    const bossDeck = starterDecks.find((d) => d.leaderId === boss.leaderId);
+    if (!bossDeck) throw new Error(`Boss ${boss.id} has no archetype deck for leader: ${boss.leaderId}`);
+    archetype = bossDeck;
+  } else {
+    archetype = roll.pick(starterDecks);
+  }
   const size = node.kind === 'boss' ? RULES.DECK_SIZE : encounterDeckSize(node.kind, node.layer, act);
 
   let enemyDeck: Deck = archetype;
@@ -134,6 +146,32 @@ export const playerDeck = (leaderId: string, deck: OwnedCard[]): Deck => ({
   leaderId,
   cards: deck.map((c) => ({ cardId: c.enhancements.length > 0 ? advCardId(c.uid) : c.cardId, count: 1 })),
 });
+
+/**
+ * Build the Copper Mech encounter: registry + opening GameState, player at seat 0.
+ *
+ * Kept separate from `rollEncounter`/`buildEncounterState` because it is not a map node
+ * and shares almost none of their shape — no archetype roll, no deck trim, no HP curve,
+ * no twist, no coin reward. It is a fixed, always-identical fight; only the shuffle
+ * varies with `fightSeed`.
+ *
+ * The player keeps their run deck, relics, hero upgrades and enhancements — the run's
+ * full power is exactly what is being measured — but NOT their carried run HP: every
+ * attempt starts at full so the score reflects the deck, not how bruised you happened to
+ * be when you walked in.
+ */
+export const buildCopperMechState = (registry: Registry, player: Deck, fightSeed: number): GameState => {
+  const state = initGame({
+    registry,
+    decks: [player, copperMechDeck(registry)],
+    seed: fightSeed,
+    first: 0,
+  });
+  // Arm the per-turn raid. Set AFTER initGame, which has already run the player's
+  // opening turn — the Mech raids on its own first turn, as intended.
+  state.players[1].turnDeckRaid = { pools: copperMechRaidPools(registry), count: COPPER_MECH_RAID_COUNT };
+  return state;
+};
 
 /**
  * Build the initial GameState for an encounter (player is seat 0 and goes first).

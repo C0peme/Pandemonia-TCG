@@ -9,8 +9,23 @@ import { parseRun, type MapNode, type RunState } from '@adventure/schema';
 import { rollStoreOffer, buyPrice, combatReward, attuneCost, restHealAmount, kindleHealAmount, ECON } from '@adventure/economy';
 import { rollEnhanceOffer, canApply } from '@adventure/enhance';
 import { eventForNode } from '@adventure/data/events';
+import { SIGNATURE_UPGRADES } from '@adventure/hero';
 
 const registry = buildRegistry(starterCards, starterLeaders);
+
+/**
+ * Run `fn` with a stub signature upgrade authored for `leaderId`. The real table is
+ * empty (the framework shipped ahead of the content), so the unlock path can only be
+ * exercised by temporarily populating it.
+ */
+const withSignatureUpgrade = (leaderId: string, fn: () => void): void => {
+  SIGNATURE_UPGRADES[leaderId] = { name: 'Test Buff', icon: '★', desc: 'test', card: (c) => c };
+  try {
+    fn();
+  } finally {
+    delete SIGNATURE_UPGRADES[leaderId];
+  }
+};
 
 /** Inject a fresh entry node of the given kind and travel to it (test-only surgery). */
 const teleportTo = (run: RunState, kind: MapNode['kind'], extra: Partial<MapNode> = {}): RunState => {
@@ -387,13 +402,27 @@ describe('boss unlocks', () => {
     expect(won.phase.t === 'reward' && won.phase.unlock).toBeUndefined();
   });
 
-  it('the act 2 boss offers the signature buff instead of the unique', () => {
+  it('the act 2 boss offers the signature buff when one is authored for the leader', () => {
+    const act2 = { ...startRun('orsyric', 42, registry), act: 2, heroUpgrades: [{ kind: 'unique' as const }] };
+    const run = teleportTo(act2, 'boss');
+    withSignatureUpgrade('orsyric', () => {
+      const won = resolveCombat(run, registry, true, 20);
+      expect(won.phase.t === 'reward' && won.phase.unlock).toBe('signature');
+      const claimed = claimUnlock(won);
+      expect(claimed.signatureBuff).toBe(true);
+    });
+  });
+
+  // Regression: SIGNATURE_UPGRADES is currently empty, and offering the unlock anyway
+  // gave the player a reward screen promising an empowered Signature that did nothing
+  // — while ALSO suppressing the bonus relic an unlock-less boss grants.
+  it('the act 2 boss offers NO signature unlock when the leader has none authored', () => {
     const act2 = { ...startRun('orsyric', 42, registry), act: 2, heroUpgrades: [{ kind: 'unique' as const }] };
     const run = teleportTo(act2, 'boss');
     const won = resolveCombat(run, registry, true, 20);
-    expect(won.phase.t === 'reward' && won.phase.unlock).toBe('signature');
-    const claimed = claimUnlock(won);
-    expect(claimed.signatureBuff).toBe(true);
+    expect(won.phase.t === 'reward' && won.phase.unlock).toBeUndefined();
+    // ...and falls back to the bonus relic rather than being reduced to coins.
+    expect(won.phase.t === 'reward' && won.phase.bonusRelic).toBe(true);
   });
 
   it('a non-boss combat kill never offers an unlock', () => {
@@ -443,14 +472,18 @@ describe('act 3+ boss bonus relic (the "significant reward" once unlocks run out
     expect(afterSecond.phase.relicChoices).toBeUndefined(); // second pick clears normally
   });
 
-  it('act 1/2 bosses never get bonusRelic (they still have an unlock to award)', () => {
+  it('a boss with an unlock to award gets no bonusRelic (the unlock IS the reward)', () => {
     const act1 = teleportTo(startRun('orsyric', 42, registry), 'boss');
     const won1 = resolveCombat(act1, registry, true, 20);
+    expect(won1.phase.t === 'reward' && won1.phase.unlock).toBe('unique');
     expect(won1.phase.t === 'reward' && won1.phase.bonusRelic).toBeUndefined();
 
     const act2 = { ...startRun('orsyric', 42, registry), act: 2, heroUpgrades: [{ kind: 'unique' as const }] };
-    const won2 = resolveCombat(teleportTo(act2, 'boss'), registry, true, 20);
-    expect(won2.phase.t === 'reward' && won2.phase.bonusRelic).toBeUndefined();
+    withSignatureUpgrade('orsyric', () => {
+      const won2 = resolveCombat(teleportTo(act2, 'boss'), registry, true, 20);
+      expect(won2.phase.t === 'reward' && won2.phase.unlock).toBe('signature');
+      expect(won2.phase.t === 'reward' && won2.phase.bonusRelic).toBeUndefined();
+    });
   });
 });
 

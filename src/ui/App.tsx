@@ -5,6 +5,8 @@ import type { Card, Effect, Keywords } from '@cards/schema';
 import type { EnvironmentInstance, GameState, Lane, PlayerId, PlayerState, UnitInstance } from '@engine/types';
 import { formatCost, listAbilities, listStatuses, STATUS_INFO, ELEMENT_NAME, type NamedAbility } from '@cards/abilities';
 import { ElementRune } from '@ui/ElementRune';
+import { Emblem } from '@ui/Emblem';
+import type { DebugKeyword } from '@engine/actions';
 import { useGame, type CombatAnim, type CombatPhase } from '@ui/useGame';
 import { useRegistry, useContent } from '@ui/useContent';
 import * as store from '@cards/store';
@@ -199,6 +201,10 @@ export function PlayArea({ g, onDetail, onPlayAgain, playAgainLabel }: { g: Retu
   // beside it so any unit can be read without opening the modal. Event-delegated off `.play`.
   const [peek, setPeek] = useState<{ detail: Detail; rect: DOMRect } | null>(null);
   const gameRef = useRef(game); gameRef.current = game;
+  // Track the live drag so the hover-peek never floats over the lanes while a card is being
+  // dragged onto the field — the peek is a hover affordance, not a drag one.
+  const dragRef = useRef(g.drag); dragRef.current = g.drag;
+  useEffect(() => { if (g.drag) setPeek(null); }, [g.drag]);
   useEffect(() => {
     const el = playRef.current; if (!el) return;
     let timer: number | undefined; let anchor: HTMLElement | null = null;
@@ -211,6 +217,7 @@ export function PlayArea({ g, onDetail, onPlayAgain, playAgainLabel }: { g: Retu
       if (!target || target === anchor) return;
       anchor = target; clear();
       timer = window.setTimeout(() => {
+        if (dragRef.current) return; // a drag is in progress — suppress the peek entirely
         const gm = gameRef.current;
         if (unit) {
           const iid = unit.getAttribute('data-iid');
@@ -278,7 +285,7 @@ export function PlayArea({ g, onDetail, onPlayAgain, playAgainLabel }: { g: Retu
         <Controls g={g} active={me} />
       </div>
 
-      <HoverPeek peek={peek} />
+      <HoverPeek peek={g.drag ? null : peek} />
       {game.winner !== null && !g.animating && <GameSummary g={g} onPlayAgain={playAgain} playAgainLabel={playAgainLabel} />}
       {g.passing && game.winner === null && (
         <Overlay>
@@ -370,6 +377,29 @@ function TargetingArrow({ g }: { g: ReturnType<typeof useGame> }) {
   );
 }
 
+/** Available energy: a bold numeral (always readable at a glance) paired with a small cluster of
+ *  electric "spark" pips for the physical feel. The pips are deliberately a cold electric colour,
+ *  NOT the gold used by cost jewels, so energy never reads as a cost. Pips cap at 5 (past that
+ *  they stop being countable and the numeral carries it). */
+function EnergyGems({ energy, next = 0 }: { energy: number; next?: number }) {
+  const PIP_CAP = 5;
+  const shown = Math.min(energy, PIP_CAP);
+  // `next` is energy QUEUED for the following turn (Producers, Cancerous Growth). It had no
+  // standing readout at all — it appeared once in the event log and then vanished — so the
+  // payoff of a Producer or a hero power was invisible until it silently arrived.
+  const label = `${energy} energy available` + (next > 0 ? `, +${next} queued for next round` : '');
+  return (
+    <span className="energygems" title={label} aria-label={label}>
+      <span className="energygems__bolt" aria-hidden="true">↯</span>
+      <span className="energygems__num">{energy}</span>
+      <span className="energygems__pips" aria-hidden="true">
+        {Array.from({ length: shown }, (_, i) => <span key={i} className="energygems__pip" />)}
+      </span>
+      {next > 0 && <span className="energygems__next">+{next}<span className="energygems__next-tag">next</span></span>}
+    </span>
+  );
+}
+
 function LeaderBox({
   who,
   label,
@@ -430,7 +460,7 @@ function LeaderBox({
       <div className="leader__res">
         {/* Banked elements deliberately omitted here — the Altar's ELEMENT BANKS panel already
             shows both players' banks in full, and duplicating them bloated this banner. */}
-        <span className="leader__energy" title={`${player.energy} energy available`}>↯{player.energy}</span>
+        <EnergyGems energy={player.energy} next={player.energyNext ?? 0} />
         {handCount !== null && (
           <span className="leader__handcount" title={`Opponent has ${handCount} card(s) in hand`}>
             ▤ {handCount}
@@ -456,31 +486,21 @@ function LeaderBox({
           <span className="leader__skill-cost">
             {player.heroPowerUsed
               ? <span className="leader__skill-used">✓ Used</span>
-              : <span className="herocost__energy">↯{leaderSkill.cost.energy}</span>}
+              : (() => {
+                  // A power that queues energy back (Cancerous Growth: spend 2, get 2 next
+                  // round) reads as pure cost unless the return is shown next to it.
+                  const back = leaderSkill.effects.reduce(
+                    (s, e) => s + (e.kind === 'energyNext' ? (e.amount ?? 0) : 0), 0);
+                  return (
+                    <>
+                      <span className="herocost__energy">↯{leaderSkill.cost.energy}</span>
+                      {back > 0 && <span className="herocost__return" title={`Returns ${back} energy next round`}>+{back} next</span>}
+                    </>
+                  );
+                })()}
           </span>
         </button>
       )}
-    </div>
-  );
-}
-
-/**
- * Lane-control ribbon (PvZ-Heroes-style): a two-sided tug bar in the mid-band showing total
- * attack the opponent (top) vs you (bottom) muster in this lane, so board pressure reads at a
- * glance. The fill splits proportionally; the leading side's number is emphasised.
- */
-function LaneControl({ opp, me }: { opp: number; me: number }) {
-  const total = opp + me;
-  const oppPct = total > 0 ? Math.round((opp / total) * 100) : 50;
-  const lead = me > opp ? 'me' : opp > me ? 'opp' : 'even';
-  return (
-    <div className={`lanectrl lanectrl--${lead}`} title={`Lane pressure — opponent ${opp} vs you ${me}`}>
-      <span className={`lanectrl__num lanectrl__num--opp ${lead === 'opp' ? 'lanectrl__num--lead' : ''}`}>{opp}</span>
-      <span className="lanectrl__bar">
-        <span className="lanectrl__fill lanectrl__fill--opp" style={{ width: `${oppPct}%` }} />
-        <span className="lanectrl__fill lanectrl__fill--me" style={{ width: `${100 - oppPct}%` }} />
-      </span>
-      <span className={`lanectrl__num lanectrl__num--me ${lead === 'me' ? 'lanectrl__num--lead' : ''}`}>{me}</span>
     </div>
   );
 }
@@ -517,15 +537,6 @@ function LaneColumn({
   const combatPhase = combatActive ? combatAnim!.phase : undefined;
   const opp = game.players[g.opponent];
   const me = game.players[g.pov];
-  // Lane pressure: total attack each side musters in this lane, for the control ribbon.
-  const laneAtk = (l: Lane): number => {
-    let a = 0;
-    for (const slot of ['front', 'back'] as const) { const u = l[slot]; if (u) a += Math.max(0, u.attack); }
-    if (l.standaloneFoundation) a += Math.max(0, l.standaloneFoundation.attack);
-    return a;
-  };
-  const oppAtk = laneAtk(opp.lanes[lane]);
-  const myAtk = laneAtk(me.lanes[lane]);
 
   const half = (player: PlayerState, isActive: boolean) => {
     const heroTargeting = g.sel.kind === 'hero';
@@ -571,7 +582,6 @@ function LaneColumn({
         <span className="lanecol__label">
           {LANE_LABEL[lane]}{lane === 'heights' ? ' ▲' : lane === 'water' ? ' ≈' : ''}
         </span>
-        {(oppAtk > 0 || myAtk > 0) && <LaneControl opp={oppAtk} me={myAtk} />}
         {combatActive && combatPhase && (
           <span className={`lanecol__phase lane__phase--${combatPhase}`}>{COMBAT_PHASE_LABEL[combatPhase]}</span>
         )}
@@ -615,13 +625,14 @@ function LaneView({
   onUnitDetail: (u: UnitInstance) => void;
   onSniperTarget?: () => void;
 }) {
-  const renderUnit = (u: UnitInstance, slot: 'front' | 'back') => (
+  const renderUnit = (u: UnitInstance, slot: 'front' | 'back', bondTarget = false) => (
     <UnitView
       u={u}
       slot={slot}
       clickable={unitClickable}
       spellTarget={spellTarget}
       sacSelected={sacSet.includes(u.iid)}
+      bondTarget={bondTarget}
       onClick={() => onUnit(u.iid)}
       onDropSpell={() => onUnitDrop(u.iid)}
       onDetail={onUnitDetail}
@@ -654,7 +665,9 @@ function LaneView({
             onDrop={() => onDropLane('front')}
             title="Place in the front rank (closer to the enemy)"
           >＋ Front</div>
-          {renderUnit(lane.front!, 'front')}
+          {/* The resident unit gets the same bond-target glow as a Foundation about to bond —
+              it's the thing the incoming unit is pairing UP with, not a passive bystander. */}
+          {renderUnit(lane.front!, 'front', true)}
           <div className="lane__poszone lane__poszone--back"
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => onDropLane('back')}
@@ -665,7 +678,7 @@ function LaneView({
         <>
           {units[0]}
           {units[1]}
-          {!lane.front && lane.standaloneFoundation && renderUnit(lane.standaloneFoundation, 'front')}
+          {!lane.front && lane.standaloneFoundation && renderUnit(lane.standaloneFoundation, 'front', droppable)}
           {!lane.front && !lane.back && !lane.standaloneFoundation && <div className="lane__empty">{droppable ? '＋' : '·'}</div>}
         </>
       )}
@@ -828,6 +841,7 @@ function UnitView({
   clickable,
   spellTarget,
   sacSelected,
+  bondTarget,
   onClick,
   onDropSpell,
   onDetail,
@@ -837,6 +851,10 @@ function UnitView({
   clickable: boolean;
   spellTarget: boolean;
   sacSelected: boolean;
+  /** True for a standalone Foundation while a unit is being placed into its lane — it's about to
+   *  bond with whatever lands there, so it gets the same "you can act here" gilt glow as a valid
+   *  drop lane, making the bond target legible on the card itself, not just the lane background. */
+  bondTarget?: boolean;
   onClick: () => void;
   onDropSpell: () => void;
   onDetail: (u: UnitInstance) => void;
@@ -866,7 +884,7 @@ function UnitView({
   return (
     <div
       data-iid={u.iid}
-      className={`unit unit--${slot} ${u.isFoundation ? 'unit--foundation' : ''} ${stateClass} ${clickable || spellTarget ? 'targetable' : ''} ${sacSelected ? 'unit--sac' : ''}`}
+      className={`unit unit--${slot} ${u.isFoundation ? 'unit--foundation' : ''} ${stateClass} ${clickable || spellTarget || bondTarget ? 'targetable' : ''} ${sacSelected ? 'unit--sac' : ''}`}
       title="Double-click for details"
       onClick={(e) => {
         e.stopPropagation();
@@ -978,7 +996,7 @@ function Hand({ g, active, onDetail }: { g: ReturnType<typeof useGame>; active: 
             onDoubleClick={() => onDetail(def)}
             title={draggable ? 'Drag onto the board' : 'Double-click for details'}
           >
-            <CardFace def={def} />
+            <CardFace def={def} bank={active.bank} />
           </button>
         );
       })}
@@ -1006,6 +1024,10 @@ function Controls({ g, active }: { g: ReturnType<typeof useGame>; active: Player
   const sac = g.sel.kind === 'sacrifice' ? g.sel : null;
   const cardSel = g.sel.kind === 'card' ? g.sel : null;
   const energyLeft = active.energy - banked;
+  // Energy still unspent AND unbanked when the turn ends is simply destroyed. Cap the warning
+  // by the room actually left in the banks — energy you physically cannot bank isn't a mistake.
+  const bankRoom = ELEMENTS.reduce((s, e) => s + Math.max(0, active.elementCaps[e] - active.bank[e] - (bank[e] ?? 0)), 0);
+  const wasted = Math.min(energyLeft, bankRoom);
   const opp = g.game.players[g.opponent];
   const oppName = registry.leaders.get(opp.leaderId)?.name ?? 'Opp';
 
@@ -1045,13 +1067,29 @@ function Controls({ g, active }: { g: ReturnType<typeof useGame>; active: Player
             const pending = bank[e] ?? 0;
             const total = current + pending;
             const atCap = total >= cap;
+            // What this bank actually BUYS: how many cards in hand it currently discounts.
+            // Banking is no longer the gate that lets you cast a card — it is a price cut —
+            // so the tile has to answer "what do I get for this?", not just "how full is it?".
+            const discounts = active.hand.reduce((n, inst) => {
+              const def = registry.cards.get(inst.cardId);
+              const need = (def?.cost.elements ?? []).find((r) => r.type === e);
+              return need && total > 0 ? n + 1 : n;
+            }, 0);
             return (
-              <div key={e} className={`banktile banktile--${e}${pending > 0 ? ' banktile--active' : ''}`}>
+              <div key={e} className={`banktile banktile--${e}${pending > 0 ? ' banktile--active' : ''}`}
+                style={{ ['--fill-pct' as string]: `${cap > 0 ? Math.min(100, (total / cap) * 100) : 0}%`,
+                         ['--commit-pct' as string]: `${cap > 0 ? Math.min(100, (current / cap) * 100) : 0}%` }}>
+                <span className="banktile__vial" aria-hidden="true"><span className="banktile__vial-fill" /><span className="banktile__vial-pending" /></span>
                 <span className="banktile__icon"><ElementRune element={e} size={18} /> <span className="banktile__elname">{ELEMENT_NAME[e]}</span></span>
                 <span className="banktile__fraction">{total}<span className="banktile__cap">/{cap}</span></span>
-                {pending > 0 && <span className="banktile__pending">+{pending}</span>}
+                {discounts > 0 && (
+                  <span className="banktile__discounts" title={`Discounts ${discounts} card(s) in your hand`}>
+                    −{discounts} in hand
+                  </span>
+                )}
                 <div className="banktile__btns">
                   <button className="banktile__btn" disabled={!g.myTurn || pending === 0} onClick={() => subBank(e)} title={`Unqueue 1 ${e}`}>−</button>
+                  <span className={`banktile__pending${pending > 0 ? ' banktile__pending--on' : ''}`} aria-hidden={pending === 0}>{pending > 0 ? `+${pending}` : ''}</span>
                   <button className="banktile__btn" disabled={!g.myTurn || energyLeft <= 0 || atCap} onClick={() => addBank(e)} title={`Queue 1 ${e}`}>+</button>
                 </div>
               </div>
@@ -1065,12 +1103,21 @@ function Controls({ g, active }: { g: ReturnType<typeof useGame>; active: Player
 
       {/* End Turn */}
       <button
-        className="btn-end"
+        className={`btn-end${wasted > 0 ? ' btn-end--waste' : ''}`}
         disabled={g.animating || !g.myTurn}
         onClick={() => { g.endTurn(banked > 0 ? bank : undefined); setBank({}); }}
+        title={wasted > 0 ? `${wasted} unspent energy will be destroyed — bank it instead` : undefined}
       >
         {g.animating ? 'Resolving…' : !g.myTurn ? 'Opponent’s turn…' : 'End Turn ▶'}
       </button>
+      {/* Leftover energy is destroyed at end of turn, and banking it is now pure upside (a
+          banked pip is a discount you keep). Ending on unbanked energy is strictly dominated,
+          so it is worth calling out rather than silently burning it. */}
+      {wasted > 0 && g.myTurn && !g.animating && (
+        <span className="btn-end__waste" role="status">
+          ↯{wasted} will be lost — bank it
+        </span>
+      )}
       {g.sel.kind !== 'none' && (
         <button className="btn-cancel" onClick={g.cancelSelection} title="Or right-click anywhere on the board">Cancel <span className="muted" style={{ fontSize: 11 }}>(or right-click)</span></button>
       )}
@@ -1216,6 +1263,8 @@ export function effectLine(e: Effect): string {
     case 'draw': return `♠ Draw ${e.amount}`;
     case 'applyStatus': return `${STATUS_INFO[e.status as keyof typeof STATUS_INFO]?.icon ?? '✧'} Apply ${STATUS_INFO[e.status as keyof typeof STATUS_INFO]?.name ?? e.status}${t}`;
     case 'energy': return `↯ Gain ${e.amount} energy`;
+    case 'energyNext': return `↯ +${e.amount} energy next round`;
+    case 'bankMax': return '⛁ Fill every element bank to its cap';
     case 'move': return `⇄ Move${t}`;
     case 'expel': return `↩ Expel${t}`;
     case 'forget': return `⌫ Forget${t}`;
@@ -1248,15 +1297,60 @@ function abilitiesForCard(card: Card): NamedAbility[] {
   return [];
 }
 
-const SANDBOX_BRUSHES: { key: NonNullable<ReturnType<typeof useGame>['sandbox']['brush']>; label: string }[] = [
-  { key: 'burn', label: '♨ Burn' },
-  { key: 'poison', label: '☠ Poison' },
-  { key: 'sleep', label: '☾ Sleep' },
-  { key: 'freeze', label: '❄ Freeze' },
-  { key: 'drowning', label: '⇊ Drown' },
-  { key: 'clear', label: '✧ Clear' },
-  { key: 'remove', label: '⌫ Remove' },
+type Brush = NonNullable<ReturnType<typeof useGame>['sandbox']['brush']>;
+
+/** Status brushes — the afflictions plus Shield, cleanse and delete. */
+const SANDBOX_BRUSHES: { key: Brush; label: string; title: string }[] = [
+  { key: { kind: 'status', status: 'burn' }, label: '♨ Burn', title: 'Add a Burn stack' },
+  { key: { kind: 'status', status: 'poison' }, label: '☠ Poison', title: 'Add a Poison stack' },
+  { key: { kind: 'status', status: 'sleep' }, label: '☾ Sleep', title: 'Put to sleep (cannot act)' },
+  { key: { kind: 'status', status: 'freeze' }, label: '❄ Freeze', title: 'Freeze (cannot act)' },
+  { key: { kind: 'status', status: 'drowning' }, label: '⇊ Drown', title: 'Force the drowning state (attack pinned to 0)' },
+  { key: { kind: 'status', status: 'shield' }, label: '▣ Shield', title: 'Add a Shield instance (absorbs one hit)' },
+  { key: { kind: 'status', status: 'clear' }, label: '✧ Clear', title: 'Clear all statuses' },
+  { key: { kind: 'remove' }, label: '⌫ Remove', title: 'Remove this unit from the board' },
 ];
+
+/** Keyword brushes, grouped so a tester can find the behaviour they want to reproduce. */
+const SANDBOX_KEYWORDS: { group: string; items: { kw: DebugKeyword; label: string; title: string }[] }[] = [
+  {
+    group: 'Targeting',
+    items: [
+      { kw: 'sniper', label: 'Sniper', title: 'Fires at a chosen enemy lane instead of straight ahead' },
+      { kw: 'overshot', label: 'Overshot', title: 'Bypasses the lane to the leader (Airborne can intercept)' },
+      { kw: 'undershot', label: 'Undershot', title: 'Strikes the deepest target, piercing defenses' },
+      { kw: 'branchShot', label: 'Branch', title: 'One full shot into each adjacent lane' },
+      { kw: 'splashDamage', label: 'Splash', title: 'Full shot at the lane plus collateral on adjacent fronts' },
+      { kw: 'strikeThrough', label: 'Strike Thru', title: 'Second shot at the back unit, else the leader' },
+      { kw: 'doubleStrike', label: 'Double Strike', title: 'Attacks twice' },
+      { kw: 'lethal', label: 'Lethal', title: 'Destroys any unit it damages' },
+    ],
+  },
+  {
+    group: 'Defense',
+    items: [
+      { kw: 'taunt', label: 'Taunt', title: 'Pulls leader-bound attacks onto itself' },
+      { kw: 'trueShield', label: 'True Shield', title: 'Blocks a hit outright' },
+      { kw: 'immunity', label: 'Immunity', title: 'Blocks harmful ability/status effects' },
+      { kw: 'tough', label: 'Tough 1', title: 'Reduces incoming damage by 1' },
+      { kw: 'spike', label: 'Spike 1', title: 'Deals 1 back to anything that hits it' },
+      { kw: 'brittle', label: 'Brittle', title: 'Dies to any damage' },
+      { kw: 'zombified', label: 'Zombified', title: 'Revives once at 1 HP (beneficial)' },
+    ],
+  },
+  {
+    group: 'Position',
+    items: [
+      { kw: 'airborne', label: 'Airborne', title: 'Flies — safe in Water, intercepts Overshot' },
+      { kw: 'aquatic', label: 'Aquatic', title: 'Can occupy Water without drowning' },
+      { kw: 'doubleTeam', label: 'Double Team', title: 'Lane can hold a second unit (front + back)' },
+      { kw: 'battleReady', label: 'Battle Ready', title: 'Ignores summoning sickness' },
+    ],
+  },
+];
+
+/** Two brushes are equal when they'd do the same thing — used to light the armed button. */
+const sameBrush = (a: Brush | null, b: Brush): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 function DebugPanel({ g }: { g: ReturnType<typeof useGame> }) {
   const registry = useRegistry();
@@ -1297,17 +1391,72 @@ function DebugPanel({ g }: { g: ReturnType<typeof useGame> }) {
         )}
       </div>
 
+      {/* One armed brush at a time; clicking any board unit applies it. */}
       <div className="sandbox__row">
-        <span className="muted" style={{ fontSize: 11 }}>Status brush (then click a unit):</span>
+        <span className="sandbox__label">Status</span>
         {SANDBOX_BRUSHES.map((b) => (
           <button
-            key={b.key}
-            className={`sandbox__brush ${sandbox.brush === b.key ? 'sandbox__brush--on' : ''}`}
-            onClick={() => g.setSandbox({ brush: sandbox.brush === b.key ? null : b.key })}
+            key={b.label}
+            title={b.title}
+            className={`sandbox__brush ${sameBrush(sandbox.brush, b.key) ? 'sandbox__brush--on' : ''}`}
+            onClick={() => g.setSandbox({ brush: sameBrush(sandbox.brush, b.key) ? null : b.key })}
           >{b.label}</button>
         ))}
+      </div>
+
+      <div className="sandbox__row">
+        <span className="sandbox__label">Stats</span>
+        {([
+          { stat: 'attack', delta: +1, label: '⚔ +1' }, { stat: 'attack', delta: -1, label: '⚔ −1' },
+          { stat: 'hp', delta: +1, label: '❤ +1' }, { stat: 'hp', delta: -1, label: '❤ −1' },
+        ] as const).map((s) => {
+          const key: Brush = { kind: 'stat', stat: s.stat, delta: s.delta };
+          return (
+            <button
+              key={s.label}
+              title={`${s.delta > 0 ? 'Raise' : 'Lower'} ${s.stat === 'attack' ? 'attack' : 'HP'} by 1 (click a unit repeatedly)`}
+              className={`sandbox__brush ${sameBrush(sandbox.brush, key) ? 'sandbox__brush--on' : ''}`}
+              onClick={() => g.setSandbox({ brush: sameBrush(sandbox.brush, key) ? null : key })}
+            >{s.label}</button>
+          );
+        })}
         <span className="sandbox__row-spacer" />
-        <button className="btn-cancel" onClick={g.clearBoard}>Clear board</button>
+        <button className="btn-cancel" onClick={g.clearBoard} title="Remove every unit and foundation from both boards">Clear board</button>
+      </div>
+
+      {/* Keyword painting — the main scenario-building tool. Click to arm, then click units. */}
+      {SANDBOX_KEYWORDS.map((grp) => (
+        <div className="sandbox__row" key={grp.group}>
+          <span className="sandbox__label">{grp.group}</span>
+          {grp.items.map((it) => {
+            const key: Brush = { kind: 'keyword', keyword: it.kw };
+            return (
+              <button
+                key={it.kw}
+                title={`${it.title} — click to arm, then click a unit to toggle`}
+                className={`sandbox__brush sandbox__brush--kw ${sameBrush(sandbox.brush, key) ? 'sandbox__brush--on' : ''}`}
+                onClick={() => g.setSandbox({ brush: sameBrush(sandbox.brush, key) ? null : key })}
+              >{it.label}</button>
+            );
+          })}
+        </div>
+      ))}
+
+      {/* Leader HP — jump straight to the Signature threshold, 1 HP, or full. */}
+      <div className="sandbox__row">
+        <span className="sandbox__label">Leader HP</span>
+        {(['me', 'foe'] as const).map((side) => {
+          const p = side === 'me' ? g.game.players[g.game.active] : g.game.players[g.opponent];
+          const max = p.leaderMaxHp ?? 30;
+          return (
+            <span className="sandbox__hpgrp" key={side}>
+              <span className="muted" style={{ fontSize: 11 }}>{side === 'me' ? 'You' : 'Foe'} {p.leaderHp}/{max}</span>
+              <button className="sandbox__brush" title="Full HP" onClick={() => g.setLeaderHp(side, max)}>Full</button>
+              <button className="sandbox__brush" title="Half max HP — the Signature unlock threshold" onClick={() => g.setLeaderHp(side, Math.floor(max / 2))}>★ Sig</button>
+              <button className="sandbox__brush" title="1 HP — one hit from defeat" onClick={() => g.setLeaderHp(side, 1)}>1</button>
+            </span>
+          );
+        })}
       </div>
 
       <input
@@ -1433,26 +1582,61 @@ function HoverPeek({ peek }: { peek: { detail: Detail; rect: DOMRect } | null })
 
 /**
  * The visual anatomy of a playing card: cost jewel + element rune pips, an art window with a
- * large element rune, name banner, type line, rules text, and ATK/HP plaques. Shared by the
- * hand and every MiniCard so cards read identically everywhere.
+ * procedural emblem, name banner, type line, rules text, and ATK/HP plaques. Shared by the hand
+ * and every MiniCard so cards read identically everywhere.
+ *
+ * The card's OWN element is deliberately NOT re-stated as a rune in the header — the frame's
+ * element-tinted rim/glow, the type line ("Fire · unit"), and the emblem's colour already carry
+ * it, and a same-shape rune there used to sit right next to the (smaller) element-COST pips,
+ * reading as a redundant, confusable size-only variant of the same symbol.
  */
-export function CardFace({ def }: { def: Card }) {
+export function CardFace({ def, bank }: { def: Card; bank?: Record<Element, number> }) {
   const kwLine = cardAbilityLine(def);
   const hasBody = 'attack' in def && 'hp' in def;
-  const pips = (def.cost.elements ?? []).flatMap((e) => Array(e.amount).fill(e.type) as Element[]);
+  const reqs = def.cost.elements ?? [];
+
+  // Element costs draw from the bank first and charge any shortfall to generic energy (see
+  // engine/energy.ts `settleCost`), so the printed `cost.energy` is NOT what this card costs
+  // you. With most of the pool now priced as pips — and some cards at 0 energy outright — the
+  // printed number reads "free" for a card you may be paying full price for. When we know the
+  // player's bank, show what they will ACTUALLY be charged, and mark each pip as covered
+  // (their bank pays it) or short (it falls back to energy).
+  let shortfall = 0;
+  const pips: { el: Element; covered: boolean }[] = [];
+  for (const req of reqs) {
+    const covered = bank ? Math.min(bank[req.type], req.amount) : req.amount;
+    shortfall += req.amount - covered;
+    for (let i = 0; i < req.amount; i++) pips.push({ el: req.type, covered: i < covered });
+  }
+  const effective = def.cost.energy + shortfall;
+  const discounted = Boolean(bank) && effective < def.cost.energy + reqs.reduce((s, r) => s + r.amount, 0);
+
   return (
     <span className="card__frame">
       <span className="card__top">
-        <span className="card__cost" title="Energy cost">{def.cost.energy}</span>
+        <span
+          className={`card__cost${discounted ? ' card__cost--discounted' : ''}`}
+          title={
+            bank
+              ? `Costs you ${effective} energy right now` +
+                (shortfall > 0 ? ` (${shortfall} pip(s) unbanked, charged as energy)` : ' — your bank covers every pip')
+              : 'Energy cost'
+          }
+        >
+          {bank ? effective : def.cost.energy}
+        </span>
         {pips.length > 0 && (
-          <span className="card__pips" title="Element cost">
-            {pips.map((el, i) => <ElementRune key={i} element={el} size={15} />)}
+          <span className="card__pips" title={bank ? 'Element cost — filled pips are paid from your bank' : 'Element cost'}>
+            {pips.map((p, i) => (
+              <span key={i} className={`card__pip${bank ? (p.covered ? ' card__pip--covered' : ' card__pip--short') : ''}`}>
+                <ElementRune element={p.el} size={15} />
+              </span>
+            ))}
           </span>
         )}
-        <ElementRune element={def.element} size={20} className="card__gem" />
       </span>
       <span className="card__art">
-        <ElementRune element={def.element} size={38} className="card__sigil" />
+        <Emblem card={def as Parameters<typeof Emblem>[0]['card']} className="card__sigil" />
       </span>
       <span className="card__name">{def.name}</span>
       <span className="card__type">{ELEMENT_NAME[def.element]} · {def.type}</span>
@@ -1895,6 +2079,7 @@ function fmt(
     case 'intercept': return `${I}${e.kind === 'taunt' ? '⚓' : '⇧'} ${name(e.by)} intercepts the attack (${e.kind})`;
     case 'unitDestroyed': return `${I}✖ ${cardName(e.cardId)} destroyed`;
     case 'signatureUnlocked': return `★ ${P(e.player)}'s Signature unlocked!`;
+    case 'deckRaid': return `⚙ ${P(e.player)} raids ${e.source} — ${e.cardIds.map(cardName).join(', ') || 'nothing'}`;
     case 'signatureGranted': return `★ ${P(e.player)} drew Signature: ${cardName(e.cardId)}`;
     case 'bank': return `${P(e.player)} banked ${e.amount} ${e.element}`;
     case 'castSpell': return `✧ ${P(e.player)} cast ${cardName(e.cardId)}`;
@@ -1924,6 +2109,7 @@ function fmt(
     case 'burnTick': return `${I}♨ Burn — ${name(e.iid)} takes ${e.amount} → ${Math.max(0, e.hpAfter)} HP`;
     case 'growth': return `${I}↥ Growth — ${name(e.iid)} +${e.attack}/+${e.hp}`;
     case 'produce': return `⌁ ${P(e.player)} produced ${e.amount} ${e.element}`;
+    case 'energyNext': return `↯ ${P(e.player)} queues +${e.amount} energy for next round (now +${e.total})`;
     case 'poisonTick': return `${I}☠ Poison — ${name(e.iid)} takes ${e.amount} → ${Math.max(0, e.hpAfter)} HP`;
     case 'drownTick': return `${I}⇊ Drowning — ${name(e.iid)} takes ${e.amount} → ${Math.max(0, e.hpAfter)} HP`;
     case 'zombieRevive': return `${I}↺ ${name(e.iid)} revives (Zombified)`;

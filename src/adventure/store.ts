@@ -66,3 +66,6 @@ export const restTakeCard = (registry: Registry, cardId: string): void => { if (
 export const restKindle = (uid1: string, uid2: string): void => { if (run) commit(reducer.restKindle(run, uid1, uid2)); };
 export const claimUnlock = (): void => { if (run) commit(reducer.claimUnlock(run)); };
 export const chooseEventOption = (registry: Registry, idx: number): void => { if (run) commit(reducer.chooseEventOption(run, registry, idx)); };
+export const startCopperMech = (): void => { if (run) commit(reducer.startCopperMech(run)); };
+export const resolveCopperMech = (damage: number, killed: boolean): void => { if (run) commit(reducer.resolveCopperMech(run, damage, killed)); };
+export const leaveCopperMech = (): void => { if (run) commit(reducer.leaveCopperMech(run)); };

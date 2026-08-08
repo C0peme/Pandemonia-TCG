@@ -25,10 +25,26 @@ const intoSection = (trigger: unknown, fallback: TriggerSection): TriggerSection
  * runs them through the normal effect machinery rather than via per-keyword handlers. This is
  * the single source of truth; CardStudio performs the same migration when authoring custom
  * cards, so it is a no-op for already-migrated cards. A keyword with no explicit trigger
- * defaults to `onPlay`; `producer` always banks at end of turn. Triggered effects fire at the
+ * defaults to `onPlay`; `producer` always adds energy at end of turn. Triggered effects fire at the
  * OWNER's trigger only (see resolveEndOfTurn / resolveStartOfTurn).
  */
 export const expandKeywordEffects = (card: Card): Card => {
+  // FOUNDATION STAT CARRYOVER — a universal rule, not per-card authoring. Every Foundation
+  // grants HALF its own printed stats (rounded down) to the unit bonded on top. Deriving it
+  // here rather than hand-authoring `grants.stat` means custom foundations from the Card
+  // Studio inherit it automatically, and it can never drift card by card.
+  //
+  // It is deliberately FREE in the budget (see budget.ts): you are sacrificing the body to
+  // pass its abilities on, and only half the stats survive that trade — a downside being
+  // partially refunded, not a bonus to charge for. A Foundation is therefore priced like a
+  // regular unit carrying the same body and keywords.
+  if (card.type === 'foundation') {
+    const attack = Math.floor((card.attack ?? 0) / 2);
+    const hp = Math.floor((card.hp ?? 0) / 2);
+    return (attack > 0 || hp > 0)
+      ? { ...card, grants: { ...card.grants, stat: { attack, hp } } }
+      : card;
+  }
   if (card.type !== 'unit') return card;
   const kw = card.keywords;
   if (!kw.healer && !kw.producer && !kw.debuff && !kw.mover && !kw.expel) return card;
@@ -46,7 +62,9 @@ export const expandKeywordEffects = (card: Card): Card => {
     delete nextKw.healer;
   }
   if (kw.producer) {
-    sections.endOfTurn.push({ kind: 'energy', amount: kw.producer.amount, element: kw.producer.element });
+    // `energyNext`, not `energy`: end-of-turn energy added to the current pool would be
+    // wiped by beginTurn's reset, so a Producer must queue onto the owner's next turn.
+    sections.endOfTurn.push({ kind: 'energyNext', amount: kw.producer.amount });
     delete nextKw.producer;
   }
   if (kw.debuff) {

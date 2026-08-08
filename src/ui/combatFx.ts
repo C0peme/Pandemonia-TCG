@@ -117,7 +117,16 @@ async function playMelee(fx: AttackFx): Promise<void> {
     return;
   }
   const start = centerOf(el);
-  const targets = targetPoints(fx);
+  // Unit bodies are struck where they stand. A LEADER hit, though, becomes a straight jab up the
+  // lane toward the enemy side — NOT a diagonal lunge at the leader portrait — so Branch/Splash
+  // (which reach the leader through empty lanes) read as attacks down their lanes. The leader
+  // banner still flashes on contact and takes its damage number; only the attacker's motion changes.
+  const targets: { el: HTMLElement; c: Point }[] = [];
+  for (const iid of fx.targetIids) { const e = unitEl(iid); if (e) targets.push({ el: e, c: centerOf(e) }); }
+  if (fx.leaderTarget !== undefined) {
+    const e = leaderEl(fx.leaderTarget);
+    if (e) { const lc = centerOf(e); const dir = Math.sign(lc.y - start.y) || -1; targets.push({ el: e, c: { x: start.x, y: start.y + dir * 70 } }); }
+  }
   // No rendered target (leader off-screen / already gone) — lunge forward toward the foe.
   const aims = targets.length > 0 ? targets.map((t) => t.c) : [{ x: start.x, y: start.y - 44 }];
   // Lethal winds up slowly then snaps — a longer, heavier strike that emphasises the kill.
@@ -285,6 +294,40 @@ const popGlyph = (el: HTMLElement, glyph: string, color?: string): void => {
   a.finished.then(done).catch(done);
   setTimeout(done, 900);
 };
+
+/**
+ * A floating combat number that rises off a unit or leader and fades — the running feedback of
+ * how much a hit/heal/tick actually did (Hearthstone's damage splats, in this game's gilt-woodcut
+ * key). Appended to <body> at fixed coords so it never clips against the unit/lane overflow.
+ */
+type FloatVariant = 'dmg' | 'dmg-leader' | 'heal' | 'burn' | 'poison';
+function floatNumber(el: HTMLElement, text: string, variant: FloatVariant, stagger = 0, stack = 0): void {
+  const r = el.getBoundingClientRect();
+  const x = r.left + r.width / 2;
+  // Numbers landing on the SAME target (a Branch/Splash pair on one leader, a Double Strike) start
+  // progressively higher and lean alternately left/right so each hit reads as its own beat rather
+  // than merging into one lump.
+  const y = r.top + r.height * 0.34 - stack * 18;
+  const span = document.createElement('span');
+  span.className = `fx-dmgnum fx-dmgnum--${variant}`;
+  span.textContent = text;
+  Object.assign(span.style, {
+    position: 'fixed', left: `${x}px`, top: `${y}px`, zIndex: '88', pointerEvents: 'none',
+  } as Partial<CSSStyleDeclaration>);
+  document.body.appendChild(span);
+  const dx = (stack % 2 === 0 ? 1 : -1) * (10 + stack * 4) + (Math.random() - 0.5) * 10;
+  const a = span.animate(
+    [
+      { transform: 'translate(-50%,-50%) scale(0.5)', opacity: 0 },
+      { transform: `translate(calc(-50% + ${dx}px),-150%) scale(1.15)`, opacity: 1, offset: 0.3 },
+      { transform: `translate(calc(-50% + ${dx * 1.5}px),-270%) scale(1)`, opacity: 0 },
+    ],
+    { duration: 900, delay: stagger, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'backwards' },
+  );
+  const done = (): void => span.remove();
+  a.finished.then(done).catch(done);
+  setTimeout(done, 1000 + stagger);
+}
 
 /** An expanding ring pulse over a unit (used for Shield / Immunity blocks). */
 const ring = (el: HTMLElement, color: string): void => {
@@ -522,8 +565,7 @@ export function playRevealFx(card: RevealCard, from: DOMRect, to: DOMRect | null
       `<div class="fx-reveal__back handback"><div class="handback__frame"><span class="handback__crest">✦</span></div></div>` +
       `<div class="fx-reveal__face handcard chip--${card.element}"><span class="card__frame">` +
         `<span class="card__top"><span class="card__cost">${card.energy}</span>` +
-          `<span class="card__pips">${esc(card.pips)}</span>` +
-          `<span class="card__gem erune">${ELEMENT_SYMBOL[card.element as keyof typeof ELEMENT_SYMBOL] ?? ''}</span></span>` +
+          `<span class="card__pips">${esc(card.pips)}</span></span>` +
         `<span class="card__art"><span class="card__sigil erune">${ELEMENT_SYMBOL[card.element as keyof typeof ELEMENT_SYMBOL] ?? ''}</span></span>` +
         `<span class="card__name">${esc(card.name)}</span>` +
         `<span class="card__type">${esc(card.typeLabel)}</span>` +
@@ -663,10 +705,31 @@ export interface FlourishOpts {
 
 /** Scan a batch of events and play one post-reveal flourish per (unit, kind). Fire-and-forget. */
 export function playEventFlourishes(
-  events: { t: string; iid?: string; by?: string; source?: string; attack?: number; hp?: number; amount?: number }[],
+  events: { t: string; iid?: string; by?: string; source?: string; attack?: number; hp?: number; amount?: number; player?: 0 | 1 }[],
   opts: FlourishOpts = {},
 ): void {
   if (prefersReduced()) return;
+  // Floating combat numbers — every hit/heal/tick shows what it did. A dying unit is already gone
+  // from the DOM by now (its crumble tells that story), so a missing element just skips the number.
+  let numIndex = 0;
+  const perTarget = new Map<string, number>(); // how many numbers already stacked on each target
+  const emit = (el: HTMLElement, text: string, variant: FloatVariant, key: string): void => {
+    const stack = perTarget.get(key) ?? 0;
+    perTarget.set(key, stack + 1);
+    // Global left→right cadence, PLUS extra spacing for repeat hits on the same target so a
+    // Branch/Splash pair pops as "−3 … −3", not a simultaneous "−6".
+    const stagger = Math.min(numIndex++, 8) * 85 + stack * 150;
+    floatNumber(el, text, variant, stagger, stack);
+  };
+  for (const e of events) {
+    const amt = e.amount ?? 0;
+    if (amt <= 0 && e.t !== 'heal') continue;
+    if (e.t === 'damageUnit') { const el = e.iid ? unitEl(e.iid) : null; if (el) emit(el, `−${amt}`, 'dmg', `u:${e.iid}`); }
+    else if (e.t === 'burnTick') { const el = e.iid ? unitEl(e.iid) : null; if (el) emit(el, `−${amt}`, 'burn', `u:${e.iid}`); }
+    else if (e.t === 'poisonTick') { const el = e.iid ? unitEl(e.iid) : null; if (el) emit(el, `−${amt}`, 'poison', `u:${e.iid}`); }
+    else if (e.t === 'damageLeader') { const el = e.player != null ? leaderEl(e.player) : null; if (el) emit(el, `−${amt}`, 'dmg-leader', `l:${e.player}`); }
+    else if (e.t === 'heal' && amt > 0) { const el = e.iid ? unitEl(e.iid) : e.player != null ? leaderEl(e.player) : null; if (el) emit(el, `+${amt}`, 'heal', e.iid ? `u:${e.iid}` : `l:${e.player}`); }
+  }
   // Proportional board shake: the biggest hit in this batch decides the jolt (lethal kill >
   // a heavy leader blow > a solid unit hit; small chip damage doesn't shake at all).
   let impact = 0;

@@ -22,7 +22,7 @@ import type {
 import { RULES } from '@engine/constants';
 import * as store from '@cards/store';
 import { useContent } from '@ui/useContent';
-import { cardBudgetValue, recommendedEnergy } from '@cards/budget';
+import { cardBudgetValue, recommendedEnergy, recommendedPips } from '@cards/budget';
 
 const CARD_TYPES = ['unit', 'foundation', 'spell', 'environment'] as const;
 type CardType = (typeof CARD_TYPES)[number];
@@ -162,7 +162,7 @@ const triggersFromCard = (card: Card, kw: Keywords): Record<TriggerSection, Effe
     delete kw.healer;
   }
   if (kw.producer) {
-    t.endOfTurn.push({ kind: 'energy', amount: kw.producer.amount, element: kw.producer.element });
+    t.endOfTurn.push({ kind: 'energyNext', amount: kw.producer.amount });
     delete kw.producer;
   }
   if (kw.debuff) {
@@ -766,7 +766,7 @@ function CostEstimate({
   costEnergy,
   onApply,
 }: {
-  estimate: { value: number; energy: number } | null;
+  estimate: { value: number; energy: number; pips: number } | null;
   costEnergy: number;
   onApply: (energy: number) => void;
 }) {
@@ -784,6 +784,12 @@ function CostEstimate({
         ⚖ Estimated value: <strong>{estimate.value.toFixed(2)}</strong>
       </span>
       <span className="muted">→ suggested energy: <strong>{estimate.energy}</strong></span>
+      <span
+        className="muted"
+        title="Element pips are derived from value: only cards worth banking for are pip-gated."
+      >
+        · suggested pips: <strong>{estimate.pips}</strong>
+      </span>
       <button type="button" onClick={() => onApply(estimate.energy)} disabled={matches}>
         {matches ? '✓ Energy matches' : `Apply ${estimate.energy} energy`}
       </button>
@@ -870,7 +876,11 @@ function CardEditor({ initial, isEditExisting, onClose }: { initial: Form; isEdi
     try {
       const built = buildCard({ ...f, id: f.id || '__preview__' });
       const lookup = (id: string) => registry.cards.get(id);
-      return { value: cardBudgetValue(built, lookup), energy: recommendedEnergy(built, lookup) };
+      return {
+        value: cardBudgetValue(built, lookup),
+        energy: recommendedEnergy(built, lookup),
+        pips: recommendedPips(built, lookup),
+      };
     } catch {
       return null;
     }
@@ -1243,14 +1253,13 @@ function SpecialKeywords({ kw, setKey, passives }: { kw: Keywords; setKey: (k: k
           </ToggleBlock>
 
           <ToggleBlock
-            label="Producer (banks element energy each turn)"
+            label="Producer (produces energy each turn)"
             on={Boolean(producer)}
-            onToggle={(on) => setKey('producer', on ? { amount: 1, element: 'fire' } : undefined)}
+            onToggle={(on) => setKey('producer', on ? { amount: 1 } : undefined)}
           >
             {producer && (
               <div className="fldrow">
                 <Num label="Amount" value={producer.amount} min={1} onChange={(n) => setKey('producer', { ...producer, amount: Math.max(1, n) })} />
-                <Sel label="Element" value={producer.element} options={ELEMENTS} onChange={(v) => setKey('producer', { ...producer, element: v })} />
               </div>
             )}
           </ToggleBlock>

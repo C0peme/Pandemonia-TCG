@@ -14,9 +14,10 @@ import { buyPrice, sellPrice, rollStoreOffer, rollRewardCard, rollRewardChoices,
 import { RULES } from '@engine/constants';
 import { rollEnhanceOffer, canApply, applyEnhance } from '@adventure/enhance';
 import { aggregateMods, rollRelicChoices } from '@adventure/relics';
-import { LEADER_UPGRADES, hasUnique } from '@adventure/hero';
+import { LEADER_UPGRADES, SIGNATURE_UPGRADES, hasUnique } from '@adventure/hero';
 import { relicById } from '@adventure/data/relics';
 import { eventForNode } from '@adventure/data/events';
+import { COPPER_MECH_HP } from '@adventure/data/copperMech';
 import { makeRoller, subSeed } from '@adventure/seed';
 
 export const startRun = (leaderId: string, seed: number, registry?: Registry): RunState => {
@@ -38,6 +39,9 @@ export const startRun = (leaderId: string, seed: number, registry?: Registry): R
     deck,
     relics: [],
     heroUpgrades: [],
+    copperBest: 0,
+    copperAttempts: 0,
+    adventureWon: false,
     nextUid: deck.length,
     map: generateMap(seed >>> 0, 1),
     currentNodeId: null,
@@ -143,9 +147,11 @@ export const resolveCombat = (run: RunState, registry: Registry, won: boolean, p
   // the act 2 boss the signature buff. Each is skipped if somehow already held, so it
   // can never gate Continue forever.
   const unlock = bossUnlock(next, at.kind);
-  // Act 3+ bosses have no unlock left to award, so they instead grant a SECOND relic
-  // pick (see `bonusRelic` on the schema) — the significant reward late acts were
-  // otherwise missing.
+  // A boss with no unlock left to award grants a SECOND relic pick instead (see
+  // `bonusRelic` on the schema) — the significant reward late acts were otherwise
+  // missing. This covers act 3+, a repeat kill of an already-claimed unlock, and any
+  // act whose unlock has no authored content for this leader, so a boss is never
+  // reduced to just coins.
   const bonusRelic = at.kind === 'boss' && !unlock;
   next.phase = {
     t: 'reward',
@@ -159,11 +165,21 @@ export const resolveCombat = (run: RunState, registry: Registry, won: boolean, p
   return next;
 };
 
-/** Which progression unlock (if any) this boss kill awards. */
+/**
+ * Which progression unlock (if any) this boss kill awards.
+ *
+ * BOTH unlocks are gated on an upgrade actually being AUTHORED for the run's leader.
+ * `SIGNATURE_UPGRADES` is currently empty (the delivery framework shipped ahead of the
+ * per-leader content), and offering `signature` regardless meant the act 2 boss handed
+ * out a reward screen promising a permanently empowered Signature that changed nothing
+ * — and, because an unlock suppresses `bonusRelic`, it also cost the player the relic
+ * they would otherwise have received. Gating here is self-healing: authoring an entry
+ * in SIGNATURE_UPGRADES turns the unlock back on for that leader with no change here.
+ */
 const bossUnlock = (run: RunState, kind: MapNode['kind']): 'unique' | 'signature' | undefined => {
   if (kind !== 'boss') return undefined;
   if (run.act === 1 && LEADER_UPGRADES[run.leaderId] && !hasUnique(run.heroUpgrades)) return 'unique';
-  if (run.act === 2 && !run.signatureBuff) return 'signature';
+  if (run.act === 2 && SIGNATURE_UPGRADES[run.leaderId] && !run.signatureBuff) return 'signature';
   return undefined;
 };
 
@@ -373,6 +389,48 @@ export const restKindle = (run: RunState, uid1: string, uid2: string): RunState 
   return next;
 };
 
+// --- Copper Mech: the endgame challenge ----------------------------------------
+// A persistent, repeatable damage race, enterable from the map at any time and the
+// Adventure's win condition. Losing costs NOTHING but the attempt: the run returns to
+// the map with its score updated and the map, deck, coins and HP all untouched. That is
+// what makes "fightable at any time" real — you can probe it early to measure yourself,
+// then come back once the deck is stronger.
+
+/** Enter the Copper Mech fight. Only from the map, and never after the run is dead. */
+export const startCopperMech = (run: RunState): RunState => {
+  if (run.phase.t !== 'map') return run;
+  const next = structuredClone(run);
+  // The attempt counter varies the shuffle, so a retry is a fresh fight rather than a
+  // replay of the same draw — while still being fully deterministic per attempt.
+  next.copperAttempts += 1;
+  next.phase = { t: 'copper', fightSeed: subSeed(run.seed, 'copper', next.copperAttempts) };
+  return next;
+};
+
+/**
+ * Settle a Copper Mech attempt. `damage` is how much was ground off its 413 HP; `killed`
+ * means it fell, which wins the Adventure permanently.
+ *
+ * Clamped to `[0, COPPER_MECH_HP]` because the caller derives it from a live board and
+ * overkill on the final blow shouldn't inflate the scoreboard past the maximum.
+ */
+export const resolveCopperMech = (run: RunState, damage: number, killed: boolean): RunState => {
+  if (run.phase.t !== 'copper') return run;
+  const next = structuredClone(run);
+  const dealt = Number.isFinite(damage) ? Math.max(0, Math.min(COPPER_MECH_HP, Math.floor(damage))) : 0;
+  const record = dealt > next.copperBest;
+  if (record) next.copperBest = dealt;
+  if (killed) next.adventureWon = true;
+  next.phase = { t: 'copperResult', damage: dealt, killed, record };
+  return next;
+};
+
+/** Dismiss the Copper Mech scoreboard and return to the map. */
+export const leaveCopperMech = (run: RunState): RunState => {
+  if (run.phase.t !== 'copperResult') return run;
+  return { ...structuredClone(run), phase: { t: 'map' } };
+};
+
 // --- Events --------------------------------------------------------------------
 
 export const chooseEventOption = (run: RunState, registry: Registry, idx: number): RunState => {
@@ -384,6 +442,10 @@ export const chooseEventOption = (run: RunState, registry: Registry, idx: number
   if (!choice) return run;
   if (choice.cost !== undefined && run.coins < choice.cost) return run;
   if (choice.requiresDeck !== undefined && run.deck.length < choice.requiresDeck) return run;
+  // Structural floor for the sacrifice trade (2 burned + 1 buffed), independent of
+  // whatever `requiresDeck` the choice happens to declare. Rejecting the transition
+  // outright is what keeps it from silently consuming the visit for no effect.
+  if (choice.outcome.kind === 'sacrificeEnhance' && run.deck.length < 3) return run;
 
   const next = structuredClone(run);
   if (choice.cost) next.coins = Math.max(0, next.coins - choice.cost);
@@ -406,12 +468,15 @@ export const chooseEventOption = (run: RunState, registry: Registry, idx: number
       break;
     }
     case 'sacrificeEnhance': {
-      if (next.deck.length >= 3) {
-        const order = roll.shuffle(next.deck.map((c) => c.uid));
-        const [sac1, sac2, buff] = order;
-        next.deck = next.deck.filter((c) => c.uid !== sac1 && c.uid !== sac2);
-        next.deck = next.deck.map((c) => (c.uid === buff ? applyEnhance(c, { enhancement: { kind: 'stat', attack: 2, hp: 2 }, price: 0, label: '+2/+2' }) : c));
-      }
+      // The deck-size gate is the choice's own `requiresDeck`, already checked above —
+      // this branch previously re-checked a DIFFERENT threshold (3 vs the authored 4)
+      // and, when it failed, fell through to mark the choice taken anyway: the player
+      // paid the click, read the result line, and nothing happened. There is no second
+      // threshold; reaching here means the trade is legal.
+      const order = roll.shuffle(next.deck.map((c) => c.uid));
+      const [sac1, sac2, buff] = order;
+      next.deck = next.deck.filter((c) => c.uid !== sac1 && c.uid !== sac2);
+      next.deck = next.deck.map((c) => (c.uid === buff ? applyEnhance(c, { enhancement: { kind: 'stat', attack: 2, hp: 2 }, price: 0, label: '+2/+2' }) : c));
       break;
     }
     case 'combat':

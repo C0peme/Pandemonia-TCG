@@ -94,8 +94,8 @@ describe('Foundation', () => {
     s2.players[0].hand = [{ iid: 'u1', cardId: 'v0' }];
     const { state, events } = applyAction(testRegistry, s2, { type: 'playUnit', iid: 'u1', lane: 'ground1' });
     const host = state.players[0].lanes.ground1.front!;
-    // v0 has base hp=1; footing grants +3 → maxHp 4
-    expect(host.maxHp).toBe(4);
+    // v0 has base hp=1; Footing is 0/3 so the universal half-stat rule grants +0/+1 → maxHp 2
+    expect(host.maxHp).toBe(2);
     expect(host.keywords.tough).toBe(1);
     expect(host.foundation?.cardId).toBe('footing');
     expect(state.players[0].lanes.ground1.standaloneFoundation).toBeUndefined();

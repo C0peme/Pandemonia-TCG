@@ -82,7 +82,9 @@ export interface EvalWeights {
   disabledPenalty: number; // fraction of attack value lost while frozen/asleep
   deckOut: number; // value per library card; convex near empty so milling the opponent is a real plan
   dot: number; // value per point of pending Burn/Poison damage on a unit (it rots below its stats)
-  bank: number; // value per point of banked element energy that a held card actually needs (ramp)
+  bank: number; // value per point of banked element energy a card in HAND can spend (a 1:1 discount)
+  bankFuture: number; // value per surplus banked point the DECK still wants — speculative, so < bank
+  energyNext: number; // value per point of energy QUEUED for next turn (Producers, Cancerous Growth)
   synergy: number; // multiplier on board-level combo bonuses (wall stacks, punishing taunt, kill-feeders, anthem width)
 }
 
@@ -116,6 +118,11 @@ export const DEFAULT_WEIGHTS: EvalWeights = {
   deckOut: 1,
   dot: 1,
   bank: 1,
+  bankFuture: 0.35,
+  // >= bank: a queued point is generic, so it spends on ANY card and is never capped, whereas
+  // a banked point only pays its own element. Undervaluing this made Cancerous Growth — which
+  // now trades 2 energy for exactly 2 next turn — read as a straight loss the AI would never take.
+  energyNext: 1,
   synergy: 1,
 };
 
@@ -150,7 +157,7 @@ const metamorphValue = (W: EvalWeights, registry: Registry, u: UnitInstance): nu
 const engineValue = (W: EvalWeights, u: UnitInstance): number => {
   let v = 0;
   for (const e of u.endOfTurn ?? []) {
-    if (e.kind === 'energy' && e.amount) v += e.amount * W.engineHorizon; // a Producer is a mana engine
+    if ((e.kind === 'energyNext' || e.kind === 'energy') && e.amount) v += e.amount * W.engineHorizon; // a Producer is a mana engine
     else if (e.kind === 'heal' && e.amount) v += e.amount * W.healTick; // a recurring heal tick
     else if (e.kind === 'buff' && e.stat) {
       // A recurring anthem/self-buff pays out every turn it survives. An all-ally anthem (the
@@ -325,20 +332,41 @@ const deckValue = (W: EvalWeights, cards: number): number => {
 };
 
 /**
- * Worth of a player's banked element energy — but ONLY up to the largest pip cost of a card
- * they actually hold, per element. Banked energy that no held card needs is dead weight and
- * scores nothing, so this rewards banking TOWARD a high-pip payoff in hand (the Ramp plan:
- * Cultivate/producers toward a cap-locked nature bomb) without making every deck hoard energy.
+ * Worth of a player's banked element energy.
+ *
+ * Element costs are no longer a GATE — a pip falls back to generic energy at 1:1 (see
+ * energy.ts `settleCost`), so a banked point is simply a 1-energy discount on the next card
+ * of that element. Two consequences the old scoring got wrong:
+ *
+ *  - Demand is now a SUM, not a max. Under the gate model you only ever needed enough for the
+ *    single largest pip cost in hand, so `Math.max` was right. Now every banked point pays for
+ *    itself against a different card, so three 1-pip cards in hand want three banked, not one.
+ *    Taking the max under-credited banking on exactly the wide, cheap hands the new economy
+ *    produces — most cards carry a pip now.
+ *  - Banking beyond what the HAND wants is no longer worthless, because the deck is full of
+ *    cards that will want it later. That is credited separately at `bankFuture`, well below
+ *    face value: it is real, but it is speculative and competes with spending the energy now.
  */
 const bankValue = (W: EvalWeights, registry: Registry, p: GameState['players'][PlayerId]): number => {
   let v = 0;
   for (const el of ELEMENTS) {
-    let demand = 0;
+    let handDemand = 0;
     for (const inst of p.hand) {
       const def = registry.cards.get(inst.cardId);
-      for (const req of def?.cost.elements ?? []) if (req.type === el) demand = Math.max(demand, req.amount);
+      for (const req of def?.cost.elements ?? []) if (req.type === el) handDemand += req.amount;
     }
-    if (demand > 0) v += Math.min(p.bank[el], demand) * W.bank;
+    const banked = p.bank[el];
+    const spentNow = Math.min(banked, handDemand);
+    v += spentNow * W.bank;
+
+    const surplus = banked - spentNow;
+    if (surplus <= 0) continue;
+    let deckDemand = 0;
+    for (const inst of p.deck) {
+      const def = registry.cards.get(inst.cardId);
+      for (const req of def?.cost.elements ?? []) if (req.type === el) deckDemand += req.amount;
+    }
+    if (deckDemand > 0) v += Math.min(surplus, deckDemand) * W.bankFuture;
   }
   return v;
 };
@@ -650,20 +678,25 @@ const handSynergyValue = (W: EvalWeights, registry: Registry, state: GameState, 
   }
   // Hand-to-hand: Sniper + Airborne in the same hand synergise once both are on board.
   if (handHasSniper && handHasAirborne) v += W.sniper * 0.2;
-  // Producer on board → high-pip payoff in hand: explicitly connect the engine to its destination.
-  // bankValue credits already-banked energy; this credits the FUTURE production trajectory toward
-  // a specific payoff, so the AI understands "keep the Sun Priest alive 2 more turns → play Wyrm."
+  // Producer on board → pipped payoff in hand. Producers used to bank a FIXED ELEMENT, so this
+  // matched `e.element` against the pips in hand. They now queue GENERIC energy (`energyNext`),
+  // which is why that check went dead — it could never fire again. Generic production is still
+  // exactly what pays a pip shortfall, so credit it against total remaining pip demand in hand.
   for (const u of boardUnits) {
     for (const e of u.endOfTurn ?? []) {
-      if (e.kind !== 'energy' || !e.amount || !e.element) continue;
-      let maxDemand = 0;
+      const amount = e.amount ?? 0;
+      if ((e.kind !== 'energyNext' && e.kind !== 'energy') || amount <= 0) continue;
+      let demand = 0;
       for (const inst of player.hand) {
         const def = registry.cards.get(inst.cardId);
         for (const req of def?.cost.elements ?? []) {
-          if (req.type === e.element) maxDemand = Math.max(maxDemand, req.amount);
+          // An element the player has already banked is covered; only the shortfall needs energy.
+          if (!e.element || req.type === e.element) {
+            demand += Math.max(0, req.amount - player.bank[req.type]);
+          }
         }
       }
-      if (maxDemand > 0) v += Math.min(e.amount, maxDemand) * W.engineHorizon * W.bank * 0.3;
+      if (demand > 0) v += Math.min(amount, demand) * W.engineHorizon * W.bank * 0.3;
     }
   }
   return v;
@@ -684,6 +717,9 @@ const evaluate = (W: EvalWeights, registry: Registry, state: GameState, me: Play
   score += (state.players[me].hand.length - state.players[opp].hand.length) * W.cardAdvantage;
   score += deckValue(W, state.players[me].deck.length) - deckValue(W, state.players[opp].deck.length);
   score += bankValue(W, registry, state.players[me]) - bankValue(W, registry, state.players[opp]);
+  // Energy queued for next turn is real energy, just later. Without this the AI sees
+  // Cancerous Growth spend 2 energy for no board change and never casts it.
+  score += ((state.players[me].energyNext ?? 0) - (state.players[opp].energyNext ?? 0)) * W.energyNext;
   score += synergyValue(W, state.players[me]) - synergyValue(W, state.players[opp]);
   score += environmentSynergyValue(W, registry, state, me);
   score += handSynergyValue(W, registry, state, me) - handSynergyValue(W, registry, state, opp);
@@ -911,6 +947,10 @@ const greedyRollout = (registry: Registry, state: GameState, w: EvalWeights): Ga
 /** Beam/branch knobs. Modest so a live turn plans in well under a second. */
 const BEAM_WIDTH = 4;   // partial turns carried between plies
 const BRANCH = 4;       // best plays expanded from each partial turn
+// Measured across 125 full-game turns after the ability-pip rework: the longest turn the AI
+// CHOOSES is 4 plays, so this cap has slack and is not what limits turn length. Do not raise it
+// hoping for longer turns — the beam ends early because ending is scored best, not because of
+// this bound.
 const MAX_PLAN_DEPTH = 5; // most plays considered in one turn
 const FINALISTS = 6;    // complete turns scored by the (expensive) opponent reply
 const MAX_ROLLOUT = 8;  // play cap for a modelled opponent turn

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildRegistry } from '@cards/registry';
 import { starterCards, starterLeaders } from '@cards/data/starter';
 import type { Card } from '@cards/schema';
-import { buyPrice, sellPrice, rollStoreOffer, rollReforge, combatReward, ECON } from '@adventure/economy';
+import { buyPrice, sellPrice, rollStoreOffer, combatReward, ECON } from '@adventure/economy';
 import { canApply, rollEnhanceOffer } from '@adventure/enhance';
 
 const registry = buildRegistry(starterCards, starterLeaders);
@@ -69,19 +69,26 @@ describe('rollStoreOffer', () => {
   it('adds extra slots from relics', () => {
     expect(rollStoreOffer(registry, 5, 'water', 2)).toHaveLength(ECON.STORE_SLOTS + 2);
   });
-});
 
-describe('rollReforge', () => {
-  it('is deterministic, differs from the source, and stays in a similar cost band', () => {
-    const from = 'coal-runner';
-    const out = rollReforge(registry, 42, from);
-    expect(out).toEqual(rollReforge(registry, 42, from));
-    expect(out).not.toBe(from);
-    const cost = (id: string): number => {
-      const c = registry.cards.get(id)!;
-      return c.cost.energy + (c.cost.elements ?? []).reduce((s, e) => s + e.amount, 0);
-    };
-    expect(Math.abs(cost(out) - cost(from))).toBeLessThanOrEqual(1);
+  // Regression: these three carry `tags: ['token']` but no id pattern the old filter
+  // caught, so a boss's self-sacrificing Follower and a 6-energy 1/1 summon payload
+  // were both purchasable — and reachable through reward picks and Rest offers too,
+  // since every "give the player a card" path shares this pool.
+  it('never stocks tokens, across many seeds', () => {
+    const tokens = ['critter-elite', 'cult-follower', 'dead-weight'];
+    for (const el of ['fire', 'water', 'nature', 'earth'] as const) {
+      for (let seed = 0; seed < 200; seed++) {
+        for (const id of rollStoreOffer(registry, seed, el)) expect(tokens).not.toContain(id);
+      }
+    }
+  });
+
+  it('every token-tagged card in the registry is excluded from the stock pool', () => {
+    const tagged = [...registry.cards.values()].filter((c) => c.tags.includes('token'));
+    expect(tagged.length).toBeGreaterThan(0); // guard: the tag must actually be in use
+    const seen = new Set<string>();
+    for (let seed = 0; seed < 300; seed++) for (const id of rollStoreOffer(registry, seed, 'fire')) seen.add(id);
+    for (const c of tagged) expect(seen.has(c.id)).toBe(false);
   });
 });
 
@@ -109,7 +116,9 @@ describe('rollEnhanceOffer / canApply', () => {
     const stat = { enhancement: { kind: 'stat', attack: 1, hp: 1 }, price: 50, label: '+1/+1' } as const;
     const cost = { enhancement: { kind: 'cost', energy: 1 }, price: 60, label: 'Cost −1' } as const;
     const taunt = { enhancement: { kind: 'keyword', keywords: { taunt: true } }, price: 70, label: 'Taunt' } as const;
-    const spell = registry.cards.get('firebolt')!;
+    // Must be a spell that still costs generic energy: ability-dense cards can now price
+    // down to 0 energy + pips, and a 0-cost card has nothing for 'Cost -1' to reduce.
+    const spell = registry.cards.get('wildfire-spread')!;
     const freebie = unit({ cost: { energy: 0 } });
     const taunter = unit({ keywords: { taunt: true } });
     expect(canApply(stat, spell)).toBe(false);

@@ -42,8 +42,30 @@ export type Action =
   /** Sandbox only — place a unit card directly onto either player's board (ready to act). */
   | { type: 'debugPlaceUnit'; cardId: string; player: PlayerId; lane: LaneId; position?: LanePosition }
   /** Sandbox only — apply (or clear) a status on a unit anywhere on the board. */
-  | { type: 'debugApplyStatus'; iid: string; status: 'burn' | 'poison' | 'sleep' | 'freeze' | 'drowning' | 'clear' }
+  | { type: 'debugApplyStatus'; iid: string; status: 'burn' | 'poison' | 'sleep' | 'freeze' | 'drowning' | 'shield' | 'clear' }
+  /**
+   * Sandbox only — toggle a keyword on a unit. Unlike the `buff` effect's grant path this can
+   * set structural/engine-special keywords too (doubleTeam, aquatic), because the sandbox is
+   * editing state directly rather than applying a card effect — that's the point of the tool.
+   */
+  | { type: 'debugToggleKeyword'; iid: string; keyword: DebugKeyword }
+  /** Sandbox only — nudge a unit's live attack or HP (for testing exact breakpoints). */
+  | { type: 'debugAdjustStat'; iid: string; stat: 'attack' | 'hp'; delta: number }
+  /** Sandbox only — set a leader's HP (test the Signature threshold, lethal, game over). */
+  | { type: 'debugSetLeaderHp'; player: PlayerId; hp: number }
   /** Sandbox only — remove a single unit from the board. */
   | { type: 'debugRemoveUnit'; iid: string }
   /** Sandbox only — remove every unit from both boards. */
   | { type: 'debugClearBoard' };
+
+/**
+ * Keywords the sandbox can paint onto a unit. A superset of the effect-grantable list: it adds
+ * the structural/engine-special flags (`doubleTeam`, `aquatic`) that cards can't grant but a
+ * tester needs to reproduce lane-capacity and Water scenarios. Numeric keywords (`tough`,
+ * `spike`) toggle between unset and 1.
+ */
+export type DebugKeyword =
+  | 'lethal' | 'sniper' | 'overshot' | 'undershot' | 'branchShot' | 'splashDamage'
+  | 'strikeThrough' | 'doubleStrike' | 'taunt' | 'trueShield' | 'immunity' | 'brittle'
+  | 'zombified' | 'airborne' | 'battleReady' | 'aquatic' | 'doubleTeam'
+  | 'tough' | 'spike';

@@ -223,7 +223,7 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 .fx-reveal__face { transform: rotateY(180deg); margin: 0; width: 100%; min-width: 0; }
 .fx-reveal__face .card__frame { height: 100%; }
 .fx-reveal__face .card__art { height: 44px; }
-.fx-reveal__face .card__sigil.erune, .fx-reveal__face .card__gem.erune { font-size: 26px; line-height: 1; }
+.fx-reveal__face .card__sigil.erune { font-size: 26px; line-height: 1; }
 .fx-reveal__face .card__text { display: none; }
 
 /* Masthead beam — wraps instead of clipping, and scales its type with the window. */
@@ -397,6 +397,21 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
   border: 1px solid #0b0806;
   box-shadow: inset 0 1px 0 rgba(255,220,140,0.18), 0 1px 2px rgba(0,0,0,0.5);
 }
+/* Energy readout: a clear numeral plus cold "spark" pips. The electric palette keeps it visually
+   distinct from the gold cost jewels so energy never reads as a cost. */
+.energygems {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 7px; border-radius: 999px;
+  background: linear-gradient(180deg, #3a2f18, #221a0d);
+  border: 1px solid #0b0806; box-shadow: inset 0 1px 0 rgba(255,220,140,0.18), 0 1px 2px rgba(0,0,0,0.5);
+}
+.energygems__bolt { font-family: var(--font-display); font-weight: 800; font-size: 13px; color: #ffe49a; text-shadow: 0 0 5px rgba(255,210,120,0.6); }
+.energygems__num { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: #ffe49a; line-height: 1; min-width: 9px; text-align: center; text-shadow: 0 1px 1px #000; }
+.energygems__pips { display: inline-flex; align-items: center; gap: 2px; }
+.energygems__pip {
+  width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto;
+  background: radial-gradient(circle at 35% 30%, #fff3cf, #f0cf7a 58%, #a3781f);
+  box-shadow: 0 0 4px rgba(255,210,120,0.7), inset 0 1px 1px rgba(255,255,255,0.6);
+}
 /* Crest — the leader's element sigil on a forged medallion */
 .leader__crest {
   flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%;
@@ -468,6 +483,22 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
     linear-gradient(180deg, #15303a, #0b1a20);
   box-shadow: inset 0 0 30px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(70,130,150,0.22);
 }
+/* Water surface shimmer — a slow caustic drift across the bog floor, behind the units. */
+.lanecol--water::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5;
+  background:
+    repeating-linear-gradient(72deg, rgba(120,190,220,0.10) 0 2px, transparent 2px 13px),
+    repeating-linear-gradient(-72deg, rgba(120,190,220,0.07) 0 2px, transparent 2px 17px);
+  animation: waterDrift 7s linear infinite;
+}
+@keyframes waterDrift { from { background-position: 0 0, 0 0; } to { background-position: 26px 0, -26px 0; } }
+/* Heights — thin mist clinging to the cliff floor. */
+.lanecol--heights::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 46%; z-index: 0; pointer-events: none; opacity: 0.55;
+  background: linear-gradient(180deg, rgba(150,165,190,0.22), transparent);
+  animation: mistBreathe 6s ease-in-out infinite;
+}
+@keyframes mistBreathe { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.66; } }
 /* Environment tints the whole column by its element */
 .lanecol--env-fire { background: linear-gradient(180deg, rgba(226, 86, 59, 0.20), rgba(226, 86, 59, 0.05)); border-color: rgba(226, 86, 59, 0.55); }
 .lanecol--env-water { background: linear-gradient(180deg, rgba(59, 130, 226, 0.20), rgba(59, 130, 226, 0.05)); border-color: rgba(59, 130, 226, 0.55); }
@@ -657,14 +688,34 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 /* Airborne hover + Drowning struggle — offsets (top/left), so combat transforms still apply */
 .unit--flying { animation: bob 2.6s ease-in-out infinite; }
 @keyframes bob { 0%, 100% { top: 0; } 50% { top: -5px; } }
-.unit--drowning { animation: drownShake 0.5s ease-in-out infinite; }
+.unit--drowning { animation: drownShake 0.5s ease-in-out infinite; filter: saturate(0.72) brightness(0.86); }
 @keyframes drownShake { 0%, 100% { left: 0; } 25% { left: -2px; } 75% { left: 2px; } }
+/* Submersion veil — a drowning body reads as literally underwater (its 0 attack is on a clock). */
+.unit--drowning::after {
+  content: ""; position: absolute; inset: 0; z-index: 6; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(180deg, rgba(58,134,214,0.10) 0%, rgba(30,90,150,0.42) 100%);
+  box-shadow: inset 0 -8px 12px rgba(20,70,120,0.5);
+  animation: drownWaver 3.2s ease-in-out infinite;
+}
+@keyframes drownWaver { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
 
 /* Pop glyph + expanding ring (Shield / Immunity / Taunt / Kamikaze / Metamorphosis) */
 .fx-glyph { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%);
   font-size: 26px; pointer-events: none; z-index: 9; filter: drop-shadow(0 0 4px #000); }
 .fx-ring { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px;
   border: 3px solid #fff; border-radius: 50%; pointer-events: none; z-index: 8; }
+
+/* Floating combat numbers (damage / heal / DoT ticks) — struck-metal numerals that rise and fade. */
+.fx-dmgnum {
+  font-family: var(--font-display); font-weight: 800; font-size: 21px; line-height: 1;
+  letter-spacing: 0.01em; pointer-events: none; white-space: nowrap;
+  text-shadow: 0 2px 3px #000, 0 0 8px rgba(0,0,0,0.7);
+}
+.fx-dmgnum--dmg        { color: #ff8a5c; text-shadow: 0 2px 3px #000, 0 0 10px rgba(217,75,43,0.8); }
+.fx-dmgnum--dmg-leader { color: #ff5a44; font-size: 27px; text-shadow: 0 2px 4px #000, 0 0 14px rgba(194,59,50,0.95); }
+.fx-dmgnum--heal       { color: #86e89b; text-shadow: 0 2px 3px #000, 0 0 10px rgba(74,158,87,0.85); }
+.fx-dmgnum--burn       { color: #ffb64a; text-shadow: 0 2px 3px #000, 0 0 10px rgba(255,140,40,0.85); }
+.fx-dmgnum--poison     { color: #b6e24a; text-shadow: 0 2px 3px #000, 0 0 10px rgba(130,200,60,0.8); }
 
 /* Flying card token for cards leaving play (Expel, Forget) */
 .fx-card-token {
@@ -757,6 +808,7 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 
 /* Element banking tiles → element braziers on the altar */
 .banktile {
+  position: relative; overflow: hidden; isolation: isolate;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   border: 1px solid #0b0806; border-radius: 8px; padding: 7px 4px;
   background:
@@ -765,6 +817,24 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 2px 4px rgba(0,0,0,0.4);
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
+/* Reservoir: each banking tile is a vessel that fills toward its element cap. The solid fill is
+   COMMITTED banked energy (--commit-pct); the fainter overlay is the pending queue (--fill-pct),
+   so a player sees exactly how close to cap a queued bank will land. */
+.banktile__vial { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.banktile__vial-fill, .banktile__vial-pending {
+  position: absolute; left: 0; right: 0; bottom: 0; border-radius: 0 0 7px 7px;
+  transition: height 0.35s cubic-bezier(.4,0,.2,1);
+}
+.banktile__vial-fill { height: var(--commit-pct, 0%); opacity: 0.85; }
+.banktile__vial-pending { height: var(--fill-pct, 0%); opacity: 0.3; }
+.banktile__vial-fill::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.10) 0 1px, transparent 1px 5px);
+}
+.banktile--fire   .banktile__vial-fill, .banktile--fire   .banktile__vial-pending { background: linear-gradient(180deg, var(--fire),   var(--fire-deep)); }
+.banktile--water  .banktile__vial-fill, .banktile--water  .banktile__vial-pending { background: linear-gradient(180deg, var(--water),  var(--water-deep)); }
+.banktile--nature .banktile__vial-fill, .banktile--nature .banktile__vial-pending { background: linear-gradient(180deg, var(--nature), var(--nature-deep)); }
+.banktile--earth  .banktile__vial-fill, .banktile--earth  .banktile__vial-pending { background: linear-gradient(180deg, var(--earth),  var(--earth-deep)); }
 .banktile--active { box-shadow: inset 0 0 12px rgba(255,210,122,0.25), 0 0 8px rgba(232,191,106,0.4); }
 .banktile--fire  { border-color: rgba(226,86,59,0.35); }   .banktile--fire.banktile--active  { border-color: rgba(226,86,59,0.85); }
 .banktile--water { border-color: rgba(59,130,226,0.35); }  .banktile--water.banktile--active { border-color: rgba(59,130,226,0.85); }
@@ -774,7 +844,11 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 .banktile__elname { font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--text); }
 .banktile__fraction { font-size: 13px; font-weight: 800; line-height: 1; }
 .banktile__cap { font-size: 10px; font-weight: 400; opacity: 0.6; }
-.banktile__pending { font-size: 10px; color: var(--accent); font-weight: 700; line-height: 1; }
+/* Queued amount sits between the − / + buttons; a fixed-width slot (rendered even when empty) so
+   the buttons never shift as energy is queued. */
+.banktile__pending { flex: 0 0 20px; text-align: center; font-size: 11px; color: var(--accent); font-weight: 800; line-height: 1.5; text-shadow: 0 1px 2px #000; }
+.banktile__pending--on { animation: bankPendingPop 0.2s ease-out; }
+@keyframes bankPendingPop { from { transform: scale(0.5); opacity: 0.4; } to { transform: scale(1); opacity: 1; } }
 .banktile__btns { display: flex; gap: 3px; width: 100%; }
 .banktile__btn { flex: 1; font-size: 15px; font-weight: 800; padding: 1px 0; line-height: 1.5; text-align: center; }
 
@@ -919,8 +993,18 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .sandbox__row select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 3px 5px; font: inherit; font-size: 12px; }
 .sandbox__mode { display: flex; align-items: center; gap: 3px; font-size: 12px; cursor: pointer; padding: 2px 6px; border-radius: 6px; border: 1px solid transparent; }
 .sandbox__mode--on { border-color: #aaaa30; background: rgba(170, 170, 48, 0.12); }
-.sandbox__brush { padding: 2px 8px; font-size: 12px; border-radius: 14px; background: var(--panel2); border: 1px solid var(--line); cursor: pointer; }
+.sandbox__brush { padding: 2px 8px; font-size: 12px; border-radius: 14px; background: var(--panel2); border: 1px solid var(--line); cursor: pointer; color: var(--text); }
+.sandbox__brush:hover { filter: brightness(1.3); }
 .sandbox__brush--on { background: var(--accent); color: #1a1408; border-color: var(--accent); font-weight: 700; }
+/* Keyword brushes sit visually apart from the status/stat ones. */
+.sandbox__brush--kw { font-size: 11px; border-style: dashed; }
+.sandbox__brush--kw.sandbox__brush--on { border-style: solid; }
+/* Fixed-width row label so every brush row's buttons line up in a column. */
+.sandbox__label {
+  flex: 0 0 62px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); font-weight: 700; font-family: var(--font-display);
+}
+.sandbox__hpgrp { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; }
 .debug-card--disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Hint mode highlights */
@@ -1002,7 +1086,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .handcard--playable .card__frame { animation: hintPulse 1.8s ease-in-out infinite; }
 
 /* Top row: cost jewel (left), element pips (centre), element gem (right) */
-.card__top { display: flex; align-items: center; gap: 3px; height: 22px; }
+/* Cost reads as ONE expression, Magic-style: generic numeral first, then the element
+   symbols hard against it, the whole cluster pinned to a corner. The pips used to sit
+   flex-centred in the middle of this row, which read as unrelated decoration rather than
+   part of the price. */
+.card__top { display: flex; align-items: center; justify-content: flex-end; gap: 2px; height: 22px; }
 .card__cost {
   width: 24px; height: 24px; flex: 0 0 auto; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -1011,8 +1099,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   border: 1.5px solid #40300e;
   box-shadow: 0 1px 2px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.7);
 }
-.card__pips { flex: 1; display: flex; justify-content: center; align-items: center; gap: 2px; line-height: 1; overflow: hidden; }
-.card__gem { flex: 0 0 auto; }
+.card__pips { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; line-height: 1; }
 
 /* Art window: element-tinted, framed, with a big carved element rune (woodcut placeholder) */
 .card__art {
@@ -1026,6 +1113,16 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .card__sigil.erune { position: relative; z-index: 1; border: none; background: none; box-shadow: none; color: rgba(255,255,255,0.95);
   text-shadow: 0 2px 4px rgba(0,0,0,0.75), 0 0 16px color-mix(in srgb, var(--elem) 75%, transparent); }
+
+/* Procedural woodcut emblem — bone-gold line-art keyed to the card's traits (see Emblem.tsx). */
+.emblem {
+  position: relative; z-index: 1; width: 86%; height: 86%;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7)) drop-shadow(0 0 6px color-mix(in srgb, var(--elem) 55%, transparent));
+}
+.emblem path {
+  fill: none; stroke: rgba(245,228,190,0.94); stroke-width: 3.2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
 /* Heraldic engraved backing — a per-element woven pattern behind the sigil */
 .card__art::before {
   content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.6;
@@ -1707,6 +1804,30 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .advcombat__twist { color: var(--accent); }
 .advreward__card { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 0 0 14px; }
 
+/* --- Copper Mech: the endgame challenge --- */
+/* Copper accent, deliberately distinct from every element colour so the endgame
+   reads as "outside the normal run" at a glance. */
+.advcopper {
+  --copper: #c9803f;
+  margin: 16px 12px 4px; padding: 14px 16px;
+  background: linear-gradient(180deg, rgba(201, 128, 63, 0.10), rgba(201, 128, 63, 0.02));
+  border: 1px solid rgba(201, 128, 63, 0.55); border-radius: 12px;
+}
+.advcopper--won { border-color: rgba(201, 128, 63, 0.95); box-shadow: 0 0 18px rgba(201, 128, 63, 0.25); }
+.advcopper__head { display: flex; align-items: center; gap: 12px; }
+.advcopper__icon { font-size: 30px; line-height: 1; color: var(--copper); }
+.advcopper__title { display: flex; flex-direction: column; gap: 2px; }
+.advcopper__title strong { color: var(--copper); font-size: 1.15em; letter-spacing: 0.02em; }
+.advcopper__blurb { margin: 10px 0 12px; }
+.advcopper__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; justify-content: space-between; }
+.advcopper__best { display: inline-flex; align-items: center; gap: 8px; color: var(--copper); font-weight: 600; }
+.advcopper__bar { display: inline-block; width: 140px; height: 7px; background: rgba(255, 255, 255, 0.10); border-radius: 4px; overflow: hidden; }
+.advcopper__fill { display: block; height: 100%; background: var(--copper); }
+.advcopper__go { border-color: var(--copper) !important; }
+.advcopper__record { color: var(--copper); font-weight: 700; }
+.advcombat__bar--copper { border-color: rgba(201, 128, 63, 0.6); }
+.advhud__stat--won { color: #c9803f; font-weight: 700; }
+
 /* --- Expansion: relics, elites, rest, events --- */
 
 /* Relic tray in the HUD */
@@ -1850,17 +1971,6 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
    PHASE 2 — LANE LEGIBILITY: control ribbon, front/back depth, foundations,
    one unified gilt "this is interactable" glow vocabulary.
    =================================================================== */
-
-/* Lane-control tug bar in the mid-band */
-.lanectrl { display: flex; align-items: center; gap: 4px; width: 100%; max-width: 108px; }
-.lanectrl__num { font-family: var(--font-display); font-weight: 800; font-size: 10px; min-width: 12px; text-align: center; opacity: 0.6; line-height: 1; }
-.lanectrl__num--opp { color: #e88a72; }
-.lanectrl__num--me { color: #86e0a4; }
-.lanectrl__num--lead { opacity: 1; font-size: 12px; text-shadow: 0 0 7px currentColor; }
-.lanectrl__bar { flex: 1; display: flex; height: 5px; border-radius: 3px; overflow: hidden; border: 1px solid #0b0806; background: rgba(0,0,0,0.45); box-shadow: inset 0 1px 2px rgba(0,0,0,0.6); }
-.lanectrl__fill { height: 100%; transition: width 0.3s ease; }
-.lanectrl__fill--opp { background: linear-gradient(90deg, #7a2a20, #c23b32); }
-.lanectrl__fill--me  { background: linear-gradient(90deg, #2f6d43, #56b06a); }
 
 /* Front/back depth — the reserve unit sits smaller, dimmer and recessed behind the front. */
 .unit--back { opacity: 0.92; transform: scale(0.88); filter: brightness(0.78) saturate(0.85); }
@@ -2007,6 +2117,77 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   .scene-bg__shaft, .scene-bg__motes, .unit--flying, .unit--drowning, .unit,
   .controls .btn-end, .turnbanner--play, .game.theme-gothic .hand .handcard,
   .handcard--playable, .game.theme-gothic .hand .handcard--playable .card__frame,
-  .lanecol--env::after, .lanecol--declare, .lanecol--declare::after, .controls::after, .handback { animation: none !important; }
+  .lanecol--env::after, .lanecol--declare, .lanecol--declare::after, .controls::after, .handback,
+  .lanecol--water::before, .lanecol--heights::before, .unit--drowning::after { animation: none !important; }
   .game.theme-gothic .hand .handcard { transition: none !important; }
+}
+
+/* ── Energy economy readouts ──────────────────────────────────────────────────
+   The cost model changed: element pips draw from the bank first and charge any
+   shortfall to generic energy, so a card's printed `cost.energy` is not what it
+   costs you. These styles carry the difference. */
+
+/* A cost the player's bank is partly paying — the number shown is lower than face. */
+.card__cost--discounted {
+  color: #9ff2c4;
+  text-shadow: 0 0 6px rgba(90, 230, 160, .55), 0 1px 1px #000;
+}
+
+/* Each pip says whether the bank covers it. Covered = paid from reserves (bright,
+   slight glow); short = falls back to generic energy (dimmed and desaturated). */
+.card__pip { display: inline-flex; line-height: 1; transition: opacity .12s ease; }
+/* Round the element badges so they match the circular generic-cost jewel beside them and the
+   run reads as a single row of cost symbols. */
+.card__pip .erune { border-radius: 50%; }
+.card__pip--covered { filter: drop-shadow(0 0 3px rgba(120, 240, 180, .75)); }
+.card__pip--short { opacity: .38; filter: grayscale(.85); }
+
+/* Energy queued for NEXT turn (Producers, Cancerous Growth). Deliberately reads as a
+   promise rather than a resource: outlined, cooler, set apart from the live numeral. */
+.energygems__next {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border: 1px dashed rgba(150, 220, 255, .55);
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 11px;
+  color: #bfe6ff;
+  line-height: 1.25;
+}
+.energygems__next-tag { font-size: 8.5px; font-weight: 600; opacity: .75; letter-spacing: .04em; }
+
+/* What a bank actually buys, on the banking tile. */
+.banktile__discounts {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: #9ff2c4;
+  opacity: .9;
+  line-height: 1;
+}
+
+/* Hero powers that hand energy back (Cancerous Growth) must not read as pure cost. */
+.herocost__return {
+  margin-left: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #bfe6ff;
+  opacity: .85;
+}
+
+/* Ending the turn on unbanked energy destroys it, and banking is pure upside — so this
+   is a strictly dominated move worth flagging. */
+.btn-end--waste { box-shadow: 0 0 0 1px rgba(255, 190, 90, .55), 0 0 12px rgba(255, 170, 60, .28); }
+.btn-end__waste {
+  display: block;
+  margin-top: 4px;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #ffcf87;
+  letter-spacing: .01em;
 }

@@ -53,7 +53,11 @@ export function CombatView({ run, nodeId, fightSeed, onDetail }: {
     // onto the opening player's energy directly — every later turn reads it live.
     if (enc.boss?.energyOverride !== undefined) {
       initial.energyOverride = enc.boss.energyOverride;
-      initial.players[initial.active].energy = enc.boss.energyOverride;
+      // Take the HIGHER of the two: a flat assignment here silently erased any
+      // start-energy relic `applyRelicsToState` just added on the line above, so the
+      // one boss with an override was also the one boss that quietly disabled a relic.
+      const opener = initial.players[initial.active];
+      opener.energy = Math.max(opener.energy, enc.boss.energyOverride);
     }
     if (enc.boss?.curse?.playerMillPerTurn) {
       initial.players[0].turnCardMod = { ...initial.players[0].turnCardMod, millSelf: enc.boss.curse.playerMillPerTurn };
