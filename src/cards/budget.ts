@@ -35,9 +35,22 @@ const statCost = (s: { attack?: number; hp?: number } | undefined | null): numbe
 // into element pips (see recommendedPips) — a pip is cheaper in practice than the 0.5 energy the
 // budget charges for it, because it is paid from end-of-turn overflow that would otherwise be
 // lost. Value is therefore measured straight, with no per-category multiplier.
-const STAT_BASE  = 0.28;
-const STAT_R_ATK = 1.30;
-const STAT_R_HP  = 1.40;
+// SOFTENED 0.28/1.30/1.40 -> 0.30/1.08/1.12. The old ratios came from single-combat games
+// where one huge body dominates. Pandemonia is LANE-BASED with 8 slots and parallel combat, so
+// a big body only ever fights in its own lane while small ones attack simultaneously. Measured
+// on the old curve, stats-per-energy fell 3.00x from a 1/2 to an 8/8 (a 4/5 cost 6e for 9 stats
+// while 6e of 1/2s bought 18) — a cliff that made anything above a 4/4 uneconomical to author.
+//
+// A premium is still correct, just a gentler one: cards and board slots bind later in the game
+// (1 draw/turn over ~15 rounds, 8 slots), and a big body converts ONE card into many stats, so
+// linear pricing would let tall dominate the late game instead. These ratios cut the spread to
+// Softened to 1.08/1.12 first, which overshot: it made big vanilla bodies as efficient per
+// energy as small ones and handed the meta to the most vanilla-efficient deck. 1.22/1.30 sits
+// between the original 3.71x stats-per-energy spread and that 1.78x — about 2.86x, a real
+// premium for going tall without pricing big bodies out of the game.
+const STAT_BASE  = 0.29;
+const STAT_R_ATK = 1.22;
+const STAT_R_HP  = 1.30;
 
 /** Kept as a named constant so the old stats↔abilities fudge can be reintroduced in one place. */
 const ABILITY_FACTOR = 1.0;
@@ -119,10 +132,26 @@ function aquaticCost(a: any): number {
   return 0;
 }
 
-/** Value of a keywords object. `allUnits` multiplies every keyword by 2.5 (environment grants). */
+/**
+ * ENVIRONMENT GRANT MULTIPLIER — 2.5 -> 1.0.
+ *
+ * An Environment's `grantKeywords` were amplified 2.5x on the theory that hitting a whole lane
+ * is worth far more than one unit having the keyword. That is wrong twice over. First, the
+ * grant is SYMMETRIC: `refreshLaneEnvironment` applies it to units of BOTH players in that lane
+ * column, so you are partly arming your opponent. Second, once the keyword table itself was
+ * repriced from measured field data, the 2.5x stacked on top and produced uncastable cards —
+ * Warehouse 22e, Overgrowth 20e, High Ground 19e, in a game whose average length is ~15 rounds
+ * and whose energy equals the round number. Meanwhile Fortified Line fell to 0e.
+ *
+ * At 1.0 an Environment costs about what its keyword is worth, which is the honest price for a
+ * shared, symmetric effect whose upside is that you choose when and where to drop it.
+ */
+const ENV_GRANT_MULT = 1.0;
+
+/** Value of a keywords object. `allUnits` applies the Environment grant multiplier. */
 function keywordsCost(kw: any, allUnits: boolean, lookup: Lookup, depth = 0): number {
   if (!kw) return 0;
-  const m = allUnits ? 2.5 : 1;
+  const m = allUnits ? ENV_GRANT_MULT : 1;
   let c = 0;
   for (const [k, v] of Object.entries<any>(kw)) {
     switch (k) {
@@ -130,28 +159,28 @@ function keywordsCost(kw: any, allUnits: boolean, lookup: Lookup, depth = 0): nu
       // one-shot reach attackers that actually run it — a full −1.0 energy refund undercosts them
       // (it pushed Swift Falcon to a 1e 3/1 flyer). Priced for the average case at −0.5.
       case 'brittle': c += -0.5; break;
-      case 'battleReady': c += 0.25; break;
-      case 'sniper': c += 0.75; break;
-      case 'overshot': c += 0.75; break;
-      case 'airborne': c += 0.75; break;
-      case 'strikeThrough': c += 1.5; break;
-      case 'branchShot': c += 1.5; break;
+      case 'battleReady': c += 2.75; break;  // field delta +25.3 -> repriced
+      case 'sniper': c += 0.25; break;  // field delta -5.2 -> repriced
+      case 'overshot': c += 4.05; break;  // field delta +33.3 -> repriced
+      case 'airborne': c += 1.95; break;  // field delta +11.8 -> repriced
+      case 'strikeThrough': c += 2.4; break;  // field delta +9.4 -> repriced
+      case 'branchShot': c += 3.5; break;  // field delta +38.9 -> repriced
       case 'splashDamage': c += 2.5; break; // multi-target (3 fronts) — empirically Undershot-tier+, not 1.5
-      case 'doubleStrike': c += 1.5; break;
-      case 'taunt': c += 1.0; break;
-      case 'doubleTeam': c += 1.0; break;
-      case 'immunity': c += 2.0; break;
-      case 'undershot': c += 2.0; break;
-      case 'lethal': c += 3.0; break;
+      case 'doubleStrike': c += 3.9; break;  // field delta +23.6 -> repriced
+      case 'taunt': c += 0.2; break;  // field delta -8.0 -> repriced
+      case 'doubleTeam': c += 1.7; break;  // field delta +6.6 -> repriced
+      case 'immunity': c += 3.2; break;  // field delta +11.8 -> repriced
+      case 'undershot': c += 1.0; break;  // field delta -9.7 -> repriced
+      case 'lethal': c += 4.5; break;  // field delta +15.3 -> repriced
       case 'trueShield': c += 3.0; break;
       case 'zombified': c += 2.75; break;
-      case 'shield': c += 2.5 + 0.5 * (num(v, 1) - 1); break;
-      case 'tough': c += 2.0 + 1.5 * (num(v, 1) - 1); break;
+      case 'shield': c += 3.4 + 0.5 * (num(v, 1) - 1); break;
+      case 'tough': c += 3.3 + 1.5 * (num(v, 1) - 1); break;
       case 'spike': c += 1.5 + 0.5 * (num(v, 1) - 1); break;
       case 'aquatic': c += aquaticCost(v); break;
       case 'producer': c += num(v?.amount, 1) * 0.7; break;           // energy×0.5 × 1.4
-      case 'growth': c += 1.5 + statCost(v); break;
-      case 'bloodlust': c += 1.25 + statCost(v?.buff) + effectsCost(v?.effects, lookup, false, depth); break;
+      case 'growth': c += 3.5 + statCost(v); break;
+      case 'bloodlust': c += 1.95 + statCost(v?.buff) + effectsCost(v?.effects, lookup, false, depth); break;
       case 'polish': c += 1.0 + statCost(v?.stat) + effectsCost(v?.effects, lookup, false, depth); break;
       case 'healer': c += num(v?.amount, 1) * 0.7; break;             // heal×0.5 × 1.4
       case 'mover': c += 1.4; break;                                   // move×1.0 × 1.4
@@ -191,11 +220,15 @@ function onHitCost(oh: any): number {
  * Global price level. The value function only ever determines RATIOS between cards — its
  * absolute scale is arbitrary, and dropping the STAT_BASE/ABILITY_FACTOR fudges deflated it
  * by 17.5%, which would have made the whole pool cheaper and sped the game up. VALUE_SCALE
- * pins the scale so the pool's total cost matches the originally authored one (calibrated to
- * 1.20 → −1.7% drift). Retune ONLY to move the game's overall pace; it is not a balance knob,
+ * pins the scale so the pool's total cost matches the originally authored one. Recalibrated twice:
+ * 1.20 -> 1.30 when the stat curve was softened (flattening dropped the pool 9.4%), then
+ * 1.30 -> 1.09 after the keyword table was repriced from measured field data (that inflated the
+ * pool +19.6%, which would have silently slowed every game since energy per turn is fixed at
+ * the round number). Both times the point is the same: hold the price level so a change to
+ * RELATIVE pricing is not smuggled in alongside a change to game pace. Retune ONLY to move the game's overall pace; it is not a balance knob,
  * because scaling every card together changes no card's cost relative to any other.
  */
-const VALUE_SCALE = 1.20;
+const VALUE_SCALE = 1.09;
 
 export function cardBudgetValue(card: any, lookup: Lookup = () => undefined): number {
   return valueOf(card, lookup, 0) * VALUE_SCALE;
@@ -229,16 +262,20 @@ function valueOf(card: any, lookup: Lookup, depth: number): number {
     const body = unitStatCost(num(card.attack), num(card.hp)) +
       keywordsCost(card.keywords, false, lookup, depth) + onHitCost(card.onHit) +
       triggers(true, card.onAttack, card.endOfTurn, card.startOfTurn) + triggers(false, card.onPlay);
-    // `grants.stat` is deliberately NOT priced. It is no longer authored per card — every
-    // Foundation automatically passes on HALF its printed stats (see registry.ts), so charging
-    // for it would bill the same stats twice: once in the body above, again in the grant. And
-    // it is not upside anyway — bonding sacrifices the body and only half of it survives, so
-    // the carryover is a partial refund on a downside.
+    // The half-stat carryover IS charged, computed from the body rather than read from
+    // `grants.stat` (registry.ts derives that universally, so the card data no longer carries it).
     //
-    // What IS charged is what the Foundation genuinely hands over: its granted KEYWORDS. That
-    // lands a Foundation at roughly the cost of a regular unit with the same body and keywords,
-    // which is the intent — you pay unit rates, then trade the body away to move the abilities.
-    const grant = keywordsCost(card.grants?.keywords, false, lookup, depth);
+    // It was briefly free, on the reasoning that bonding sacrifices the body so the carryover is
+    // a refund on a downside. A meta sim killed that: correlation between a deck's foundation
+    // count and its win-rate change came out at 0.86 — every deck holding foundations gained,
+    // every deck without one lost. The premise was wrong because a Foundation fights standalone
+    // as a full unit FIRST and only then passes half its stats up. That is a two-stage payoff,
+    // not a sacrifice, so it has to be paid for.
+    const derivedGrantStat = statCost({
+      attack: Math.floor(num(card.attack) / 2),
+      hp: Math.floor(num(card.hp) / 2),
+    });
+    const grant = derivedGrantStat + keywordsCost(card.grants?.keywords, false, lookup, depth);
     // Floor keeps a Foundation from ever costing less than the equivalent vanilla body.
     const premium = Math.max(0.5, grant);
     return body + premium;

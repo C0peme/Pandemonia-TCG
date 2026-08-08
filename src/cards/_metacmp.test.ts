@@ -42,7 +42,7 @@ function runOne(label: string, registry: any, decks: any[]) {
 describe('meta comparison', () => {
   it('baseline vs formula-derived pips', { timeout: 36_000_000 }, () => {
     const before = runOne('BEFORE (original pips, elemental Producers, Cultivate)', baseRegistry, baseDecks as any[]);
-    const after = runOne('AFTER (foundation rework: half-stat rule, unit rate + 1 pip)', starterRegistry, starterDecks as any[]);
+    const after = runOne('IT4 (curve 1.22/1.30, growth+branchShot damped)', starterRegistry, starterDecks as any[]);
 
     console.log('\n=== FIELD WIN-RATE DELTA (sorted by new standing) ===');
     console.log('Leader/Deck        before   after   delta');
