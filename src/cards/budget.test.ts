@@ -27,13 +27,14 @@ describe('cardBudgetValue', () => {
   });
 
   it('applies the all-units ×2.5 multiplier to AOE on-play', () => {
-    // Frost King 2/2 + freeze all enemies: stat portion shrank, AOE portion grew with the scale.
-    expect(cardBudgetValue(card('frost-king'))).toBeCloseTo(8.270, 2);
+    // Frost King 2/2 + freeze all enemies. Freeze was repriced down (2.5 -> 1.4, field -11.1),
+    // which outweighs the AOE multiplier rising 2.5 -> 3.5.
+    expect(cardBudgetValue(card('frost-king'))).toBeCloseTo(6.798, 2);
   });
 
   it('prices an AOE spell (Wildfire Spread: Burn 2 all-enemy)', () => {
-    // burn 2.0 x 2.5 = 5.0, x 1.30 = 6.5
-    expect(cardBudgetValue(card('wildfire-spread'))).toBeCloseTo(5.450, 2);
+    // burn 2.0 x AOE 3.5 (was 2.5 — measured +9.2 underpriced) x 1.09 scale.
+    expect(cardBudgetValue(card('wildfire-spread'))).toBeCloseTo(7.630, 2);
   });
 
   it('prices a foundation as a full body plus its grant at FULL value', () => {

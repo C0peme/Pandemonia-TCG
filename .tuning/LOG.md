@@ -331,3 +331,92 @@ the top and Deck Out 28 at the floor (accepted as a gimmick deck).
 `.tuning/keywordField.ts` (field-based keyword probe, validated NO-OP = 0.0),
 `.tuning/measure.ts`, `.tuning/keywordSweep.test.ts.off` (rename to .ts under src/ to re-run).
 The sweep is deliberately parked outside src/ so `npm test` stays fast.
+
+---
+
+## Deck surgery — can deck edits rescue spell-heavy decks?
+
+Swapped up to 8 spell copies for efficient vanilla units of similar cost. **No card definitions
+changed** — only the lists.
+
+| deck | before | after | delta |
+|---|---|---|---|
+| Control | 40% | **57%** | **+17.2** |
+| Guardian | 56% | 63% | +6.1 |
+| Lane Control | 54% | 59% | +5.0 |
+| DoT | 48% | 51% | +2.5 |
+| **Deck Out** | 30% | **16%** | **-14.2** |
+
+**Four of five decks improve by deleting spells** — Control by seventeen points. A vanilla body
+is simply worth more than a similarly-priced spell, which is the same story the -0.57
+composition correlation told.
+
+**Deck Out is the informative exception.** It gets much WORSE (-14.2) because its spells are its
+win condition, not a value engine: cut the mill and the deck has no way to win at all. So its
+28% is not evidence that spells are overpriced; it is a deck whose plan simply loses. That
+matches the earlier read that Deck Out is a gimmick deck and its floor is by design.
+
+**Conclusion: the answer to "can deck edits fix it" is yes, but they should not be the fix.**
+The gains come from removing spells, not from playing better ones — evidence that the EFFECT
+TABLE is mispriced rather than the lists being badly built. Editing the lists would paper over
+that and leave every player-built custom deck holding the same overpriced spells.
+
+---
+
+## Effect cost table — measured and repriced (IT7)
+
+Full sweep (swap N copies of a vanilla unit for a probe spell at its formula price, field win
+rate vs the other 12 decks):
+
+| UNDERPRICED | delta | | OVERPRICED | delta |
+|---|---|---|---|---|
+| buff +2/+2 ally | **+13.9** | | freeze any | **-11.1** |
+| damage 4 enemy | **+11.1** | | forget 2 | **-10.8** |
+| damage 2 ALL-enemy | **+9.2** | | cleanse ally | **-9.2** |
+| move / burn 2 | +3.6 / +3.1 | | taunt (status) | **-8.1** |
+| damage 2, damage 3 leader, debuff | ~0 | | heal 3 / sleep / expel | **-6.7** each |
+
+**Every disruption effect is overpriced; damage and buffs are underpriced.** Tempo denial reads
+better on paper than it plays — the target survives, the board does not change, and you spent a
+card. That is exactly why Control, the most disruption-dense deck, gained +17.2 from throwing
+its spells away.
+
+**Changes.** freeze 2.5 -> 1.4, sleep 2.0 -> 1.3, taunt 1.0 -> 0.2, shield 2.5 -> 2.3,
+expel 2.5 -> 1.8, forget base 1.75 -> 0.7, cleanse 1.0 -> 0.1, heal 0.5 -> 0.3/pt,
+draw 1.0 -> 0.85/card, buff stats x1.9, AOE multiplier 2.5 -> **3.5**, and damage made
+PROGRESSIVE (`amount*0.5 + max(0, amount-2)*0.55`) since 2 damage read neutral while 4 read
++11.1 — big hits kill real bodies, small ones only chip.
+
+VALUE_SCALE unchanged at 1.09 (drift +0.1%).
+
+Resulting card moves: disruption cheaper (cold-spell, hypnotic-patterns, peel-back,
+displacement-wave, mend all -1), AOE pricier (wildfire-spread, verdant-cataclysm,
+hivemind-surge all +3).
+
+Also corrected a stale comment block on the stat curve that still described 1.08/1.12 after the
+values had moved twice; it now records the full tuning history and why a premium is correct.
+
+**Result (IT7).** Combo 64, Ramp 60, Lane Control 57, Stall 56, Snowball 54, Attrition 53,
+Swarm 51, Guardian 50, Aggro 49, DoT 47, Control 42, Midrange 41, Deck Out 26.
+
+**This is a NULL result and should be read as one.** Every per-deck delta vs IT6 falls inside
+the +-5.2 noise band (worst: Lane Control +4, Midrange -3). Aggregate SD reads 8.34 -> 9.36 but
+that is many noise-level wiggles stacking, not a measurable regression.
+
+**The important part: Control did NOT recover** (44 -> 42) even though its freeze, expel and
+sleep all got cheaper. That kills the simple story. Disruption is not merely overpriced — it is
+WEAK, and a cheaper weak card is still a weak card. You cannot fix a losing strategy by
+discounting it.
+
+**Kept anyway**, because the two questions are separate:
+- *Is the effect table accurate?* Now yes, and measured. Custom cards and future content get
+  priced correctly, which matters more than the starter meta.
+- *Does repricing fix Control?* No. That needs the effects themselves to do more, or the
+  archetype to get a different payoff — a design change, not a price change.
+
+### What disruption would actually need
+
+Freeze/sleep/expel deny one attack and leave the board unchanged. Against a lane board with
+8 slots the opponent simply attacks elsewhere. For a control plan to work the effects need to
+generate advantage rather than delay it — draw attached to removal, damage attached to tempo,
+or lane-wide rather than single-target denial. That is a content question, not a formula one.

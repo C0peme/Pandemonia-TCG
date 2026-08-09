@@ -25,29 +25,22 @@ const num = (v: unknown, d = 0): number => (typeof v === 'number' ? v : d);
 const statCost = (s: { attack?: number; hp?: number } | undefined | null): number =>
   s ? num(s.attack) * 0.25 + num(s.hp) * 0.5 : 0;
 
-// Geometric (progressive) stat cost for a unit's base stats.
-// Attack: geometric with r=1.30 (no cap — attack values rarely exceed 6).
-// HP: geometric with r=1.40, no cap — outlier tanks are balanced at the data level.
-// STAT_BASE returned 0.38 → 0.28 (its honest value) and ABILITY_FACTOR returned 0.8 → 1.0.
-// Both were thumbs on the scale to stop vanilla stat-sticks out-competing ability cards: stats
-// were taxed and abilities discounted, so the two error terms would cancel. That is no longer
-// needed. Abilities now earn their edge STRUCTURALLY, by moving cost out of generic energy and
-// into element pips (see recommendedPips) — a pip is cheaper in practice than the 0.5 energy the
-// budget charges for it, because it is paid from end-of-turn overflow that would otherwise be
-// lost. Value is therefore measured straight, with no per-category multiplier.
-// SOFTENED 0.28/1.30/1.40 -> 0.30/1.08/1.12. The old ratios came from single-combat games
-// where one huge body dominates. Pandemonia is LANE-BASED with 8 slots and parallel combat, so
-// a big body only ever fights in its own lane while small ones attack simultaneously. Measured
-// on the old curve, stats-per-energy fell 3.00x from a 1/2 to an 8/8 (a 4/5 cost 6e for 9 stats
-// while 6e of 1/2s bought 18) — a cliff that made anything above a 4/4 uneconomical to author.
+// Geometric (progressive) stat cost for a unit's base stats: each extra point costs more than
+// the last. Both per-category fudges are gone — STAT_BASE is its honest value and ABILITY_FACTOR
+// is 1.0 — because abilities now earn their edge STRUCTURALLY, by converting energy into element
+// pips (see recommendedPips), not by taxing stats.
 //
-// A premium is still correct, just a gentler one: cards and board slots bind later in the game
-// (1 draw/turn over ~15 rounds, 8 slots), and a big body converts ONE card into many stats, so
-// linear pricing would let tall dominate the late game instead. These ratios cut the spread to
-// Softened to 1.08/1.12 first, which overshot: it made big vanilla bodies as efficient per
-// energy as small ones and handed the meta to the most vanilla-efficient deck. 1.22/1.30 sits
-// between the original 3.71x stats-per-energy spread and that 1.78x — about 2.86x, a real
-// premium for going tall without pricing big bodies out of the game.
+// The ratios were tuned empirically over several meta sims:
+//   0.28 / 1.30 / 1.40  original — stats-per-energy fell 3.71x from a 1/2 to a 7/7, a cliff that
+//                       made anything above a 4/4 uneconomical to author.
+//   0.30 / 1.08 / 1.12  OVERSHOT. Flat enough that a 7/7 was as efficient per energy as a 2/3,
+//                       so vanilla stat-sticks became the best cards in the game and the most
+//                       vanilla-efficient deck jumped 62% -> 74% field win rate.
+//   0.29 / 1.26 / 1.35  current (~3.0x spread). A real premium for going tall without the cliff.
+//
+// Why a premium is correct at all: energy binds early (favouring cheap wide bodies) but CARDS
+// and board slots bind later — 1 draw/turn over ~15 rounds, 8 slots. A big body converts one
+// card into many stats, so linear pricing would simply let tall dominate the late game instead.
 const STAT_BASE  = 0.29;
 const STAT_R_ATK = 1.26;
 const STAT_R_HP  = 1.35;
@@ -66,16 +59,23 @@ const unitStatCost = (attack: number, hp: number): number =>
 
 const isAll = (t: unknown): boolean => t === 'all-ally' || t === 'all-enemy';
 
+/**
+ * Status prices, corrected from measured field data. Every disruption status came back
+ * OVERPRICED in the effect sweep — freeze -11.1, sleep -6.7, taunt -8.1 marginal win rate when
+ * a spell carrying it replaced a similarly-priced vanilla body. Tempo denial reads far better
+ * on paper than it plays: the target survives, the board does not change, and you spent a card.
+ * Burn/poison were fine (+3.1) and are untouched.
+ */
 function statusCost(status: string, amount = 1): number {
   switch (status) {
     case 'burn': return 1.0 + 1.0 * (amount - 1);
     case 'poison': return 1.0 + 1.5 * (amount - 1);
-    case 'sleep': return 2.0;
-    case 'freeze': return 2.5;
-    case 'shield': return 2.5 + 0.5 * (amount - 1);
+    case 'sleep': return 1.3;   // was 2.0  (field -6.7)
+    case 'freeze': return 1.4;  // was 2.5  (field -11.1)
+    case 'shield': return 2.3 + 0.5 * (amount - 1); // was 2.5 (field -2.2)
     case 'trueShield': return 3.0;
     case 'zombified': return 2.75;
-    case 'taunt': return 1.0;
+    case 'taunt': return 0.2;   // was 1.0  (field -8.1)
     default: return 1.0;
   }
 }
@@ -83,12 +83,21 @@ function statusCost(status: string, amount = 1): number {
 /** Base cost of a single effect, ignoring the all-units and recurrence multipliers. */
 function effectCostBase(e: any, lookup: Lookup, depth: number): number {
   switch (e.kind) {
-    case 'damage': { let c = num(e.amount) * 0.5; if (e.chainDiminish || e.chain) c += 1.0; return c; }
-    case 'heal': return num(e.amount) * 0.5;
-    case 'buff': return statCost(e.stat) + keywordsCost(e.keywords, false, lookup, depth);
+    // Damage is PROGRESSIVE. Measured: 2 damage reads neutral (+1.4) but 4 damage is badly
+    // underpriced (+11.1) — big hits kill real bodies where small ones only chip, so the value
+    // per point rises. Same reasoning as the geometric stat curve, applied to removal.
+    case 'damage': {
+      let c = num(e.amount) * 0.5 + Math.max(0, num(e.amount) - 2) * 0.55;
+      if (e.chainDiminish || e.chain) c += 1.0;
+      return c;
+    }
+    case 'heal': return num(e.amount) * 0.3;   // was 0.5/pt (field -6.7 on heal 3)
+    // A spell buff is worth far more than the same stats printed on a body (+13.9): it lands on
+    // an already-deployed unit, so it dodges summoning sickness and doubles down on a threat.
+    case 'buff': return statCost(e.stat) * 1.9 + keywordsCost(e.keywords, false, lookup, depth);
     case 'debuff': return 1.25 + statCost(e.stat);
     case 'applyStatus': return statusCost(e.status, num(e.amount, 1));
-    case 'draw': return num(e.amount, 1) * 1.0;
+    case 'draw': return num(e.amount, 1) * 0.85;  // was 1.0/card (field -4.4)
     case 'energy': return num(e.amount, 1) * 0.5;
     // Same energy, one turn later: worth slightly less than immediate energy, never more.
     case 'energyNext': return num(e.amount, 1) * 0.4;
@@ -97,16 +106,16 @@ function effectCostBase(e: any, lookup: Lookup, depth: number): number {
     // refill (~6 points) times the 0.5 the budget charges per pip.
     case 'bankMax': return 3.0;
     case 'move': return 1.0;
-    case 'expel': return 2.5;
+    case 'expel': return 1.8;   // was 2.5 (field -6.7)
     case 'forget':
-    case 'mill': return 1.75 + 1.5 * (num(e.amount, 1) - 1);
+    case 'mill': return 0.7 + 1.5 * (num(e.amount, 1) - 1);  // was 1.75 base (field -10.8)
     case 'conjure': return 1.5;
     // depth+1 so self-summon bloodlust (e.g. Shypher) stops at depth>1 and returns stats only
     case 'summon': return e.cardId ? valueOf(lookup(e.cardId), lookup, depth + 1) : 1.0;
     case 'extraAction': return 1.5;
     case 'costMod': return 1.0;
     case 'setStats': return 2.0;
-    case 'cleanse': return 1.0;
+    case 'cleanse': return 0.1;  // was 1.0 (field -9.2)
     case 'custom': return 0;
     default: return 0;
   }
@@ -114,7 +123,10 @@ function effectCostBase(e: any, lookup: Lookup, depth: number): number {
 
 function effectCost(e: any, lookup: Lookup, recurring = false, depth = 0): number {
   const base = effectCostBase(e, lookup, depth);
-  const allMult = isAll(e.target) ? 2.5 : 1;
+  // AOE measured UNDERPRICED at 2.5 (+9.2 for a 2-damage all-enemy sweep), so the multiplier
+  // rises. Note this is the EFFECT-scope multiplier and is separate from the Environment grant
+  // multiplier, which went the other way (2.5 -> 1.0) because that grant is symmetric.
+  const allMult = isAll(e.target) ? 3.5 : 1;
   // Any effect in onAttack / endOfTurn / startOfTurn fires every turn the unit is alive.
   // Universal ×1.4 recurrence premium — no exceptions.
   const recurMult = recurring ? 1.4 : 1;
