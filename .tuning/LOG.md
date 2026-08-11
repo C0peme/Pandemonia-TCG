@@ -1202,3 +1202,38 @@ attribution.
   cards over stats. That is a FORMULA question and deliberately not touched here.
 - Cleanse remains in 1 deck of 13.
 - The adjustments above are unmeasured; the next run should A/B those three decks specifically.
+
+---
+
+## Correction: the decks are INSTRUMENTS, not the balance target
+
+Stated goal clarified — get every starter deck to its BEST form, then use that data to balance
+the LEADERS. The decks themselves do not matter much, since players build their own.
+
+**That invalidates the Snowball trim from the previous entry and it has been reverted.**
+Nerfing a deck that found a good build is actively destructive under this framing: it hides the
+leader signal behind a deliberately worse list. Snowball at 62.5 was Noctua being well served,
+not a problem to solve. The instinct to flatten the meta by pulling down the top deck was
+optimising for the wrong thing.
+
+**New rule for this pass: changes may only make a deck STRONGER.** Spread is no longer the
+objective — a deck's number is only meaningful if the list is genuinely trying its best.
+
+### Lever used: each leader's UNUSED element cap
+
+A cap the leader offers that the deck never spends is the clearest evidence a deck is not at
+full strength. From the alignment audit:
+
+| deck | wasted cap | added |
+|---|---|---|
+| Deck Out 36.0 | **nature:3, entirely unused** | `ironroot-ward` x2 — a 2/4 that cleanses AND heals; a mill deck only needs to survive to finish |
+| Attrition 36.5 | **water:2 unused** | `void-caller` x2 — 2 damage to ALL enemies; the grind deck had no way to clear several bodies at once |
+| Lane Control 41.0 | **earth:2 unused** | `tremor` x2 — sweeps the chaff its displacement leaves behind |
+| Midrange 40.0 | water unused | `mercenary` x2 — the most stat-efficient body available to it is a Neutral (3/3 for 3e flat, no pips to bank) |
+
+All still 30 cards, all legal, smoke test clean (78 pairings, every card played at least once).
+
+### Unmeasured
+
+These four changes and the Snowball revert have not been measured. The prior run's numbers
+still stand for the other nine decks.
