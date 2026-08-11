@@ -511,15 +511,12 @@ export const deckSwarm = parseDeck({ name: 'Swarm', leaderId: 'autopus', cards: 
 // Wither and Wilt grind attackers down. Poison/on-hit is a supplement, not the main plan.
 // Granite Ox is the closer once the enemy board has bled itself out.
 export const deckAttrition = parseDeck({ name: 'Attrition', leaderId: 'eksana', cards: [
-  { cardId: 'mud-crab', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 },
-  { cardId: 'whistle-blower', count: 2 }, { cardId: 'spiked-base', count: 1 }, { cardId: 'spike-wall', count: 2 }, { cardId: 'mandrake', count: 2 }, { cardId: 'thornfield', count: 1 },
-  { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'pebble-snake', count: 1 }, { cardId: 'barbed-sentinel', count: 2 },
-  { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 },
+  { cardId: 'mud-crab', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 }, { cardId: 'whistle-blower', count: 2 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'spike-wall', count: 2 }, { cardId: 'mandrake', count: 1 }, { cardId: 'tremor', count: 2 }, { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'barbed-sentinel', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 },
 ] });
 
 export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', cards: [
-  { cardId: 'mend', count: 2 }, { cardId: 'field-mouse', count: 3 }, { cardId: 'briar-colt', count: 3 }, { cardId: 'iron-seed', count: 2 }, { cardId: 'strangleroot', count: 2 }, { cardId: 'bloom-elk', count: 3 },
-  { cardId: 'war-beast', count: 2 }, { cardId: 'surge-sprite', count: 2 }, { cardId: 'goreivyne', count: 2 }, { cardId: 'mush-room', count: 2 }, { cardId: 'fertile-mound', count: 2 },
+  { cardId: 'mend', count: 3 }, { cardId: 'field-mouse', count: 3 }, { cardId: 'briar-colt', count: 3 }, { cardId: 'iron-seed', count: 2 }, { cardId: 'strangleroot', count: 2 }, { cardId: 'bloom-elk', count: 2 },
+  { cardId: 'war-beast', count: 2 }, { cardId: 'surge-sprite', count: 2 }, { cardId: 'goreivyne', count: 1 }, { cardId: 'mush-room', count: 3 }, { cardId: 'fertile-mound', count: 2 },
   { cardId: 'rally-banner', count: 1 }, { cardId: 'chrysalis-grub', count: 2 }, { cardId: 'emerald-drake', count: 1 }, { cardId: 'grove-elder', count: 1 },
 ] });
 
@@ -538,7 +535,7 @@ export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', ca
 // across the hazards we set. The old chaff singletons (herd-driver, molten-floor, air-currents,
 // watchtowers, river-minnow) are cut for consistency; the clock is doubled up.
 export const deckLaneControl = parseDeck({ name: 'Lane Control', leaderId: 'naife', cards: [
-  { cardId: 'wind-redirect', count: 3 }, { cardId: 'fearie', count: 2 }, { cardId: 'tidal-wave', count: 2 }, { cardId: 'displacement-wave', count: 2 }, { cardId: 'cold-spell', count: 2 },
+  { cardId: 'wind-redirect', count: 3 }, { cardId: 'fearie', count: 2 }, { cardId: 'tidal-wave', count: 2 }, { cardId: 'displacement-wave', count: 2 }, { cardId: 'frostbite-harpoon', count: 2 },
   { cardId: 'tundra', count: 2 }, { cardId: 'tidecaller-adept', count: 2 }, { cardId: 'seaweed-octopus', count: 2 }, { cardId: 'sleep-walker', count: 2 },
   { cardId: 'frost-imp', count: 2 }, { cardId: 'coral-spear', count: 2 }, { cardId: 'reef-raptor', count: 3 }, { cardId: 'tide-stalker', count: 2 }, { cardId: 'crag-hawk', count: 2 },
 ] });

@@ -1,0 +1,40 @@
+
+ RUN  v4.1.8 C:/Users/adria/Pandemonia TCG
+
+
+=== seed 1 · 12 games/matchup · PLANNING · start 00:58:50 ===
+  DoT            53%   [01:12:35]
+  Aggro          56%   [01:19:47]
+  Midrange       40%   [01:28:32]
+  Control        59%   [01:41:13]
+  Combo          55%   [01:48:52]
+  Guardian       52%   [01:55:45]
+  Ramp           51%   [02:00:46]
+  Deck Out       36%   [02:06:44]
+  Stall          51%   [02:13:58]
+  Swarm          54%   [02:18:10]
+  Attrition      33%   [02:20:49]
+  Snowball       67%   [02:26:05]
+  Lane Control   42%   [02:26:05]
+
+=== seed 5000 · 12 games/matchup · PLANNING · start 02:26:05 ===
+  DoT            58%   [02:40:11]
+  Aggro          56%   [02:47:38]
+  Midrange       40%   [02:56:44]
+  Control        59%   [03:14:15]
+  Combo          60%   [03:25:47]
+  Guardian       49%   [03:32:53]
+  Ramp           56%   [03:39:12]
+  Deck Out       36%   [03:44:40]
+  Stall          46%   [03:53:29]
+  Swarm          52%   [03:57:11]
+  Attrition      40%   [04:00:06]
+  Snowball       58%   [04:04:22]
+  Lane Control   40%   [04:04:22]
+
+=== seed 9000 · 12 games/matchup · PLANNING · start 04:04:22 ===
+  DoT            58%   [04:19:58]
+  Aggro          56%   [04:27:43]
+  Midrange       40%   [04:36:25]
+  Control        54%   [04:50:56]
+  Combo          65%   [04:59:56]

@@ -1146,3 +1146,59 @@ isolation but had never been played inside a real deck in a full game.
 
 The deck-legality test is the useful residue here: `parseDeck` passing is NOT the same as a
 deck being legal, and nothing had been checking the stronger condition.
+
+---
+
+## Meta run (2 full seeds + 5 rows; the process died at 31/39) and the adjustments it drove
+
+| deck | seeds | mean | vs old baseline |
+|---|---|---|---|
+| **Snowball** | 67/58 | **62.5** | **+15.5** |
+| Combo | 55/60/65 | 60.0 | -0.7 |
+| **Control** | 59/59/54 | **57.3** | **+20.6** |
+| **DoT** | 53/58/58 | **56.3** | **+13.6** |
+| Aggro | 56/56/56 | 56.0 | -7.0 |
+| Ramp | 51/56 | 53.5 | -9.8 |
+| Swarm | 54/52 | 53.0 | -4.0 |
+| Guardian | 52/49 | 50.5 | +2.8 |
+| Stall | 51/46 | 48.5 | -7.5 |
+| Lane Control | 42/40 | 41.0 | -9.3 |
+| Midrange | 40/40/40 | 40.0 | -6.3 |
+| Attrition | 33/40 | 36.5 | -6.5 |
+| Deck Out | 36/36 | 36.0 | -0.7 |
+
+SD 8.63, range 26.5 (was 8.90 / 26.6). The spread did NOT flatten — but the composition
+rotated hard. Observed 3-seed spreads: Combo 10, Control 5, DoT 5, Aggro 0, Midrange 0, so the
++-7 band still holds and the two-seed means are the least reliable rows.
+
+**The baseline column conflates deck edits with the engine changes** (hit-resolution, pips),
+because that baseline was measured on the old decks AND the old engine. Direction, not
+attribution.
+
+### Read
+
+- **Control +20.6, worst deck -> 57.3.** The rebuild plus the curve fix landed, and it is no
+  longer the 79% outlier: the pierce reprice and the curve trim pulled it into band. Best
+  result of the session.
+- **DoT +13.6** — draw and Countdown did their job.
+- **Snowball +15.5 to 62.5 — overshot.** Metamorphosis plus a cheaper curve was too much at once.
+- **New floor: Attrition 36.5, Midrange 40.0, Lane Control 41.0.** Attrition fell DESPITE
+  gaining draw, cleanse and early bodies, which says its plan is weak rather than
+  under-supported — spike walls punish attackers without ever killing anything. That is the
+  same lesson Control's freeze package taught.
+
+### Adjustments made (not yet measured)
+
+- **Snowball**: trimmed the growth PAYOFFS (bloom-elk 3->2, goreivyne 2->1) rather than the
+  identity package — chrysalis/drake stay, they are the thesis and the reason it improved.
+- **Lane Control**: cold-spell -> frostbite-harpoon. Same tempo, but it actually removes a body;
+  displacement alone does not kill.
+- **Attrition**: consolidated singletons into real removal (tremor x2, spiked-base to 2-of).
+
+### Still open
+
+- **Midrange 40.0, perfectly stable at 40/40/40.** The vanilla baseline being second-from-bottom
+  is a systemic signal, not a deck problem: it says the ability-pip discount favours ability
+  cards over stats. That is a FORMULA question and deliberately not touched here.
+- Cleanse remains in 1 deck of 13.
+- The adjustments above are unmeasured; the next run should A/B those three decks specifically.
