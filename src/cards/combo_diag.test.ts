@@ -6,7 +6,7 @@ import type { PlayerId } from '@engine/types';
 // One-off diagnostic: how does Combo actually lose? Run with:
 //   npx vitest run src/cards/combo_diag.test.ts --reporter=verbose
 const GAMES = Number(process.env.DIAG_GAMES ?? 10);
-const USE_PLAN = process.env.USE_PLAN === '1';
+const USE_PLAN = process.env.USE_PLAN !== '0'; // planning AI (the shipped policy) unless USE_PLAN=0
 
 describe('combo diag', () => {
   it('profiles Combo across the field', { timeout: 3_600_000 }, () => {

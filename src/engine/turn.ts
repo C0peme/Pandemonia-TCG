@@ -28,7 +28,9 @@ export const beginTurn = (state: GameState, player: PlayerId, registry?: Registr
   // must be cleared in the same breath or it would repeat every round.
   const updated = {
     ...p,
-    energy: (state.energyOverride ?? state.round) + (p.energyNext ?? 0),
+    // Clamped: `energyNext` can be NEGATIVE (Cancerous Growth borrows against next round),
+    // and a stacked debt must never drive the turn's energy below zero.
+    energy: Math.max(0, (state.energyOverride ?? state.round) + (p.energyNext ?? 0)),
     energyNext: 0,
     heroPowerUsed: false,
     deck: [...p.deck],

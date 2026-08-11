@@ -99,7 +99,7 @@ export const LEADER_UPGRADES: Record<string, LeaderUpgrade> = {
   corpselock: {
     name: 'Metastasis',
     icon: '🦠',
-    desc: 'Cancerous Growth queues 3 energy instead of 2 — turning a break-even carry into a profit.',
+    desc: 'Cancerous Growth repays only 1 of the 3 energy it borrows — the growth outruns the debt.',
     power: also({ kind: 'energyNext', amount: 1 }),
   },
   // The bartender drinks with the house.

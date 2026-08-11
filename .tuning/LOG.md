@@ -420,3 +420,187 @@ Freeze/sleep/expel deny one attack and leave the board unchanged. Against a lane
 8 slots the opponent simply attacks elsewhere. For a control plan to work the effects need to
 generate advantage rather than delay it — draw attached to removal, damage attached to tempo,
 or lane-wide rather than single-target denial. That is a content question, not a formula one.
+
+---
+
+## Hero powers: measured, NOT repriced (Phase 1)
+
+Hypothesis going in: hero powers are the last unpriced primitive, and Screyera's Scry is what
+makes Combo untouchable by card repricing. **Both halves were wrong**, and the measurements
+are worth keeping for that.
+
+**Disparity table** (`heroField.ts`, formula-priced): a 12x spread in value-per-energy, from
+Fallback Code 3.18 to Mind Whip 0.27. But correlation with win rate is ZERO (-0.17 on
+value/cost, -0.02 on raw value). Scry prices BELOW median (0.93) while Combo leads the field;
+Sweet Liquor is the 2nd-richest power attached to the worst deck.
+
+**Disable probe** (`heroDisable.ts`, 384 games/leader — price the power out of reach, measure
+what the deck loses). This is formula-free, so it settles the ambiguity:
+
+| power | delta | | power | delta |
+|---|---|---|---|---|
+| Modification | **-43.2** | | Misdirect | -22.4 |
+| Scald | -40.6 | | Fallback Code | -19.3 |
+| Disciplinary | -35.4 | | Sweet Liquor | -17.2 |
+| Fortify | -34.4 | | Tinkerer | -13.5 |
+| Mind Whip | -31.8 | | **Scry** | **-10.4** |
+| Exploit | -29.7 | | **Cancerous Growth** | **0.0** |
+| Subdue | -25.5 | | | |
+
+Mean -24.9: powers are ~a quarter of every deck's win rate. But
+`corr(formula value, contribution) = 0.072` — **the cost formula is worthless on leaders** and
+must never be extended to them. What predicts contribution is how OFTEN a power is cast
+(-0.49; -0.60 excluding the dead one); multiplying frequency by formula value makes the
+prediction worse (-0.09). Leader powers stay hand-set by design intent.
+
+**Combo is not carried by Scry** (-10.4, second-smallest; Combo still wins 52% with it off,
+and Scry is cast only 3.15x/game). Combo's 64% is CARD QUALITY. That is why six formula
+changes never moved it, and it is where the remaining work is.
+
+The delta column doubles as a **card-quality deficit meter**: decks that collapse without their
+power (Guardian -43, DoT -41, Midrange -35) have weak cards being propped up; decks that barely
+notice (Combo -10, Ramp 0) win on cards alone.
+
+## Cancerous Growth: direction, then profit, then the AI (IT8/IT9)
+
+Measured 0.0 contribution across 384 games while being cast 8.2x/game. Not a magnitude problem:
+**energy equals the round number** (turn.ts), so it grows automatically and is scarcest EARLY.
+Saving energy for later moves it from a lean turn to a rich one — negative-EV at any rate.
+
+Fixes, in the order the measurements forced them:
+1. **Reversed** it to borrow-now/repay-later. Measured 0.00 activations — the AI never cast it.
+2. **Root cause**: `evaluate()` scored `energyNext` but had NO term for current energy, so a
+   loan showed its debt and hid its principal. Added `W.energy`.
+3. At a **flat 1.0** the power worked (13.59 casts) but the meta broke: Deck Out **+12**,
+   Midrange **-10**, both outside noise. A flat weight pays the AI to HOLD energy, which
+   lengthens games — mill's win condition, beatdown's loss condition.
+4. At **0.5** the hoarding vanished and so did the power (0.00 casts). That exposed the real
+   mechanism: the meta sim runs the GREEDY 1-ply AI, so a branch is taken purely on the sign of
+   the immediate eval (break-even 0.667). There is no lookahead to find the play the energy
+   enables, so no flat weight can separate "energy I am about to spend" from "energy I am
+   sitting on".
+5. **Concave instead of flat**: `ENERGY_VALUE_CAP = 3` credits only the first ~3 points
+   (about one play), zero marginal reward beyond. Same -2.6 contribution at **2.93** casts
+   instead of 13.59 — selective, not compulsive.
+
+Power is also net-PROFITABLE now (borrow 3, repay 2). A break-even shift settles at
+`round - 2 + 2 = round` if cast every turn, i.e. exactly nothing — which is why it measured
+zero in BOTH directions. Metastasis repays only 1 of 3.
+
+**IT9 result — clean.** Combo 67, Ramp 64, Stall 56, Lane Control 52, Snowball 51, Attrition 50,
+Aggro 49, Guardian 48, DoT 48, Swarm 47, Control 45, Midrange 43, Deck Out 31.
+Every deck within +-5.2 of IT7; SD 9.36 -> 8.68, the best of the three runs.
+
+---
+
+## THE MEASURING INSTRUMENT WAS WRONG (planning vs greedy)
+
+Scry got `hpCost: 1` restored (measured -3.6, best trim per unit of change; self-scaling
+because ai.ts weights leader HP 1/point while healthy and 4x at/below the Signature threshold).
+Then a meta was run with the PLANNING AI (`USE_PLAN=1`, 12 games/matchup, 83 min).
+
+| deck | greedy IT9 | PLANNING | delta |
+|---|---|---|---|
+| Swarm | 47 | **65** | **+18** |
+| Aggro | 49 | **63** | **+14** |
+| Midrange | 43 | 48 | +5 |
+| Guardian | 48 | 50 | +2 |
+| Deck Out | 31 | 33 | +2 |
+| DoT | 48 | 49 | +1 |
+| Snowball | 51 | 51 | 0 |
+| Stall | 56 | 54 | -2 |
+| Ramp | 64 | 59 | -5 |
+| Attrition | 50 | 44 | -6 |
+| Lane Control | 52 | 44 | -8 |
+| Control | 45 | **36** | **-9** |
+| Combo | 67 | **54** | **-13** |
+
+SE ~4.2pp, so Swarm/Aggro/Control/Combo are real and the rest is noise.
+**corr(greedy standings, planning standings) = 0.545.**
+
+**The shipped game uses PLANNING** — `useGame.ts` calls `chooseAction`, which is `planTurn`
+(ai.ts:1180). `sim.ts` defaults `usePlan = false`. So every meta number in this log above this
+entry was measured against a policy no player ever faces.
+
+Consequences:
+- **Combo was never the problem deck** (54% vs a competent AI). "Top in every configuration"
+  was an artifact of greedy. Much of its -13 is the AI, not the hpCost nerf (-3.6 alone).
+- **Swarm and Aggro are the real top decks.** Wide boards and attack sequencing are precisely
+  what a 1-ply policy misplays — it cannot order attacks or see multi-body lethal.
+- **Control 36% is WORSE under a good AI.** The one prior conclusion that survives: disruption
+  is weak by design, not mispriced. Now double-confirmed.
+- **`ENERGY_VALUE_CAP = 3`** was tuned against a greedy-specific hoarding pathology and needs
+  re-validating under planning; the failure mode came from having no lookahead at all.
+
+Cost of the switch: ~15 s/game vs ~0.3 s/game, ~50x. A 13-deck meta is 83 min at 12
+games/matchup (SE ~4.2pp) vs ~9.5 h at 30. Budget accordingly — but greedy numbers are
+measuring the wrong game.
+
+---
+
+## Overnight re-examination under PLANNING (5 phases, 3h36m)
+
+Full output: `.tuning/overnight-planning.txt`. All planning-only; not comparable to greedy runs.
+
+### 1. The energy term is a GREEDY CRUTCH — remove it
+
+Meta with `W.energy = 0` vs the planning baseline: corr **0.865**, mean |delta| 4.4 against a
+2SE band of 8.4, only DoT (-9) outside it. SD 9.07 -> 9.67. **No meaningful meta difference.**
+
+Phase 5 settles it. Ramp under planning, energy term on vs off:
+
+| | Ramp WR | Cancerous Growth acts/game |
+|---|---|---|
+| W.energy = 1 | 60.8% | 4.75 |
+| W.energy = 0 | **68.3%** | **4.25** |
+
+**Planning casts the power 4.25x/game with NO energy term at all** — versus 0.00 under greedy.
+The whole `W.energy` + `ENERGY_VALUE_CAP` apparatus existed to compensate for greedy's lack of
+lookahead; given a search that can find the play the borrowed energy enables, it is redundant.
+Ramp also reads +7.5 WITHOUT it (~1.2 SE, suggestive not conclusive), i.e. the term may be
+mildly harmful. Recommendation: delete `W.energy`/`ENERGY_VALUE_CAP`.
+
+Note this does NOT revert the Cancerous Growth redesign — the borrow-now/repay-later direction
+and the borrow-3/repay-2 profit stand on their own and are why planning casts it at all.
+
+### 2. Swarm and Aggro are systemically strong — no single culprit
+
+Swarm 64.6%, every card 56-69% win-when-played. Aggro 61.8%, every card 49-63%. Both
+distributions are FLAT: there is no broken card to nerf. These decks execute better with
+lookahead (attack ordering, multi-body lethal) and greedy was simply misplaying them.
+Highest-damage shared card is `pyre-fiend` (10.7 dmg/game in Swarm, 6.2 in Aggro) — the only
+obvious lever, and it is an engine card in two decks, not a single-deck problem.
+
+### 3. Control's disruption is the worst part of Control
+
+| Control 43.8% | | Lane Control 46.5% | |
+|---|---|---|---|
+| tide-serpent (20.2 dmg) | 42% | reef-raptor (11.7 dmg) | 45% |
+| glacial-ray | 42% | displacement-wave | 44% |
+| ... | | ... | |
+| cold-spell | **36%** | tundra | **34%** |
+| hypnotic-patterns | **35%** | cold-spell | **33%** |
+
+In BOTH decks the disruption spells sit at the BOTTOM of their own deck's table and the
+beaters sit at the top. The decks win when they act like beatdown decks. This is the third
+independent confirmation (deck surgery +17.2, effect reprice null result, now card-level)
+that disruption needs to GENERATE advantage, not delay it. Design work, not pricing.
+
+### 4. Hero powers are still load-bearing under planning
+
+| leader | greedy delta | planning delta | acts/g |
+|---|---|---|---|
+| Orsyric (Mind Whip) | -31.8 | **-35.4** | 7.72 |
+| Phantom (Subdue) | -25.5 | **-28.1** | 12.46 |
+| Autopus (Fallback Code) | -19.3 | **-26.0** | 8.63 |
+| Screyera (Scry) | -10.4 | **-6.3** | 2.27 |
+
+Powers matter as much or MORE under a competent AI. Scry is the exception and that is the
+`hpCost: 1` nerf working as designed: usage down to 2.27/game, contribution roughly halved,
+Combo base 56%.
+
+### Precision caveat
+
+Control measured **36%** in the meta and **43.8%** in runField — same policy, same 12
+games/matchup, same 144 games. A 7.8pp gap between two supposedly equivalent measurements
+bounds how much any single number here should be trusted. Treat +-8 as the real band.

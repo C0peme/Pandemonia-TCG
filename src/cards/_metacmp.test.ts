@@ -30,7 +30,7 @@ function runOne(label: string, registry: any, decks: any[]) {
     row += (Math.round((games ? wins / games : 0) * 100) + '%').padStart(7);
     console.log(row);
   };
-  const res = runMeta(registry, entries, GAMES, 1, false, printRow);
+  const res = runMeta(registry, entries, GAMES, 1, true, printRow);
   const standings = res.decks
     .map((name: string, i: number) => ({ name, field: res.overall[i]! }))
     .sort((a, b) => b.field - a.field);

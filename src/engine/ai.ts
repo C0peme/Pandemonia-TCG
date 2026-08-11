@@ -123,6 +123,12 @@ export const DEFAULT_WEIGHTS: EvalWeights = {
   // a banked point only pays its own element. Undervaluing this made Cancerous Growth — which
   // now trades 2 energy for exactly 2 next turn — read as a straight loss the AI would never take.
   energyNext: 1,
+  // NB: there is deliberately no matching `energy` term for UNSPENT energy this turn. One was
+  // added (with a concave cap) so the greedy policy would cast the reversed Cancerous Growth,
+  // which it otherwise pruned on sight — greedy has no lookahead, so it saw the loan's debt but
+  // not the play the principal buys. Under the planning policy the search finds that play by
+  // itself: measured 4.25 casts/game with NO energy term at all, and Ramp read slightly BETTER
+  // without it. It was scaffolding for a policy the game does not ship. Do not re-add it.
   synergy: 1,
 };
 

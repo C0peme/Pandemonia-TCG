@@ -32,12 +32,20 @@ export interface GameResult {
 
 /**
  * Play one AI-vs-AI game to completion and report plays + winner. Deterministic per seed.
- * `usePlan` selects the AI policy: false (default) = the fast 1-ply `greedyAction` used for
- * bulk balancing; true = the full `planTurn` search (beam + lethal + opponent reply) — the
- * policy a real player faces. planTurn is planned once per turn and its action sequence is
- * applied move-by-move (so event accounting is unchanged), then replanned for the next turn.
+ * `usePlan` selects the AI policy and DEFAULTS TO TRUE — the full `planTurn` search (beam +
+ * lethal + opponent reply), which is the policy a real player faces (useGame.ts -> chooseAction
+ * -> planTurn). planTurn is planned once per turn and its action sequence is applied
+ * move-by-move (so event accounting is unchanged), then replanned for the next turn.
+ *
+ * Pass `false` for the fast 1-ply `greedyAction` ONLY where the AI policy is irrelevant to what
+ * is being measured (plumbing/determinism tests). It must never be used for balance work: the
+ * default was previously false, and a full session of meta tuning was measured against a policy
+ * no player faces. The two metas correlate at only 0.545 — greedy cannot order attacks or see
+ * multi-body lethal, so it systematically misplays wide aggressive decks (Swarm 47 -> 65,
+ * Aggro 49 -> 63) and flatters decks that just play the biggest thing each turn.
+ * Cost: ~15 s/game vs ~0.3 s/game.
  */
-export function simulateGame(registry: Registry, decks: [Deck, Deck], seed: number, usePlan = false): GameResult {
+export function simulateGame(registry: Registry, decks: [Deck, Deck], seed: number, usePlan = true): GameResult {
   let state: GameState = initGame({ registry, decks, seed });
   const played: [Record<string, number>, Record<string, number>] = [{}, {}];
   const damageByCard: [Record<string, number>, Record<string, number>] = [{}, {}];
@@ -92,7 +100,7 @@ export function playHeroGame(
   opp: Deck,
   heroSide: PlayerId,
   seed: number,
-  usePlan = false,
+  usePlan = true,
 ): { heroWon: boolean; heroPlayed: Record<string, number>; heroDamage: Record<string, number>; heroPowers: number; turns: number; finalHp: [number, number]; finalHandSize: [number, number]; finalBanked: [number, number] } {
   const decks: [Deck, Deck] = heroSide === 0 ? [hero, opp] : [opp, hero];
   const r = simulateGame(registry, decks, seed, usePlan);
@@ -143,13 +151,14 @@ export function runBatch(
   decks: [Deck, Deck],
   games: number,
   seedBase = 1,
+  usePlan = true,
 ): BatchResult {
   const aggs: [Map<string, CardAgg>, Map<string, CardAgg>] = [aggFromDeck(decks[0]), aggFromDeck(decks[1])];
   const wins: [number, number] = [0, 0];
   const heroPowers: [number, number] = [0, 0];
   let totalTurns = 0;
   for (let i = 0; i < games; i++) {
-    const r = simulateGame(registry, decks, seedBase + i);
+    const r = simulateGame(registry, decks, seedBase + i, usePlan);
     wins[r.winner] += 1;
     totalTurns += r.turns;
     heroPowers[0] += r.heroPowers[0];
@@ -195,7 +204,7 @@ export interface FieldResult {
 
 /** Sim `hero` against every deck in `opponents` (gamesPer each, sides alternated), aggregating
  *  hero's per-card stats across the WHOLE field — far less matchup-noise than a single pairing. */
-export function runField(registry: Registry, hero: Deck, opponents: { deck: Deck; name: string }[], gamesPer: number, seedBase = 1, usePlan = false): FieldResult {
+export function runField(registry: Registry, hero: Deck, opponents: { deck: Deck; name: string }[], gamesPer: number, seedBase = 1, usePlan = true): FieldResult {
   const agg = aggFromDeck(hero);
   const matchups: MatchupResult[] = [];
   let totalGames = 0;
@@ -230,7 +239,7 @@ export function runMeta(
   decks: { deck: Deck; name: string }[],
   gamesPer: number,
   seedBase = 1,
-  usePlan = false,
+  usePlan = true,
   // Fired after outer iteration `i` completes, at which point row `i` of the matrix is fully
   // known (its j<i cells were filled by earlier iterations, its j>i cells just now). Lets a
   // caller stream partial results so a long run that is interrupted still yields finished rows.

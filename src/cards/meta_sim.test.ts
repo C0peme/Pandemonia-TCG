@@ -6,7 +6,7 @@ import { runMeta } from '@engine/sim';
 // changes can be measured from the CLI. Run with:
 //   npx vitest run src/cards/meta_sim.test.ts --reporter=verbose
 const GAMES = Number(process.env.META_GAMES ?? 30);
-const USE_PLAN = process.env.USE_PLAN === '1'; // run the full planTurn AI instead of greedy
+const USE_PLAN = process.env.USE_PLAN !== '0'; // planning AI (the shipped policy) unless USE_PLAN=0
 
 describe('meta sim', () => {
   it('prints win-rate matrix', { timeout: 36_000_000 }, () => {

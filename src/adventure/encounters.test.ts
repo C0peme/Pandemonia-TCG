@@ -115,7 +115,7 @@ describe('encounter smoke test', () => {
       enemyLeaderHp: enc.enemyHp,
     });
     const player = playerDeck('orsyric', ADVENTURE_STARTERS['orsyric']!.map((cardId, i) => ({ uid: `u${i}`, cardId, enhancements: [] })));
-    const result = simulateGame(registry, [player, { ...enc.enemyDeck, leaderId: ENEMY_LEADER_ID }], 5);
+    const result = simulateGame(registry, [player, { ...enc.enemyDeck, leaderId: ENEMY_LEADER_ID }], 5, false);
     expect([0, 1]).toContain(result.winner);
     expect(result.turns).toBeGreaterThan(0);
   });

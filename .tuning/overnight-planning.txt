@@ -1,0 +1,157 @@
+
+ RUN  v4.1.8 C:/Users/adria/Pandemonia TCG
+
+
+########## PHASE 1: ENERGY_VALUE_CAP re-validation ##########
+ENERGY_VALUE_CAP was tuned to fix a GREEDY pathology (no lookahead to find the play
+the energy enables). Planning may not need the term at all. Setting W.energy = 0.
+
+=== energy term OFF · 12 games/matchup · PLANNING · start 01:01:40 ===
+  DoT            40%   [01:12:08]
+  Aggro          60%   [01:20:37]
+  Midrange       49%   [01:27:41]
+  Control        31%   [01:45:47]
+  Combo          59%   [01:52:30]
+  Guardian       46%   [01:57:59]
+  Ramp           63%   [02:02:55]
+  Deck Out       36%   [02:08:23]
+  Stall          60%   [02:16:33]
+  Swarm          59%   [02:19:52]
+  Attrition      47%   [02:22:31]
+  Snowball       50%   [02:25:14]
+  Lane Control   51%   [02:25:14]
+
+--- energy term OFF: standings vs planning baseline ---
+  Ramp           63%  (+4 vs base)
+  Aggro          60%  (-3 vs base)
+  Stall          60%  (+6 vs base)
+  Combo          59%  (+5 vs base)
+  Swarm          59%  (-6 vs base)
+  Lane Control   51%  (+7 vs base)
+  Snowball       50%  (-1 vs base)
+  Midrange       49%  (+1 vs base)
+  Attrition      47%  (+3 vs base)
+  Guardian       46%  (-4 vs base)
+  DoT            40%  (-9 vs base)
+  Deck Out       36%  (+3 vs base)
+  Control        31%  (-5 vs base)
+
+(W.energy restored to 1)
+ ✓ src/cards/_overnight.test.ts > 1. energy term OFF under planning 5014010ms
+
+########## PHASE 2: why are Swarm and Aggro on top? ##########
+Both were mid-field under greedy (47/49) and lead under planning (65/63). A 1-ply
+policy cannot order attacks or see multi-body lethal, which is exactly what wide
+aggressive boards need — so these decks were never being played properly before.
+
+=== Swarm: card-level field report · PLANNING · start 02:25:14 ===
+  field win rate 64.6%  over 144 games
+  | card                  | n | played | win% when played | dmg/game |
+  |-----------------------|---|--------|------------------|----------|
+  | hivemind-surge        | 2 |    80% |              69% |      0.0 |
+  | brood-warlord         | 2 |    85% |              67% |      4.4 |
+  | firebolt              | 2 |    86% |              65% |      0.0 |
+  | swift-falcon          | 2 |    78% |              65% |      1.7 |
+  | war-beast             | 1 |    58% |              64% |      2.7 |
+  | pyre-fiend            | 2 |    92% |              64% |     10.7 |
+  | mush-room             | 1 |    63% |              63% |      0.0 |
+  | goreivyne             | 2 |    81% |              62% |      5.0 |
+  | rally-banner          | 2 |    81% |              61% |      0.0 |
+  | spore-bat             | 3 |    84% |              60% |      6.9 |
+  | brood-mother          | 3 |    76% |              60% |      4.0 |
+  | hive-spawn            | 3 |    85% |              59% |      2.8 |
+  | pocket-dimension      | 1 |    63% |              59% |      0.0 |
+  | field-mouse           | 3 |    74% |              58% |      1.7 |
+  | briar-colt            | 1 |    60% |              56% |      1.7 |
+
+=== Aggro: card-level field report · PLANNING · start 02:34:37 ===
+  field win rate 61.8%  over 144 games
+  | card                  | n | played | win% when played | dmg/game |
+  |-----------------------|---|--------|------------------|----------|
+  | adrenaline-rush       | 2 |    81% |              63% |      0.0 |
+  | chain-spark           | 3 |    90% |              63% |      0.0 |
+  | coral-spear           | 1 |    51% |              62% |      1.7 |
+  | pyre-fiend            | 2 |    80% |              62% |      6.2 |
+  | coal-runner           | 3 |    88% |              60% |      4.8 |
+  | razor-charger         | 2 |    75% |              59% |      3.0 |
+  | swift-falcon          | 3 |    88% |              58% |      3.1 |
+  | comet-rider           | 2 |    81% |              58% |      4.0 |
+  | split-arrow           | 1 |    49% |              58% |      1.0 |
+  | magma-brute           | 2 |    81% |              57% |      2.2 |
+  | flicker-moth          | 3 |    87% |              57% |      3.3 |
+  | reef-raptor           | 2 |    78% |              56% |      4.3 |
+  | briar-colt            | 1 |    57% |              55% |      1.0 |
+  | firebolt              | 2 |    78% |              54% |      0.0 |
+  | twin-blade            | 1 |    47% |              49% |      0.7 |
+ ✓ src/cards/_overnight.test.ts > 2. Swarm + Aggro card-level (the new top decks) 936180ms
+
+########## PHASE 3: why is Control the floor? ##########
+Control got WORSE under planning (45 -> 36), the one prior conclusion that survived:
+disruption delays rather than generates advantage, and a better opponent punishes that.
+
+=== Control: card-level field report · PLANNING · start 02:40:50 ===
+  field win rate 43.8%  over 144 games
+  | card                  | n | played | win% when played | dmg/game |
+  |-----------------------|---|--------|------------------|----------|
+  | glacial-ray           | 3 |    95% |              42% |      6.9 |
+  | tide-serpent          | 2 |    94% |              42% |     20.2 |
+  | current-rider         | 2 |    88% |              42% |      7.2 |
+  | peel-back             | 2 |    91% |              41% |      0.0 |
+  | target-spell          | 2 |    58% |              41% |      0.0 |
+  | abyss-warden          | 1 |    81% |              41% |      9.5 |
+  | river-turtle          | 2 |    85% |              40% |      0.0 |
+  | frost-wall            | 2 |    92% |              39% |      0.0 |
+  | dream-eater           | 2 |    87% |              38% |      3.8 |
+  | lull                  | 1 |    74% |              38% |      0.0 |
+  | crag-hawk             | 2 |    88% |              38% |      5.9 |
+  | sleep-walker          | 2 |    86% |              38% |      2.8 |
+  | cold-spell            | 3 |    83% |              36% |      0.0 |
+  | frost-king            | 2 |    85% |              36% |      3.9 |
+  | hypnotic-patterns     | 1 |    73% |              35% |      0.0 |
+  | river-minnow          | 1 |    67% |              34% |      1.0 |
+
+=== Lane Control: card-level field report · PLANNING · start 02:59:18 ===
+  field win rate 46.5%  over 144 games
+  | card                  | n | played | win% when played | dmg/game |
+  |-----------------------|---|--------|------------------|----------|
+  | reef-raptor           | 3 |    97% |              45% |     11.7 |
+  | displacement-wave     | 2 |    90% |              44% |      0.0 |
+  | wind-redirect         | 3 |    76% |              44% |      0.0 |
+  | strings-of-heaven     | 2 |    87% |              42% |      0.0 |
+  | tide-stalker          | 2 |    89% |              42% |     11.5 |
+  | coral-spear           | 2 |    88% |              41% |      5.5 |
+  | crag-hawk             | 2 |    81% |              41% |      6.0 |
+  | tidal-wave            | 2 |    81% |              40% |      0.0 |
+  | frost-imp             | 2 |    82% |              37% |      3.4 |
+  | sleep-walker          | 2 |    83% |              36% |      3.2 |
+  | fearie                | 2 |    77% |              36% |      2.9 |
+  | seaweed-octopus       | 2 |    81% |              36% |      3.1 |
+  | tundra                | 2 |    78% |              34% |      0.0 |
+  | cold-spell            | 2 |    76% |              33% |      0.0 |
+ ✓ src/cards/_overnight.test.ts > 3. Control card-level (the floor) 2870485ms
+
+########## PHASE 4: leader vs cards, under planning ##########
+The greedy disable probe said powers are ~25 points each. Re-measure the outliers.
+
+| Leader   | Deck    | Power         | base | off  | delta | acts/g |
+|----------|---------|---------------|------|------|-------|--------|
+| Autopus  | Swarm   | Fallback Code |   57 |   31 | -26.0 |   8.63 |  [03:41:27]
+| Orsyric  | Aggro   | Mind Whip     |   55 |   20 | -35.4 |   7.72 |  [03:49:39]
+| Phantom  | Control | Subdue        |   41 |   13 | -28.1 |  12.46 |  [04:09:13]
+| Screyera | Combo   | Scry          |   56 |   50 | -6.3 |   2.27 |  [04:21:08]
+ ✓ src/cards/_overnight.test.ts > 4. hero-power contribution under planning 3146803ms
+
+########## PHASE 5: Cancerous Growth under planning ##########
+Greedy needed W.energy to cast it at all (0.00 acts without). Planning should find the
+play the borrowed energy enables on its own. If so, the energy term is unnecessary.
+  W.energy=1: Ramp 60.8%  acts/game 4.75  [04:29:37]
+  W.energy=0: Ramp 68.3%  acts/game 4.25  [04:37:40]
+
+########## OVERNIGHT SUITE COMPLETE ##########
+ ✓ src/cards/_overnight.test.ts > 5. Corpselock under planning, energy term on vs off 992865ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  01:01:36
+   Duration  12964.36s (transform 496ms, setup 0ms, import 2.79s, tests 12960.35s, environment 0ms)
+

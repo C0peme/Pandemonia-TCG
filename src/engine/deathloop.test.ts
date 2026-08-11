@@ -12,7 +12,9 @@ const registry = buildRegistry(starterCards, starterLeaders);
 describe('death-trigger recursion', () => {
   it('resolves Kamikaze + Polish chains without a stack overflow', () => {
     for (let seed = 70; seed <= 80; seed++) {
-      expect(() => playHeroGame(registry, deckDoT, deckStall, (seed % 2) as 0 | 1, seed)).not.toThrow();
+      // usePlan:false — this guards death-trigger RECURSION, which the AI policy cannot affect,
+      // and the planning search (sim.ts's default) is ~50x slower per game.
+      expect(() => playHeroGame(registry, deckDoT, deckStall, (seed % 2) as 0 | 1, seed, false)).not.toThrow();
     }
   }, 30000);
 });

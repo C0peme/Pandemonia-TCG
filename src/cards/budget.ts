@@ -402,3 +402,52 @@ export function recommendedPips(card: any, lookup: Lookup = () => undefined): nu
 export function recommendedEnergy(card: any, lookup: Lookup = () => undefined): number {
   return Math.max(0, Math.round(cardBudgetValue(card, lookup)) - convertiblePips(card, lookup));
 }
+
+// ── Hero powers ───────────────────────────────────────────────────────────────
+// Leaders were never run through this formula. Every hero power is hand-authored, and
+// `heroPowerUsed` resets each turn (engine.ts), so a power fires EVERY turn for the whole
+// game from a source that cannot be killed, discarded, countered or answered.
+//
+// That makes a hero power the most recurring effect in the game, and until now the only one
+// charged nothing for recurring. `effectCost` already charges +40% for a unit trigger, but a
+// unit trigger is CONDITIONAL — it recurs only while the body survives, and the opponent
+// chooses whether to let it. A hero power is unconditional. Its premium must be larger.
+//
+// The premium is a straight multiplier, so it does NOT change the relative ordering of the
+// leaders — the disparity table is readable without pinning it. It only matters when
+// converting a value into a recommended cost, which is why it is calibrated from field
+// measurement rather than assumed.
+
+/** Recurrence premium for an unconditional every-turn effect. Calibrated in Phase 2. */
+export const HERO_RECUR_MULT = 1.4;
+
+/**
+ * Leader HP charged by an `hpCost` power, in budget units. A leader has 30 HP and the
+ * Signature unlocks at half, so early HP is cheap and late HP is not. Priced as a flat
+ * average; only Ring Leader's Modification uses it, so the whole table barely moves on it.
+ */
+const LEADER_HP_VALUE = 0.35;
+
+/** Value of ONE activation of a leader's hero power, before the recurrence premium. */
+export function heroPowerValue(leader: any, lookup: Lookup = () => undefined): number {
+  const power = leader?.heroPower;
+  if (!power) return 0;
+  return effectsCost(power.effects, lookup) * VALUE_SCALE;
+}
+
+/** What one activation COSTS, in the same budget units (energy + pips + HP). */
+export function heroPowerCost(leader: any): number {
+  const power = leader?.heroPower;
+  if (!power) return 0;
+  const pips = (power.cost?.elements ?? []).reduce((s: number, r: any) => s + num(r.amount), 0);
+  return num(power.cost?.energy) + pips + num(power.hpCost) * LEADER_HP_VALUE;
+}
+
+/**
+ * Value the power delivers per point of cost paid. This is the comparison that matters:
+ * two powers costing 2e are meant to be roughly equally strong, and are not.
+ */
+export function heroPowerRatio(leader: any, lookup: Lookup = () => undefined): number {
+  const cost = heroPowerCost(leader);
+  return cost > 0 ? heroPowerValue(leader, lookup) / cost : heroPowerValue(leader, lookup);
+}

@@ -7,7 +7,7 @@ import { runField } from '@engine/sim';
 //   HERO=Guardian META_GAMES=30 npx vitest run src/cards/guardian_field.test.ts --reporter=verbose
 const GAMES = Number(process.env.META_GAMES ?? 30);
 const HERO = process.env.HERO ?? 'Guardian';
-const USE_PLAN = process.env.USE_PLAN === '1'; // run the full planTurn AI instead of greedy
+const USE_PLAN = process.env.USE_PLAN !== '0'; // planning AI (the shipped policy) unless USE_PLAN=0
 
 describe('field probe', () => {
   it('hero vs field', { timeout: 1_800_000 }, () => {
