@@ -1076,3 +1076,46 @@ Also fixed the audit tool itself: it counted only `damage` as removal, so Snowba
 
 **None of this is measured.** Together with the hit-resolution rework, ability-derived pips,
 Neutral and Countdown, this is the largest unmeasured stack of the session.
+
+---
+
+## Second deck pass: CURVE and consistency (the first pass only fixed function coverage)
+
+The first pass asked "does this deck have draw/removal/cleanse". It never asked "can this deck
+act on turn 2". Curve audit found the more serious problem:
+
+| deck | 0-1 drops | avg cost | before -> after |
+|---|---|---|---|
+| **Control** | **0** | **4.2** | -> 2 drops, 3.7 |
+| **Attrition** | **0** | 4.3 | -> 2 drops, 3.9 |
+| Snowball | 5 | 5.4 (17 cards at 6+) | -> 4.8 |
+| Stall | 4 | 5.2 (14 at 6+, NONE at cost 3) | -> 4.8 |
+| Combo | 3 | 5.2 | -> 4.8 |
+
+For reference the healthy decks sit at 2.3-3.0 (Aggro, Midrange, Lane Control, Deck Out).
+
+**Control's was self-inflicted and I had missed it.** The PIERCE reprice (1.0 -> 2.5) pushed
+`abyssal-verdict` to 6 total and `riptide-executioner` to 5, and the deck was never re-examined
+afterwards. A deck with zero 0-1 drops cannot act before round 3 — which is exactly when Aggro
+(avg 2.3) is killing it. I had also skipped Control in the first pass on the grounds that it
+"measured 79%", a number taken BEFORE the pierce reprice, the pip rework, ~35 new cards and
+twelve other decks changing. Judging a deck by a stale measurement was the wrong call.
+
+Fixes: trimmed the expensive removal to 2-of, added real early plays (`river-minnow`,
+`reef-darter`, `quarry-hand`, `briar-colt` by element), and cut the top end of the heaviest
+decks.
+
+### Consistency
+
+Control had drifted to 17 unique cards across 30 slots with four singletons — most of the deck
+was a card you might never draw. Consolidated to **15 unique, no singletons**; Stall from 16
+unique/4 singletons to 14/2. A singleton in a 30-card deck is a card the deck cannot plan
+around.
+
+### Where it ends up
+
+Every deck: 30 cards, no off-cap pips, draw everywhere except Combo (whose hero power IS draw),
+removal everywhere except Deck Out (mill by design). Curves 2.3-4.8 apart from Ramp at 6.1,
+which is its identity.
+
+Cleanse remains in 1 deck of 13 — still deliberately open.

@@ -403,26 +403,7 @@ export const deckMidrange = parseDeck({ name: 'Midrange', leaderId: 'aleph', car
 // is locked. Frost King (freeze all on play) is the panic-button board wipe. Abyss Warden
 // closes out once the opponent's board is exhausted.
 export const deckControl = parseDeck({ name: 'Control', leaderId: 'phantom', cards: [
-  // REBUILT. The old list was pure delay — freeze, sleep, bounce, taunt, walls — with no
-  // removal and no draw. By Legends of Runeterra's taxonomy that is not a control deck at all:
-  // stun-likes "don't destroy or remove a unit from play", so they aren't removal, and a deck
-  // built on them is a tempo deck with no payoff. Measured, every one of those spells sat at
-  // the BOTTOM of this deck's own win-rate table (cold-spell 36%, hypnotic-patterns 35%) while
-  // the beaters sat at the top (tide-serpent 20.2 dmg/game) — the deck won when it stopped
-  // trying to control and started attacking.
-  //
-  // Out: cold-spell x3, frost-king x2, hypnotic-patterns x1, river-minnow x1, target-spell x2,
-  //      lull x1 — the ten worst performers, all delay.
-  // In:  real removal (abyssal-verdict, riptide-executioner), delay that also kills
-  //      (frostbite-harpoon), and bodies that replace themselves (tidecaller-adept,
-  //      brackish-warden) so an answer no longer costs a card.
-  { cardId: 'peel-back', count: 2 },
-  { cardId: 'frostbite-harpoon', count: 2 }, { cardId: 'abyssal-verdict', count: 3 },
-  { cardId: 'riptide-executioner', count: 2 }, { cardId: 'tidecaller-adept', count: 2 }, { cardId: 'brackish-warden', count: 1 },
-  { cardId: 'river-turtle', count: 2 }, { cardId: 'current-rider', count: 2 }, { cardId: 'tide-serpent', count: 2 }, { cardId: 'sleep-walker', count: 2 },
-  { cardId: 'frost-wall', count: 2 }, { cardId: 'dream-eater', count: 2 }, { cardId: 'crag-hawk', count: 2 },
-  { cardId: 'abyss-warden', count: 1 },
-  { cardId: 'glacial-ray', count: 3 },
+  { cardId: 'peel-back', count: 2 }, { cardId: 'river-minnow', count: 2 }, { cardId: 'reef-darter', count: 2 }, { cardId: 'frostbite-harpoon', count: 2 }, { cardId: 'abyssal-verdict', count: 2 }, { cardId: 'riptide-executioner', count: 2 }, { cardId: 'tidecaller-adept', count: 2 }, { cardId: 'frost-wall', count: 2 }, { cardId: 'river-turtle', count: 2 }, { cardId: 'current-rider', count: 2 }, { cardId: 'tide-serpent', count: 2 }, { cardId: 'sleep-walker', count: 2 }, { cardId: 'dream-eater', count: 2 }, { cardId: 'crag-hawk', count: 2 }, { cardId: 'glacial-ray', count: 2 },
 ] });
 
 // NOTE: a previous version of this comment described a Lethal-carrier plan built around
@@ -443,12 +424,12 @@ export const deckCombo = parseDeck({ name: 'Combo', leaderId: 'screyera', cards:
   // Concentrated into 3 grant lines (8 copies) so a working combo reliably shows up, rather than
   // a pile of singletons that never align. Scry digs for the matching piece + body.
   // Bodies (22) — front-loaded curve with real-attack beaters to power the clock.
-  { cardId: 'pebble-pup', count: 3 }, { cardId: 'mud-crab', count: 3 },
+  { cardId: 'pebble-pup', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'mud-crab', count: 3 },
   { cardId: 'gravel-hound', count: 3 }, { cardId: 'reprisal', count: 2 }, { cardId: 'war-beast', count: 2 },
-  { cardId: 'oak-sentry', count: 3 }, { cardId: 'ridge-walker', count: 3 }, { cardId: 'mountain-bull', count: 3 },
+  { cardId: 'oak-sentry', count: 3 }, { cardId: 'ridge-walker', count: 2 }, { cardId: 'mountain-bull', count: 3 },
   // Grant-foundations (8) — three clean lines: launch-ramp (Overshot, face clock),
   // twin-fang-mount (Double Strike, burst), fertile-mound (Growth, snowball).
-  { cardId: 'whetstone-altar', count: 3 }, { cardId: 'twin-fang-mount', count: 3 }, { cardId: 'fertile-mound', count: 2 },
+  { cardId: 'whetstone-altar', count: 2 }, { cardId: 'twin-fang-mount', count: 3 }, { cardId: 'fertile-mound', count: 2 },
 ] });
 
 // Guardian plan: survive early (Ring Leader starts at 0 attack — purely a sponge), stack attack via
@@ -508,10 +489,7 @@ export const deckDeckOut = parseDeck({ name: 'Deck Out', leaderId: 'johnpork', c
 // raw endgame bodies — Mountain Bull and especially Colossal Worm, which becomes
 // near-impossible to remove once it starts killing (Bloodlust: shield + burrow).
 export const deckStall = parseDeck({ name: 'Stall', leaderId: 'cleath', cards: [
-  { cardId: 'target-spell', count: 2 }, { cardId: 'mend', count: 2 }, { cardId: 'trench-turtle', count: 3 }, { cardId: 'spike-wall', count: 3 }, { cardId: 'frost-wall', count: 2 },
-  { cardId: 'bulwark-toad', count: 2 }, { cardId: 'iron-mantis', count: 2 }, { cardId: 'stone-footing', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'tremor', count: 2 },
-  { cardId: 'aegis-ancient', count: 1 }, { cardId: 'colossal-worm', count: 1 }, { cardId: 'pebble-snake', count: 2 },
-  { cardId: 'mandrake', count: 1 }, { cardId: 'ridge-walker', count: 3 },
+  { cardId: 'target-spell', count: 2 }, { cardId: 'mend', count: 2 }, { cardId: 'trench-turtle', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'spike-wall', count: 3 }, { cardId: 'frost-wall', count: 2 }, { cardId: 'bulwark-toad', count: 3 }, { cardId: 'iron-mantis', count: 2 }, { cardId: 'stone-footing', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'aegis-ancient', count: 1 }, { cardId: 'colossal-worm', count: 1 }, { cardId: 'ridge-walker', count: 3 },
 ] });
 
 // Swarm plan: flood every lane faster than the opponent can clear, then win with anthem
@@ -535,16 +513,16 @@ export const deckSwarm = parseDeck({ name: 'Swarm', leaderId: 'autopus', cards: 
 // Wither and Wilt grind attackers down. Poison/on-hit is a supplement, not the main plan.
 // Granite Ox is the closer once the enemy board has bled itself out.
 export const deckAttrition = parseDeck({ name: 'Attrition', leaderId: 'eksana', cards: [
-  { cardId: 'mud-crab', count: 3 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 },
-  { cardId: 'whistle-blower', count: 2 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'spike-wall', count: 2 }, { cardId: 'mandrake', count: 2 }, { cardId: 'thornfield', count: 1 },
-  { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'pebble-snake', count: 2 }, { cardId: 'barbed-sentinel', count: 2 },
+  { cardId: 'mud-crab', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 },
+  { cardId: 'whistle-blower', count: 2 }, { cardId: 'spiked-base', count: 1 }, { cardId: 'spike-wall', count: 2 }, { cardId: 'mandrake', count: 2 }, { cardId: 'thornfield', count: 1 },
+  { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'pebble-snake', count: 1 }, { cardId: 'barbed-sentinel', count: 2 },
   { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 },
 ] });
 
 export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', cards: [
-  { cardId: 'mend', count: 2 }, { cardId: 'field-mouse', count: 3 }, { cardId: 'iron-seed', count: 3 }, { cardId: 'strangleroot', count: 2 }, { cardId: 'bloom-elk', count: 3 },
-  { cardId: 'war-beast', count: 3 }, { cardId: 'surge-sprite', count: 2 }, { cardId: 'goreivyne', count: 2 }, { cardId: 'mush-room', count: 2 }, { cardId: 'fertile-mound', count: 2 },
-  { cardId: 'rally-banner', count: 2 }, { cardId: 'chrysalis-grub', count: 2 }, { cardId: 'emerald-drake', count: 1 }, { cardId: 'grove-elder', count: 1 },
+  { cardId: 'mend', count: 2 }, { cardId: 'field-mouse', count: 3 }, { cardId: 'briar-colt', count: 3 }, { cardId: 'iron-seed', count: 2 }, { cardId: 'strangleroot', count: 2 }, { cardId: 'bloom-elk', count: 3 },
+  { cardId: 'war-beast', count: 2 }, { cardId: 'surge-sprite', count: 2 }, { cardId: 'goreivyne', count: 2 }, { cardId: 'mush-room', count: 2 }, { cardId: 'fertile-mound', count: 2 },
+  { cardId: 'rally-banner', count: 1 }, { cardId: 'chrysalis-grub', count: 2 }, { cardId: 'emerald-drake', count: 1 }, { cardId: 'grove-elder', count: 1 },
 ] });
 
 // Lane Control plan: dictate WHERE the enemy's units stand. Naife's Misdirect plus Wind Redirect,
