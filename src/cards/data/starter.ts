@@ -368,10 +368,10 @@ import { parseDeck } from '@cards/schema';
 // punish the board. Plague Rat trimmed (weak without a wall — Galatian is the poison delivery now).
 export const deckDoT = parseDeck({ name: 'DoT', leaderId: 'kedou', cards: [
   { cardId: 'ash-cloud', count: 3 }, { cardId: 'firebolt', count: 3 }, { cardId: 'pyroclasm', count: 2 },
-  { cardId: 'ember-tick', count: 3 }, { cardId: 'coal-runner', count: 1 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'pumpkindle', count: 2 }, { cardId: 'wildfire-spread', count: 2 },
+  { cardId: 'ember-tick', count: 3 }, { cardId: 'ember-chronicler', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'pumpkindle', count: 2 }, { cardId: 'wildfire-spread', count: 2 },
   { cardId: 'strangleroot', count: 2 }, { cardId: 'creeping-blight', count: 2 }, { cardId: 'galatian-spirit', count: 2 },
   { cardId: 'cinder-witch', count: 2 }, { cardId: 'revolving-sun', count: 2 },
-  { cardId: 'whistle-blower', count: 2 },
+  { cardId: 'whistle-blower', count: 1 },
 ] });
 
 // Aggro uses Orsyric's even 2/2/2/2 caps to splash beyond fire: Water supplies the cheap glass
@@ -381,8 +381,8 @@ export const deckDoT = parseDeck({ name: 'DoT', leaderId: 'kedou', cards: [
 // one cap left unused — by design, not oversight.
 export const deckAggro = parseDeck({ name: 'Aggro', leaderId: 'orsyric', cards: [
   { cardId: 'flicker-moth', count: 3 }, { cardId: 'magma-brute', count: 2 }, { cardId: 'firebolt', count: 2 }, { cardId: 'chain-spark', count: 3 }, { cardId: 'coal-runner', count: 3 },
-  { cardId: 'swift-falcon', count: 3 }, { cardId: 'comet-rider', count: 2 }, { cardId: 'pyre-fiend', count: 2 }, { cardId: 'coral-spear', count: 1 }, { cardId: 'reef-raptor', count: 2 }, { cardId: 'briar-colt', count: 1 },
-  { cardId: 'razor-charger', count: 2 }, { cardId: 'adrenaline-rush', count: 2 }, { cardId: 'split-arrow', count: 1 }, { cardId: 'twin-blade', count: 1 },
+  { cardId: 'swift-falcon', count: 3 }, { cardId: 'comet-rider', count: 2 }, { cardId: 'pyre-fiend', count: 2 }, { cardId: 'powder-monkey', count: 2 }, { cardId: 'reef-raptor', count: 2 }, { cardId: 'briar-colt', count: 1 },
+  { cardId: 'razor-charger', count: 2 }, { cardId: 'adrenaline-rush', count: 2 }, { cardId: 'split-arrow', count: 1 },
 ] });
 
 // Midrange is the deliberate VANILLA BASELINE: an efficient stat-stick curve with minimal
@@ -392,8 +392,8 @@ export const deckAggro = parseDeck({ name: 'Aggro', leaderId: 'orsyric', cards: 
 // flex slot, so Midrange can no longer answer everything.
 export const deckMidrange = parseDeck({ name: 'Midrange', leaderId: 'aleph', cards: [
   { cardId: 'field-mouse', count: 3 }, { cardId: 'frost-imp', count: 2 }, { cardId: 'ember-pup', count: 2 }, { cardId: 'mend', count: 1 }, { cardId: 'briar-colt', count: 3 },
-  { cardId: 'gravel-hound', count: 3 }, { cardId: 'reef-darter', count: 2 }, { cardId: 'spore-bat', count: 2 }, { cardId: 'wind-redirect', count: 1 }, { cardId: 'current-rider', count: 2 },
-  { cardId: 'mud-crab', count: 2 }, { cardId: 'chemister', count: 1 }, { cardId: 'craftbee', count: 1 }, { cardId: 'granite-ox', count: 2 }, { cardId: 'lumber-jacko', count: 1 }, { cardId: 'briar-colt', count: 1 }, { cardId: 'reef-darter', count: 1 },
+  { cardId: 'gravel-hound', count: 3 }, { cardId: 'reef-darter', count: 2 }, { cardId: 'spore-bat', count: 2 }, { cardId: 'current-rider', count: 2 },
+  { cardId: 'mud-crab', count: 2 }, { cardId: 'sharpened-stake', count: 2 }, { cardId: 'wandering-scholar', count: 2 }, { cardId: 'granite-ox', count: 2 }, { cardId: 'briar-colt', count: 1 }, { cardId: 'reef-darter', count: 1 },
 ] });
 
 // Control plan: wall behind Frost Wall + River Turtle (Double Team), stall with Cold Spell /
@@ -444,11 +444,11 @@ export const deckCombo = parseDeck({ name: 'Combo', leaderId: 'screyera', cards:
   // a pile of singletons that never align. Scry digs for the matching piece + body.
   // Bodies (22) — front-loaded curve with real-attack beaters to power the clock.
   { cardId: 'pebble-pup', count: 3 }, { cardId: 'mud-crab', count: 3 },
-  { cardId: 'gravel-hound', count: 3 }, { cardId: 'briar-colt', count: 2 }, { cardId: 'war-beast', count: 2 },
+  { cardId: 'gravel-hound', count: 3 }, { cardId: 'reprisal', count: 2 }, { cardId: 'war-beast', count: 2 },
   { cardId: 'oak-sentry', count: 3 }, { cardId: 'ridge-walker', count: 3 }, { cardId: 'mountain-bull', count: 3 },
   // Grant-foundations (8) — three clean lines: launch-ramp (Overshot, face clock),
   // twin-fang-mount (Double Strike, burst), fertile-mound (Growth, snowball).
-  { cardId: 'launch-ramp', count: 3 }, { cardId: 'twin-fang-mount', count: 3 }, { cardId: 'fertile-mound', count: 2 },
+  { cardId: 'whetstone-altar', count: 3 }, { cardId: 'twin-fang-mount', count: 3 }, { cardId: 'fertile-mound', count: 2 },
 ] });
 
 // Guardian plan: survive early (Ring Leader starts at 0 attack — purely a sponge), stack attack via
@@ -456,12 +456,12 @@ export const deckCombo = parseDeck({ name: 'Combo', leaderId: 'screyera', cards:
 // Protection (shield, heal, True Shield) and freeze/sleep control buy the turns needed; Lull is the
 // panic-button "survive to Signature" finisher.
 export const deckTempo = parseDeck({ name: 'Guardian', leaderId: 'ringleader', cards: [
-  { cardId: 'mend', count: 2 }, { cardId: 'field-mouse', count: 2 },
-  { cardId: 'iron-ward', count: 3 }, { cardId: 'cold-spell', count: 2 }, { cardId: 'peel-back', count: 2 },
+  { cardId: 'mend', count: 2 }, { cardId: 'field-mouse', count: 1 },
+  { cardId: 'iron-ward', count: 3 }, { cardId: 'frostbite-harpoon', count: 2 }, { cardId: 'peel-back', count: 2 },
   { cardId: 'wind-redirect', count: 2 },
   { cardId: 'frost-wall', count: 2 }, { cardId: 'river-turtle', count: 2 },
   { cardId: 'mush-room', count: 3 }, { cardId: 'lullaby-spirit', count: 2 }, { cardId: 'crag-hawk', count: 3 }, { cardId: 'fog-creature', count: 2 },
-  { cardId: 'hypnotic-patterns', count: 1 },
+  { cardId: 'tidecaller-adept', count: 2 },
   { cardId: 'ward-stone', count: 2 },
 ] });
 
@@ -497,9 +497,9 @@ export const deckRamp = parseDeck({ name: 'Ramp', leaderId: 'corpselock', cards:
 export const deckDeckOut = parseDeck({ name: 'Deck Out', leaderId: 'johnpork', cards: [
   { cardId: 'cursed-gift', count: 3 }, { cardId: 'river-minnow', count: 2 },
   { cardId: 'cold-spell', count: 3 }, { cardId: 'hypnotic-patterns', count: 2 }, { cardId: 'peel-back', count: 2 }, { cardId: 'whistle-blower', count: 2 }, { cardId: 'displacement-wave', count: 2 },
-  { cardId: 'river-turtle', count: 2 }, { cardId: 'fog-creature', count: 1 },
+  { cardId: 'river-turtle', count: 2 }, { cardId: 'tidecaller-adept', count: 2 },
   { cardId: 'sleep-walker', count: 2 }, { cardId: 'lull', count: 2 },
-  { cardId: 'frost-wall', count: 1 }, { cardId: 'mind-leech', count: 3 }, { cardId: 'lullaby-spirit', count: 1 },
+  { cardId: 'frost-wall', count: 1 }, { cardId: 'mind-leech', count: 3 },
   { cardId: 'tundra', count: 1 }, { cardId: 'lullaby-grove', count: 1 },
 ] });
 
@@ -509,8 +509,8 @@ export const deckDeckOut = parseDeck({ name: 'Deck Out', leaderId: 'johnpork', c
 // near-impossible to remove once it starts killing (Bloodlust: shield + burrow).
 export const deckStall = parseDeck({ name: 'Stall', leaderId: 'cleath', cards: [
   { cardId: 'target-spell', count: 2 }, { cardId: 'mend', count: 2 }, { cardId: 'trench-turtle', count: 3 }, { cardId: 'spike-wall', count: 3 }, { cardId: 'frost-wall', count: 2 },
-  { cardId: 'bulwark-toad', count: 2 }, { cardId: 'iron-mantis', count: 2 }, { cardId: 'stone-footing', count: 2 }, { cardId: 'salt-golem', count: 1 }, { cardId: 'guardian-crab', count: 1 },
-  { cardId: 'aegis-ancient', count: 1 }, { cardId: 'granite-ox', count: 1 }, { cardId: 'mountain-bull', count: 1 }, { cardId: 'colossal-worm', count: 1 }, { cardId: 'pebble-snake', count: 2 },
+  { cardId: 'bulwark-toad', count: 2 }, { cardId: 'iron-mantis', count: 2 }, { cardId: 'stone-footing', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'tremor', count: 2 },
+  { cardId: 'aegis-ancient', count: 1 }, { cardId: 'colossal-worm', count: 1 }, { cardId: 'pebble-snake', count: 2 },
   { cardId: 'mandrake', count: 1 }, { cardId: 'ridge-walker', count: 3 },
 ] });
 
@@ -525,9 +525,9 @@ export const deckStall = parseDeck({ name: 'Stall', leaderId: 'cleath', cards: [
 export const deckSwarm = parseDeck({ name: 'Swarm', leaderId: 'autopus', cards: [
   { cardId: 'field-mouse', count: 3 },
   { cardId: 'spore-bat', count: 3 }, { cardId: 'hive-spawn', count: 3 }, { cardId: 'swift-falcon', count: 2 }, { cardId: 'hivemind-surge', count: 2 },
-  { cardId: 'goreivyne', count: 2 }, { cardId: 'war-beast', count: 1 }, { cardId: 'rally-banner', count: 2 }, { cardId: 'pyre-fiend', count: 2 }, { cardId: 'briar-colt', count: 1 },
+  { cardId: 'goreivyne', count: 2 }, { cardId: 'war-beast', count: 1 }, { cardId: 'rally-banner', count: 2 }, { cardId: 'pyre-fiend', count: 2 }, { cardId: 'powder-monkey', count: 2 },
   { cardId: 'brood-mother', count: 3 },
-  { cardId: 'brood-warlord', count: 2 }, { cardId: 'pocket-dimension', count: 1 }, { cardId: 'firebolt', count: 2 }, { cardId: 'mush-room', count: 1 },
+  { cardId: 'brood-warlord', count: 2 }, { cardId: 'pocket-dimension', count: 1 }, { cardId: 'firebolt', count: 2 },
 ] });
 
 // Attrition plan: wall the board with Spike/Taunt bodies the enemy must attack into,
@@ -537,14 +537,14 @@ export const deckSwarm = parseDeck({ name: 'Swarm', leaderId: 'autopus', cards: 
 export const deckAttrition = parseDeck({ name: 'Attrition', leaderId: 'eksana', cards: [
   { cardId: 'mud-crab', count: 3 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 },
   { cardId: 'whistle-blower', count: 2 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'spike-wall', count: 2 }, { cardId: 'mandrake', count: 2 }, { cardId: 'thornfield', count: 1 },
-  { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'pebble-snake', count: 2 }, { cardId: 'barbed-sentinel', count: 2 }, { cardId: 'galatian-spirit', count: 1 }, { cardId: 'creeping-blight', count: 1 },
-  { cardId: 'shinero', count: 1 }, { cardId: 'reactive-plating', count: 1 },
+  { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'pebble-snake', count: 2 }, { cardId: 'barbed-sentinel', count: 2 },
+  { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 },
 ] });
 
 export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', cards: [
-  { cardId: 'mend', count: 3 }, { cardId: 'field-mouse', count: 3 }, { cardId: 'iron-seed', count: 3 }, { cardId: 'strings-of-heaven', count: 2 }, { cardId: 'bloom-elk', count: 3 },
+  { cardId: 'mend', count: 2 }, { cardId: 'field-mouse', count: 3 }, { cardId: 'iron-seed', count: 3 }, { cardId: 'strangleroot', count: 2 }, { cardId: 'bloom-elk', count: 3 },
   { cardId: 'war-beast', count: 3 }, { cardId: 'surge-sprite', count: 2 }, { cardId: 'goreivyne', count: 2 }, { cardId: 'mush-room', count: 2 }, { cardId: 'fertile-mound', count: 2 },
-  { cardId: 'rally-banner', count: 2 }, { cardId: 'catpire', count: 1 }, { cardId: 'lumber-jacko', count: 1 }, { cardId: 'bowling-boulder', count: 1 },
+  { cardId: 'rally-banner', count: 2 }, { cardId: 'chrysalis-grub', count: 2 }, { cardId: 'emerald-drake', count: 1 }, { cardId: 'grove-elder', count: 1 },
 ] });
 
 // Lane Control plan: dictate WHERE the enemy's units stand. Naife's Misdirect plus Wind Redirect,
@@ -563,7 +563,7 @@ export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', ca
 // watchtowers, river-minnow) are cut for consistency; the clock is doubled up.
 export const deckLaneControl = parseDeck({ name: 'Lane Control', leaderId: 'naife', cards: [
   { cardId: 'wind-redirect', count: 3 }, { cardId: 'fearie', count: 2 }, { cardId: 'tidal-wave', count: 2 }, { cardId: 'displacement-wave', count: 2 }, { cardId: 'cold-spell', count: 2 },
-  { cardId: 'tundra', count: 2 }, { cardId: 'strings-of-heaven', count: 2 }, { cardId: 'seaweed-octopus', count: 2 }, { cardId: 'sleep-walker', count: 2 },
+  { cardId: 'tundra', count: 2 }, { cardId: 'tidecaller-adept', count: 2 }, { cardId: 'seaweed-octopus', count: 2 }, { cardId: 'sleep-walker', count: 2 },
   { cardId: 'frost-imp', count: 2 }, { cardId: 'coral-spear', count: 2 }, { cardId: 'reef-raptor', count: 3 }, { cardId: 'tide-stalker', count: 2 }, { cardId: 'crag-hawk', count: 2 },
 ] });
 

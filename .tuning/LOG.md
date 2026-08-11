@@ -1020,3 +1020,59 @@ dual-element cards. Two things to know before building it:
    lock anyone out.
 2. **An ability-dense card can exceed `MAX_ELEMENT_COST` (4)** once pips come from 3-4 different
    elements, so it needs a clamping rule — `recommendedPips` currently clamps a single total.
+
+---
+
+## Starter deck pass — every deck re-tuned against the new pool
+
+The 13 decks were mostly unchanged for months and had never seen the ~35 cards added this
+session. Audit (`.tuning/deckAudit.test.ts`) before the pass:
+
+| gap | decks affected |
+|---|---|
+| **no draw** | **12 of 13** (Control 3, Ramp 2) |
+| **no cleanse** | **13 of 13** |
+| no removal | 6 — Midrange, Combo, Guardian, Deck Out, Stall, Snowball |
+| no heal | 6 |
+
+74 of 203 cards were in NO deck, including every card added today.
+
+### A real bug the pip rework introduced
+
+**Combo ran 3x `launch-ramp`, which ability-derived pips pushed to 2 FIRE — and Screyera caps
+fire at 1.** She could never bank for it; it was payable only by dumping generic energy. That
+is 3 of 30 cards broken, and it was the deck's whole Overshot line.
+
+Replaced with `whetstone-altar` (8e+1N+1E, on-element for her, grants Lethal) — which finally
+makes real the Lethal plan Combo's deck comment claimed it had and never did. General lesson:
+a card needing 2+ pips of ONE element is locked to leaders with that cap, so it can no longer
+serve as a splash. Worth watching whenever pips move.
+
+### After the pass
+
+Draw: 12 decks without -> **1** (Combo, whose leader power IS draw). Removal: 6 without -> **1**
+(Deck Out, whose plan is mill by design). Off-cap pips: **0**.
+
+Highlights, all at exactly 30 cards:
+- **Midrange** — the vanilla baseline had no removal and no draw. Now runs the NEUTRAL package
+  (`sharpened-stake`, `wandering-scholar`), which is exactly its identity: goodstuff any leader
+  could cast.
+- **Snowball** — gained `chrysalis-grub` + `emerald-drake`. Metamorphosis is literally this
+  deck's thesis (start small, become huge) and it had no access to it.
+- **Stall** — `runestone-keeper` is a 0/4 Taunt wall that draws every turn: a wall deck's card
+  engine, plus `tremor` for its first AOE.
+- **DoT** — `ember-chronicler` (repeating Countdown draw); a slow tick suits its clock.
+- **Aggro / Swarm** — `powder-monkey`, a 2/1 that replaces itself when it trades.
+- **Attrition** — `ironroot-ward` gives the game's most ground-down deck its only cleanse.
+
+### Still open, deliberately
+
+**Cleanse is in 1 deck of 13.** Burn/Poison/Freeze/Sleep remain effectively unanswerable across
+the meta. Blanket-adding `purify`/`rejuvenate` everywhere would homogenise the decks, so it is
+left as a design question rather than a silent fix.
+
+Also fixed the audit tool itself: it counted only `damage` as removal, so Snowball read
+"no removal" while holding `strangleroot` (Poison kills without ever dealing damage).
+
+**None of this is measured.** Together with the hit-resolution rework, ability-derived pips,
+Neutral and Countdown, this is the largest unmeasured stack of the session.
