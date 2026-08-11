@@ -25,6 +25,7 @@ export type GameEvent =
   | { t: 'blocked'; iid: string; source: 'shield' | 'trueShield' | 'immunity' | 'freeze'; amount?: number; victim?: PlayerId }
   | { t: 'zombieRevive'; iid: string }
   | { t: 'transform'; iid: string; into: string }
+  | { t: 'countdown'; iid: string; player: PlayerId }
   | { t: 'sacrifice'; iid: string; forIid: string }
   | { t: 'wake'; iid: string; from: 'sleep' | 'freeze' }
   | { t: 'burnTick'; iid: string; amount: number; hpAfter: number; victim?: PlayerId }

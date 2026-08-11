@@ -58,36 +58,28 @@ describe('Polish fires from every damage source', () => {
     expect(s.players[1].lanes.ground1.front!.attack).toBe(3); // enemy debuffed -1 by Polish reacting to Poison
   });
 
-  it('gains its stat from Smelt self-damage at end of turn', () => {
-    const s = blankState();
-    place(s, 0, 'ground1', unit({ owner: 0, attack: 2, hp: 5, keywords: { polish: { stat: { attack: 1 } }, smelt: { hpCost: 1, effect: { kind: 'energy', amount: 1 } } } }));
-    const events: GameEvent[] = [];
-    resolveEndOfTurn(s, 0, events, testRegistry);
-    const u = s.players[0].lanes.ground1.front!;
-    expect(u.hp).toBe(4); // paid 1 HP for Smelt
-    expect(u.attack).toBe(3); // +1 from Polish reacting to the Smelt cost
-  });
 });
 
-describe('Smelt resolves its exchange through the shared trigger machinery', () => {
-  it("damage targets an enemy UNIT, honoring the authored scope (Forge Acolyte style)", () => {
+// Ported from the retired Smelt tests: the assertions worth keeping were never about Smelt,
+// they were about a KEYWORD-CARRIED effect resolving through the shared trigger machinery with
+// its authored target scope intact. Countdown carries effects the same way.
+describe('Countdown resolves through the shared trigger machinery', () => {
+  it('damage targets an enemy UNIT, honoring the authored scope', () => {
     const s = blankState();
-    place(s, 0, 'ground1', unit({ owner: 0, attack: 2, hp: 5, keywords: { smelt: { hpCost: 1, effect: { kind: 'damage', amount: 2, target: 'enemy' } } } }));
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 2, hp: 5, keywords: { countdown: { turns: 1, effects: [{ kind: 'damage', amount: 2, target: 'enemy' }] } } }));
     place(s, 1, 'ground1', unit({ owner: 1, attack: 0, hp: 5 }));
     const leaderBefore = s.players[1].leaderHp;
     resolveEndOfTurn(s, 0, [], testRegistry);
-    expect(s.players[0].lanes.ground1.front!.hp).toBe(4); // paid 1 HP
     expect(s.players[1].lanes.ground1.front!.hp).toBe(3); // enemy unit took 2 — NOT the leader
     expect(s.players[1].leaderHp).toBe(leaderBefore); // leader untouched
   });
 
-  it('heal targets your own leader (previously dropped entirely — Blood Altar Keeper style)', () => {
+  it('heal targets your own leader', () => {
     const s = blankState();
     s.players[0].leaderHp = 20;
-    place(s, 0, 'ground1', unit({ owner: 0, attack: 1, hp: 5, keywords: { smelt: { hpCost: 1, effect: { kind: 'heal', amount: 3, target: 'leader' } } } }));
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 1, hp: 5, keywords: { countdown: { turns: 1, effects: [{ kind: 'heal', amount: 3, target: 'leader' }] } } }));
     resolveEndOfTurn(s, 0, [], testRegistry);
-    expect(s.players[0].lanes.ground1.front!.hp).toBe(4); // paid 1 HP
-    expect(s.players[0].leaderHp).toBe(23); // leader healed 3 (was a no-op before)
+    expect(s.players[0].leaderHp).toBe(23);
   });
 
   it('gains its stat from spell/ability damage', () => {

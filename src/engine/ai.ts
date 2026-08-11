@@ -156,6 +156,28 @@ const metamorphValue = (W: EvalWeights, registry: Registry, u: UnitInstance): nu
 };
 
 /**
+ * Worth of a pending COUNTDOWN, discounted by how many turns remain — the same shape as
+ * metamorphValue. Without this the AI sees only the body and cannot tell a ticking bomb from a
+ * vanilla unit, so it would neither protect its own nor prioritise removing the opponent's.
+ *
+ * The payload is valued crudely (damage only): the point is that the AI knows SOMETHING is
+ * coming and when, not that it prices the effect exactly.
+ */
+const countdownValue = (W: EvalWeights, u: UnitInstance): number => {
+  const cd = u.keywords.countdown;
+  if (!cd) return 0;
+  let payload = 0;
+  for (const e of cd.effects) {
+    if (e.kind === 'damage') payload += (e.amount ?? 0) * W.attack;
+  }
+  if (cd.consume) payload -= bodyValue(W, u.attack, u.hp); // the timer eats its own carrier
+  const turnsLeft = cd.repeat
+    ? cd.turns - (u.turnsInPlay % cd.turns)
+    : Math.max(0, cd.turns - u.turnsInPlay);
+  return payload / (turnsLeft + 1);
+};
+
+/**
  * Worth of the recurring end-of-turn engine a unit carries. Producers (folded into an
  * `energy` end-of-turn effect by `expandKeywordEffects`) and end-of-turn healers pay out
  * every turn they survive, so they are worth a multiple of a single tick's value.
@@ -287,6 +309,7 @@ const unitValue = (W: EvalWeights, registry: Registry, u: UnitInstance): number 
   if (!kw.brittle) {
     if (kw.growth) v += bodyValue(W, kw.growth.attack ?? 0, kw.growth.hp ?? 0) * W.growthHorizon;
     v += metamorphValue(W, registry, u);
+    v += countdownValue(W, u);
     v += engineValue(W, u);
   }
   // A unit that can't act next turn is worth less than its stats suggest.

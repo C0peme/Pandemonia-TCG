@@ -347,7 +347,7 @@ const ABILITY_FILTER_KEYS: (keyof Keywords)[] = [
   'airborne','aquatic','bloodlust','branchShot','doubleStrike','doubleTeam',
   'expel','growth','healer','immunity','kamikaze','lethal','metamorphosis',
   'mover','overshot','polish','producer','sacrifice','shield','sniper',
-  'smelt','spike','splashDamage','strikeThrough','taunt','tough','trueShield',
+  'countdown','spike','splashDamage','strikeThrough','taunt','tough','trueShield',
   'pierce','brittle','zombified',
 ];
 
@@ -1144,7 +1144,7 @@ function SpecialKeywords({ kw, setKey, passives }: { kw: Keywords; setKey: (k: k
   const bloodlust = kw.bloodlust;
   const polish = kw.polish;
   const meta = kw.metamorphosis;
-  const smelt = kw.smelt;
+  const countdown = kw.countdown;
   const healer = kw.healer;
   const producer = kw.producer;
 
@@ -1229,16 +1229,29 @@ function SpecialKeywords({ kw, setKey, passives }: { kw: Keywords; setKey: (k: k
         {kw.kamikaze && <EffectRow effect={kw.kamikaze} onChange={(e) => setKey('kamikaze', e)} onRemove={() => setKey('kamikaze', undefined)} hideRemove />}
       </ToggleBlock>
 
-      {/* Smelt — pay HP each turn to run an effect */}
+      {/* Countdown — a timer the OWNER sets; fires after N of their turns. */}
       <ToggleBlock
-        label="Smelt (pay HP each turn for an effect)"
-        on={Boolean(smelt)}
-        onToggle={(on) => setKey('smelt', on ? { hpCost: 1, effect: { kind: 'damage', amount: 2, target: 'enemy' } } : undefined)}
+        label="Countdown (fires an effect after N turns)"
+        on={Boolean(countdown)}
+        onToggle={(on) => setKey('countdown', on ? { turns: 2, effects: [{ kind: 'damage', amount: 3, target: 'enemy' }] } : undefined)}
       >
-        {smelt && (
+        {countdown && (
           <>
-            <Num label="HP cost / turn" value={smelt.hpCost} min={1} onChange={(n) => setKey('smelt', { ...smelt, hpCost: Math.max(1, n) })} />
-            <EffectRow effect={smelt.effect} onChange={(e) => setKey('smelt', { ...smelt, effect: e })} onRemove={() => {}} hideRemove />
+            <div className="fldrow">
+              <Num label="Turns" value={countdown.turns} min={1} onChange={(n) => setKey('countdown', { ...countdown, turns: Math.max(1, n) })} />
+              <label className="kwflag">
+                <input type="checkbox" checked={Boolean(countdown.repeat)} onChange={(e) => setKey('countdown', { ...countdown, repeat: e.target.checked || undefined })} />
+                Repeat every N turns
+              </label>
+              <label className="kwflag">
+                <input type="checkbox" checked={Boolean(countdown.consume)} onChange={(e) => setKey('countdown', { ...countdown, consume: e.target.checked || undefined })} />
+                Destroyed when it fires
+              </label>
+            </div>
+            <EffectsEditor
+              effects={countdown.effects}
+              onChange={(fx) => setKey('countdown', { ...countdown, effects: fx })}
+            />
           </>
         )}
       </ToggleBlock>

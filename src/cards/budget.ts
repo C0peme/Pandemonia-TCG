@@ -226,11 +226,15 @@ function keywordsCost(kw: any, allUnits: boolean, lookup: Lookup, depth = 0): nu
       case 'debuff': c += (1.25 + statCost(v)) * 1.4; break;
       case 'sacrifice': c += -0.5 + statCost(v?.buff); break;
       case 'kamikaze': c += -0.5 + effectCost(v, lookup, false, depth); break;
-      // Smelt fires at EVERY end of turn (endOfTurn.ts), so it takes the recurrence premium
-      // like any other repeating trigger — it was priced as a one-shot, which made a per-turn
-      // engine cost the same as using its effect once. The HP is charged per tick for the same
-      // reason: you pay it every turn the unit lives.
-      case 'smelt': c += effectCost(v?.effect, lookup, true, depth) - 0.5 * num(v?.hpCost); break;
+      // COUNTDOWN — the effects, discounted for the wait. A `repeat` timer takes the recurrence
+      // premium (it fires forever); a one-shot pays for a single resolution. `consume` refunds a
+      // little: the timer destroys its own carrier, so you lose the body you paid for.
+      case 'countdown': {
+        const base = effectsCost(v?.effects, lookup, Boolean(v?.repeat), depth);
+        const delay = 0.6 * num(v?.turns, 1);
+        c += Math.max(0, base - delay - (v?.consume ? 0.5 : 0));
+        break;
+      }
       case 'metamorphosis': {
         // one level only: value the "into" card's printed body/effects, not its further
         // metamorphosis (avoids double-counting A<->B transform loops). Minus 2 / turn.
@@ -371,9 +375,11 @@ const MAX_ABILITY_PIPS = RULES.MAX_ELEMENT_COST;
 export const ABILITY_ELEMENT: Record<string, Element> = {
   // Fire — aggression, burst, self-sacrifice
   battleReady: 'fire', strikeThrough: 'fire', doubleStrike: 'fire', brittle: 'fire',
-  kamikaze: 'fire', smelt: 'fire', overshot: 'fire', splashDamage: 'fire',
-  // Water — control, positioning, denial
-  aquatic: 'water', sniper: 'water', pierce: 'water', shield: 'water',
+  kamikaze: 'fire', countdown: 'fire', overshot: 'fire', splashDamage: 'fire',
+  // Water — control, positioning, denial. (Freeze and Sleep are Water's statuses; with those
+  // counted as abilities Water reached 10 and Earth 8, so SHIELD moved to Earth to even it at
+  // 9/9/9/9. Shield joins its own family there — Earth already holds Tough and True Shield.)
+  aquatic: 'water', sniper: 'water', pierce: 'water',
   doubleTeam: 'water', healer: 'water', mover: 'water', expel: 'water',
   // Nature — growth, resources, evolution
   growth: 'nature', bloodlust: 'nature', producer: 'nature', airborne: 'nature',
@@ -381,12 +387,13 @@ export const ABILITY_ELEMENT: Record<string, Element> = {
   // Earth — defense, endurance, punishment
   tough: 'earth', polish: 'earth', taunt: 'earth', spike: 'earth',
   trueShield: 'earth', immunity: 'earth', zombified: 'earth', debuff: 'earth',
+  shield: 'earth',
 };
 
 /** Statuses carry their own element, so an on-hit Burn is Fire wherever it is printed. */
 const STATUS_ELEMENT: Record<string, Element> = {
   burn: 'fire', poison: 'nature', freeze: 'water', sleep: 'water',
-  shield: 'water', taunt: 'earth', trueShield: 'earth', zombified: 'earth',
+  shield: 'earth', taunt: 'earth', trueShield: 'earth', zombified: 'earth',
 };
 
 /**

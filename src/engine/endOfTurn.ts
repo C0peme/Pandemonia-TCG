@@ -91,18 +91,6 @@ export const resolveEndOfTurn = (
     if (u.status.burn) delete u.status.burn;
   }
 
-  // Smelt — only fires if the unit has strictly more HP than the cost (leaves ≥ 1 HP).
-  for (const u of activeUnits(s, player)) {
-    if (u.keywords.smelt && u.hp > u.keywords.smelt.hpCost) {
-      dealUnitDamage(s, u, u.keywords.smelt.hpCost, { raw: true }, events, registry, (amount) =>
-        events.push({ t: 'damageUnit', iid: u.iid, amount, hpAfter: u.hp, victim: u.owner }),
-      );
-      // Run the Smelt exchange through the shared trigger machinery, so it honors the
-      // authored target scope and supports every effect kind (heal, summon, conjure, …).
-      applyTriggeredEffects(s, u, [u.keywords.smelt.effect], events, undefined, registry);
-    }
-  }
-  processDeaths(s, events, undefined, registry);
 
   // 3. Growth
   for (const u of activeUnits(s, player)) {
@@ -166,13 +154,27 @@ export const resolveEndOfTurn = (
     u.justPlaced = false;
   }
 
-  // Age units and resolve Metamorphosis.
+  // Age units, then resolve the two turn-driven keywords.
   for (const { unit: u, lane } of activeUnitsWithLane(s, player)) {
     u.turnsInPlay += 1;
     if (registry && u.keywords.metamorphosis && u.turnsInPlay >= u.keywords.metamorphosis.everyTurns) {
       metamorphose(registry, u, lane, events);
     }
+    // COUNTDOWN — the owner's clock. One-shot fires on the EXACT turn (so it cannot re-fire
+    // without any "already fired" state to persist); `repeat` fires every `turns` turns.
+    const cd = u.keywords.countdown;
+    if (cd) {
+      const due = cd.repeat ? u.turnsInPlay % cd.turns === 0 : u.turnsInPlay === cd.turns;
+      if (due) {
+        events.push({ t: 'countdown', iid: u.iid, player });
+        applyTriggeredEffects(s, u, cd.effects, events, undefined, registry);
+        // `consume` is the bomb flavour: the timer destroys its own carrier. Done AFTER the
+        // effects so they resolve from a unit that is still on the board.
+        if (cd.consume) u.hp = 0;
+      }
+    }
   }
+  processDeaths(s, events, undefined, registry);
 };
 
 /**

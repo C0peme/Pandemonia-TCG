@@ -307,8 +307,28 @@ export const keywordsSchema = z
       })
       .strict()
       .optional(),
-    smelt: z
-      .object({ hpCost: z.number().int().min(1), effect: effectSchema })
+    /**
+     * COUNTDOWN — a timer the OWNER sets, firing after `turns` of their own turns.
+     *
+     * The distinction from the game's other delayed mechanics is who controls the clock.
+     * Kamikaze fires on death, so the OPPONENT chooses when by choosing whether to kill it.
+     * Metamorphosis is a timer that upgrades the unit. Countdown is a timer the opponent must
+     * play AROUND: answer it early, or clear the lane before it lands.
+     *
+     * Deliberately general — `effects` is any Effect[], so the same keyword covers a delayed
+     * bomb, a recurring tick (`repeat`), or a payoff that hands its controller an extra action.
+     * `consume` destroys the unit when it fires, which is the bomb flavour; without it the unit
+     * survives and (with `repeat`) keeps ticking.
+     */
+    countdown: z
+      .object({
+        turns: z.number().int().min(1),
+        effects: z.array(effectSchema).min(1),
+        /** Fire every `turns` turns instead of once. */
+        repeat: z.boolean().optional(),
+        /** Destroy this unit when the timer fires. */
+        consume: z.boolean().optional(),
+      })
       .strict()
       .optional(),
   })

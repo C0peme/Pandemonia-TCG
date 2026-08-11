@@ -21,14 +21,20 @@ describe('previously-dead mechanics now have cards', () => {
     }
   });
 
-  it('smelt uses a PLAYER-scoped effect — unit-targeting ones are dropped by the trigger dispatch', () => {
-    const withSmelt = (starterCards as any[]).filter((c) => c.keywords?.smelt);
-    expect(withSmelt.length).toBeGreaterThan(0);
-    for (const c of withSmelt) {
-      expect(['draw', 'energy', 'energyNext', 'bankMax', 'forget'],
-        `${c.id} smelt effect must be player-scoped`).toContain(c.keywords.smelt.effect.kind);
-      expect(c.keywords.smelt.hpCost).toBeGreaterThan(0);
+  it('countdown carries at least one effect and a positive timer', () => {
+    const withCd = (starterCards as any[]).filter((c) => c.keywords?.countdown);
+    expect(withCd.length).toBeGreaterThan(0);
+    for (const c of withCd) {
+      const cd = c.keywords.countdown;
+      expect(cd.turns, `${c.id} needs a positive timer`).toBeGreaterThan(0);
+      expect(cd.effects.length, `${c.id} needs an effect to fire`).toBeGreaterThan(0);
     }
+  });
+
+  it("the countdown cards cover the keyword's range — one-shot, repeating, self-consuming", () => {
+    const cds = (starterCards as any[]).filter((c) => c.keywords?.countdown).map((c) => c.keywords.countdown);
+    expect(cds.some((cd: any) => cd.repeat), 'a repeating timer').toBe(true);
+    expect(cds.some((cd: any) => cd.consume), 'a self-consuming bomb').toBe(true);
   });
 
   it('Lethal is obtainable on a printed card, not only via Earth grants', () => {
