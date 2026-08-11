@@ -67,3 +67,16 @@ export const RULES = {
 
 export const ELEMENTS = ['fire', 'water', 'nature', 'earth'] as const;
 export type Element = (typeof ELEMENTS)[number];
+
+/**
+ * What a CARD may be. `neutral` is a card class, NOT a fifth element: there is no neutral bank,
+ * no neutral cap and no neutral pip, so `Element` (used for costs, banking and leader caps)
+ * deliberately excludes it.
+ *
+ * A neutral card is one whose abilities have no elemental association — plain damage, draw,
+ * heal, summon — so the pip system charges it nothing in colour and it is priced entirely in
+ * energy. That makes it castable on curve by every leader, which is the point: it is the pool's
+ * common ground.
+ */
+export const CARD_ELEMENTS = [...ELEMENTS, 'neutral'] as const;
+export type CardElement = (typeof CARD_ELEMENTS)[number];

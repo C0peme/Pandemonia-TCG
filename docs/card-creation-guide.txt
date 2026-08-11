@@ -58,6 +58,42 @@ determine which leaders can efficiently use element-cost cards.
            Tough, Polish, Taunt, Spike, True Shield, Immunity, Zombified, Debuff.
            Theme — absorb, punish attackers, win the long game.
 
+  PIPS ARE DERIVED FROM THIS MAP. A card pays ONE PIP PER ABILITY, charged in the element of
+  the ABILITY — not the element printed on the card. A Fire body carrying Taunt pays an Earth
+  pip; Frost Imp is a Water card whose only ability is Overshot, so it costs 1 Fire. Cards
+  become multi-element by what they DO. (`recommendedElements` in budget.ts; statuses carry
+  their own element, so an on-hit Burn is Fire wherever it is printed.)
+
+  Effects with NO canonical element — damage, draw, heal, summon, energy — earn NO PIP AT ALL.
+  Their cost stays as plain energy. A pip is a statement that an ability belongs to an element;
+  charging one for a colourless effect merely because of the card it happens to be printed on
+  says nothing. So Firebolt (plain damage) is priced entirely in energy even though it is a Fire
+  card, while Hypnotic Patterns (Sleep, a Water ability) converts its whole cost into a pip.
+
+  `pierce` on a damage effect is the Pierce ABILITY wearing a flag instead of a keyword, so it
+  colours that effect Water.
+
+  NEUTRAL is the card class for cards with no elemental ability association at all: no pips, no
+  element identity, priced purely in energy, castable on curve by every leader. It is a CLASS,
+  not a fifth element — there is no neutral bank, no neutral cap and no neutral pip, which is
+  why `Element` (costs, banking, leader caps) excludes it and `CardElement` (a card's own
+  element) includes it.
+
+  Being neutral is an AUTHORED choice, not a derived one. Plenty of elemental cards also have no
+  element-bearing ability — a vanilla Fire 2/2 pays no pip either — but its element still says
+  which leader wants it and which archetype it belongs to. Reserve Neutral for cards that belong
+  to no element: mercenaries, scholars, salvage, a sharpened stake.
+
+  This is a real constraint where energy is not. Energy equals the round number and is uncapped,
+  so a bigger energy cost barely restrains a card after round ~5; pips are gated by a leader's
+  elementCaps and by banking. It is a constraint, NOT a lock: `settleCost` pays any element
+  shortfall out of generic energy, so an off-element ability makes a card EXPENSIVE for the
+  wrong leader rather than uncastable.
+
+  Totals are unchanged by the scheme — a card pays the same number of pips as before, just in
+  different colours. Applying it across the pool moved 38 cards and left the pool's total pip
+  count identical.
+
   These are design conventions, not engine rules: the schema lets any card take any keyword.
   Deliberately going off-element is how a card reads as a splash or a hybrid — but it should be
   a decision, not an accident.

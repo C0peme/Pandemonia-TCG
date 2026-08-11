@@ -90,9 +90,13 @@ describe('recommendedPips / recommendedEnergy', () => {
   });
 
   it('lets an ability card convert its whole cost away to 0 energy + pips', () => {
-    // Firebolt: value 1.2 -> 1 energy, 1 ability -> 1 pip, leaving 0 generic.
-    expect(recommendedEnergy(card('firebolt'), lookup)).toBe(0);
-    expect(recommendedPips(card('firebolt'), lookup)).toBe(1);
+    // Hypnotic Patterns: sleep is a WATER ability, so its whole cost converts into a pip.
+    expect(recommendedEnergy(card('hypnotic-patterns'), lookup)).toBe(0);
+    expect(recommendedPips(card('hypnotic-patterns'), lookup)).toBe(1);
+    // ...but Firebolt is plain damage, which has NO element, so it converts nothing and is
+    // priced entirely in energy. This is the neutral case: a colourless ability earns no pip.
+    expect(recommendedPips(card('firebolt'), lookup)).toBe(0);
+    expect(recommendedEnergy(card('firebolt'), lookup)).toBe(1);
     // Never negative, and a 0-energy card always carries at least one pip to pay instead.
     for (const c of starterCards) {
       const tags: string[] = (c as any).tags ?? [];

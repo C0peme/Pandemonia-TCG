@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { starterRegistry } from '@cards/data/starter';
-import { blankState, testRegistry } from '@engine/testkit';
+import { blankState, testRegistry, unit, place } from '@engine/testkit';
 import { planTurn, greedyAction } from '@engine/ai';
 import { canAfford } from '@engine/energy';
 import { legalActions, applyAction } from '@engine/engine';
@@ -28,19 +28,24 @@ describe('AI understands the new economy', () => {
   });
 
   it('can cast a pipped card off the bank alone, with no generic energy at all', () => {
-    // Firebolt is 0 energy + 1 fire. A player on 0 energy but holding 1 banked fire must be
-    // able to cast it — this is the discount the whole ability-pip design is built on, and it
-    // only shows up if the AI reads affordability through the bank-first settlement.
+    // Hypnotic Patterns is 0 energy + 1 water. A player on 0 energy but holding 1 banked water
+    // must be able to cast it — this is the discount the whole ability-pip design is built on,
+    // and it only shows up if the AI reads affordability through the bank-first settlement.
+    // (Firebolt used to sit here; pips are now derived from the ABILITY's element and plain
+    // damage has none, so Firebolt is priced in energy and no longer exercises this path.)
     const s = blankState({ round: 3 });
-    withHand(s, 0, ['firebolt']);
+    withHand(s, 0, ['hypnotic-patterns']);
     s.players[0].energy = 0;
-    s.players[0].bank = { fire: 1, water: 0, nature: 0, earth: 0 };
-    const def = starterRegistry.cards.get('firebolt')!;
+    s.players[0].bank = { fire: 0, water: 1, nature: 0, earth: 0 };
+    // A target must exist or the spell generates no legal play, which would pass the
+    // affordability assertion below while testing nothing.
+    place(s, 1, 'ground1', unit({ owner: 1, attack: 1, hp: 2 }));
+    const def = starterRegistry.cards.get('hypnotic-patterns')!;
     expect(canAfford(s.players[0], def.cost).ok).toBe(true);
     expect(legalActions(starterRegistry, s).some((a) => a.type === 'playSpell')).toBe(true);
     // And the same player with neither energy nor bank cannot.
     const broke = blankState({ round: 3 });
-    withHand(broke, 0, ['firebolt']);
+    withHand(broke, 0, ['hypnotic-patterns']);
     broke.players[0].energy = 0;
     broke.players[0].bank = { fire: 0, water: 0, nature: 0, earth: 0 };
     expect(canAfford(broke.players[0], def.cost).ok).toBe(false);
@@ -48,14 +53,14 @@ describe('AI understands the new economy', () => {
 
   it('draws the pip from the bank before touching generic energy', () => {
     const s = blankState({ round: 3 });
-    withHand(s, 0, ['firebolt']);
+    withHand(s, 0, ['hypnotic-patterns']);
     s.players[0].energy = 3;
-    s.players[0].bank = { fire: 2, water: 0, nature: 0, earth: 0 };
+    s.players[0].bank = { fire: 0, water: 2, nature: 0, earth: 0 };
     const play = legalActions(starterRegistry, s).find((a) => a.type === 'playSpell');
     if (!play) return;
     const after = applyAction(starterRegistry, s, play).state;
-    expect(after.players[0].bank.fire).toBe(1); // pip came from the bank
-    expect(after.players[0].energy).toBe(3);    // generic untouched
+    expect(after.players[0].bank.water).toBe(1); // pip came from the bank
+    expect(after.players[0].energy).toBe(3);     // generic untouched
   });
 
   it('values queued energy, so Cancerous Growth is not seen as a dead loss', () => {

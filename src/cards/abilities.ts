@@ -3,7 +3,7 @@
  * descriptions (edge cases are handled by the engine, not explained here). Used by the
  * UI for labels, tooltips, and the card detail popup.
  */
-import type { Cost, Element, Keywords } from '@cards/schema';
+import type { Cost, Keywords, CardElement } from '@cards/schema';
 import type { StatusState } from '@engine/types';
 
 export interface AbilityInfo {
@@ -107,7 +107,9 @@ export const listStatuses = (status: StatusState): NamedAbility[] => {
   return out;
 };
 
-const ELEMENT_NAME: Record<Element, string> = { fire: 'Fire', water: 'Water', nature: 'Nature', earth: 'Earth' };
+// Keyed by CardElement, not Element: `neutral` is a card class (no bank, no cap, no pip), and
+// these labels are used for CARD chips as well as bank tiles.
+const ELEMENT_NAME: Record<CardElement, string> = { fire: 'Fire', water: 'Water', nature: 'Nature', earth: 'Earth', neutral: 'Neutral' };
 /* Element glyphs now live in `@ui/ElementRune` (ELEMENT_SYMBOL / <ElementRune/>) — the old
    emoji ELEMENT_ICON map was removed once every call site moved to the carved rune sigils. */
 

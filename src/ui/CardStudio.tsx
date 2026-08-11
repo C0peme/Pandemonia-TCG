@@ -4,7 +4,7 @@
  * so they immediately appear in the Collection, Deck Builder, and the game itself.
  */
 import { useMemo, useState, useRef } from 'react';
-import { ELEMENTS, type Element } from '@engine/constants';
+import { ELEMENTS, CARD_ELEMENTS, type Element, type CardElement } from '@engine/constants';
 import { formatCost, ABILITY_INFO } from '@cards/abilities';
 import { ElementRune } from '@ui/ElementRune';
 import { cardAbilityLine, effectLine, MiniCard } from '@ui/App';
@@ -22,7 +22,7 @@ import type {
 import { RULES } from '@engine/constants';
 import * as store from '@cards/store';
 import { useContent } from '@ui/useContent';
-import { cardBudgetValue, recommendedEnergy, recommendedPips } from '@cards/budget';
+import { cardBudgetValue, recommendedEnergy, recommendedPips, recommendedElements } from '@cards/budget';
 
 const CARD_TYPES = ['unit', 'foundation', 'spell', 'environment'] as const;
 type CardType = (typeof CARD_TYPES)[number];
@@ -98,7 +98,7 @@ interface Form {
   id: string; // empty for a brand-new card (id minted on save)
   name: string;
   type: CardType;
-  element: Element;
+  element: CardElement;
   text: string;
   costEnergy: number;
   costElements: ElementCostEntry[];
@@ -766,7 +766,7 @@ function CostEstimate({
   costEnergy,
   onApply,
 }: {
-  estimate: { value: number; energy: number; pips: number } | null;
+  estimate: { value: number; energy: number; pips: number; elements: { type: string; amount: number }[] } | null;
   costEnergy: number;
   onApply: (energy: number) => void;
 }) {
@@ -786,9 +786,14 @@ function CostEstimate({
       <span className="muted">→ suggested energy: <strong>{estimate.energy}</strong></span>
       <span
         className="muted"
-        title="Element pips are derived from value: only cards worth banking for are pip-gated."
+        title="One pip per ability, charged in that ABILITY's element (see the ability->element map in docs/card-creation-guide.txt) — so a Fire body with Taunt pays an Earth pip. Off-element abilities make a card expensive for the wrong leader, never uncastable: generic energy covers any shortfall."
       >
-        · suggested pips: <strong>{estimate.pips}</strong>
+        · suggested pips:{' '}
+        <strong>
+          {estimate.elements.length
+            ? estimate.elements.map((e) => `${e.amount}${e.type[0]!.toUpperCase()}`).join(' + ')
+            : estimate.pips}
+        </strong>
       </span>
       <button type="button" onClick={() => onApply(estimate.energy)} disabled={matches}>
         {matches ? '✓ Energy matches' : `Apply ${estimate.energy} energy`}
@@ -880,6 +885,7 @@ function CardEditor({ initial, isEditExisting, onClose }: { initial: Form; isEdi
         value: cardBudgetValue(built, lookup),
         energy: recommendedEnergy(built, lookup),
         pips: recommendedPips(built, lookup),
+        elements: recommendedElements(built, lookup),
       };
     } catch {
       return null;
@@ -915,7 +921,9 @@ function CardEditor({ initial, isEditExisting, onClose }: { initial: Form; isEdi
           <div className="fldrow">
             <Text label="Name" value={f.name} onChange={(v) => set('name', v)} />
             {!isEditExisting && <Sel label="Type" value={f.type} options={CARD_TYPES} onChange={(v) => set('type', v)} />}
-            <Sel label="Element" value={f.element} options={ELEMENTS} onChange={(v) => set('element', v)} />
+            {/* CARD_ELEMENTS, not ELEMENTS: a card may be Neutral. Cost pips and effect elements
+                below stay to the four real elements — there is no neutral pip to pay or bank. */}
+            <Sel label="Element" value={f.element} options={CARD_ELEMENTS} onChange={(v) => set('element', v)} />
           </div>
           <div className="fldrow">
             <Num label="Energy cost" value={f.costEnergy} min={0} onChange={(n) => set('costEnergy', n)} />

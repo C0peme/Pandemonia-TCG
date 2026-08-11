@@ -10,10 +10,18 @@
  * the card vocabulary.
  */
 import { z } from 'zod';
-import { ELEMENTS, RULES } from '@engine/constants';
+import { ELEMENTS, CARD_ELEMENTS, RULES } from '@engine/constants';
 
 export const elementSchema = z.enum(ELEMENTS);
 export type Element = z.infer<typeof elementSchema>;
+
+/**
+ * A CARD's element, which may also be `neutral` — a class with no elemental ability
+ * association, priced purely in energy. Costs, banking and leader caps keep `elementSchema`:
+ * there is no neutral pip to pay or bank.
+ */
+export const cardElementSchema = z.enum(CARD_ELEMENTS);
+export type CardElement = z.infer<typeof cardElementSchema>;
 
 /** A change to a unit's stats (buff with positives, debuff with negatives). */
 export const statModSchema = z
@@ -312,7 +320,7 @@ export type Keywords = z.infer<typeof keywordsSchema>;
 const cardBase = {
   id: z.string().min(1),
   name: z.string().min(1),
-  element: elementSchema,
+  element: cardElementSchema,
   text: z.string().optional(), // human-readable rules text
   /**
    * Free-form tags for filtering (e.g. 'signature'). Replaces the old `archetypes`

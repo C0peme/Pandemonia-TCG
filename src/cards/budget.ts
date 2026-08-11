@@ -15,7 +15,7 @@
  * values both forms equivalently: a recurring trigger effect is priced like its keyword.
  */
 
-import { RULES } from '@engine/constants';
+import { RULES, type Element } from '@engine/constants';
 
 type Lookup = (id: string) => unknown;
 
@@ -359,6 +359,135 @@ function valueOf(card: any, lookup: Lookup, depth: number): number {
 // to a player who never banked the element, so it is free only to one who committed to it.
 const MAX_ABILITY_PIPS = RULES.MAX_ELEMENT_COST;
 
+// ── Ability → element ─────────────────────────────────────────────────────────
+// The canonical 8/8/8/8 map (docs/card-creation-guide.txt). A pip is charged in the element of
+// the ABILITY that earns it, not the element printed on the card — so a Fire body carrying
+// Taunt pays an Earth pip, and cards become multi-element by what they DO.
+//
+// This is a real constraint in a way energy is not: energy equals the round number and is
+// uncapped, whereas pips are gated by a leader's `elementCaps` and by banking. Note it is a
+// constraint, not a lock — `settleCost` pays any element shortfall out of generic energy, so an
+// off-element ability makes a card EXPENSIVE for the wrong leader, never uncastable.
+export const ABILITY_ELEMENT: Record<string, Element> = {
+  // Fire — aggression, burst, self-sacrifice
+  battleReady: 'fire', strikeThrough: 'fire', doubleStrike: 'fire', brittle: 'fire',
+  kamikaze: 'fire', smelt: 'fire', overshot: 'fire', splashDamage: 'fire',
+  // Water — control, positioning, denial
+  aquatic: 'water', sniper: 'water', pierce: 'water', shield: 'water',
+  doubleTeam: 'water', healer: 'water', mover: 'water', expel: 'water',
+  // Nature — growth, resources, evolution
+  growth: 'nature', bloodlust: 'nature', producer: 'nature', airborne: 'nature',
+  lethal: 'nature', metamorphosis: 'nature', sacrifice: 'nature', branchShot: 'nature',
+  // Earth — defense, endurance, punishment
+  tough: 'earth', polish: 'earth', taunt: 'earth', spike: 'earth',
+  trueShield: 'earth', immunity: 'earth', zombified: 'earth', debuff: 'earth',
+};
+
+/** Statuses carry their own element, so an on-hit Burn is Fire wherever it is printed. */
+const STATUS_ELEMENT: Record<string, Element> = {
+  burn: 'fire', poison: 'nature', freeze: 'water', sleep: 'water',
+  shield: 'water', taunt: 'earth', trueShield: 'earth', zombified: 'earth',
+};
+
+/**
+ * Effects that mirror a mapped keyword take its element. Everything else (damage, draw, heal,
+ * summon, energy...) falls back to the CARD's element — deliberately: those have no canonical
+ * element in the guide, and inventing one here would be a design decision smuggled into a
+ * pricing function.
+ */
+const EFFECT_ELEMENT: Record<string, Element> = {
+  move: 'water', expel: 'water', debuff: 'earth',
+};
+
+/**
+ * Returns undefined for effects with NO canonical element (damage, draw, heal, summon,
+ * energy...). Those earn no pip at all — their cost stays as plain energy. An element pip is a
+ * statement that an ability belongs to an element; charging one for a colourless effect just
+ * because of the card it is printed on says nothing.
+ */
+const elementOfEffect = (e: any): Element | undefined => {
+  if (e?.kind === 'applyStatus') return STATUS_ELEMENT[e.status];
+  // `pierce` on a damage effect is the Pierce ABILITY wearing a flag rather than a keyword, so
+  // it colours the effect Water even though plain damage is colourless.
+  if (e?.pierce) return ABILITY_ELEMENT.pierce;
+  return EFFECT_ELEMENT[e?.kind];
+};
+
+export type PipTally = Partial<Record<Element, number>>;
+
+/**
+ * Which element each of a card's abilities charges its pip in. Walks exactly what
+ * `abilityCount` walks, so the TOTAL always equals `abilityCount` — the two cannot drift.
+ */
+export function pipBreakdown(card: any, lookup: Lookup = () => undefined): PipTally {
+  const tally: PipTally = {};
+  if (!card) return tally;
+  const cardEl: Element = card.element ?? 'fire';
+  const add = (el: Element): void => { tally[el] = (tally[el] ?? 0) + 1; };
+
+  const kws = (kw: any): void => {
+    for (const [k, v] of Object.entries<any>(kw ?? {})) {
+      if (k === 'aquatic' && v === true) continue;
+      if (keywordsCost({ [k]: v }, false, lookup, 0) > 0) add(ABILITY_ELEMENT[k] ?? cardEl);
+    }
+  };
+  const fx = (arr: any[] | undefined): void => {
+    for (const e of arr ?? []) {
+      if (effectCost(e, lookup, false, 0) <= 0) continue;
+      const el = elementOfEffect(e);
+      if (el) add(el); // colourless effects earn no pip — see elementOfEffect
+    }
+  };
+  const onHit = (oh: any): void => {
+    if (!oh) return;
+    for (const k of ['burn', 'poison', 'sleep', 'freeze']) {
+      if (oh[k] !== undefined && oh[k] !== false) add(STATUS_ELEMENT[k]!);
+    }
+  };
+
+  kws(card.keywords);
+  onHit(card.onHit);
+  fx(card.onPlay); fx(card.onAttack); fx(card.endOfTurn); fx(card.startOfTurn);
+  if (card.type === 'spell') fx(card.effects);
+  if (card.type === 'environment') { fx(card.effects); kws(card.grantKeywords); }
+  if (card.type === 'foundation') {
+    kws(card.grants?.keywords); onHit(card.grants?.onHit);
+    fx(card.grants?.onAttack); fx(card.grants?.endOfTurn); fx(card.grants?.startOfTurn);
+  }
+  return tally;
+}
+
+/**
+ * The card's element cost, as `cost.elements` wants it. Trims to the same total
+ * `recommendedPips` reports, dropping the SMALLEST element groups first so a card keeps the
+ * identity it is mostly made of. A Foundation's surcharge pip is charged in its own element.
+ */
+export function recommendedElements(
+  card: any, lookup: Lookup = () => undefined,
+): { type: Element; amount: number }[] {
+  const total = recommendedPips(card, lookup);
+  if (total <= 0) return [];
+  const tally = pipBreakdown(card, lookup);
+  if (card?.type === 'foundation') {
+    const el: Element = card.element ?? 'fire';
+    tally[el] = (tally[el] ?? 0) + FOUNDATION_PIP_SURCHARGE;
+  }
+  const rows = (Object.entries(tally) as [Element, number][])
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const out: { type: Element; amount: number }[] = [];
+  let left = total;
+  for (const [el, n] of rows) {
+    if (left <= 0) break;
+    const take = Math.min(n, left);
+    out.push({ type: el, amount: take });
+    left -= take;
+  }
+  return out;
+}
+
+
+
 /**
  * How many distinct abilities a card has. Only abilities that ADD value count — a pure
  * downside such as Brittle must not earn its card a pip. Stats are not abilities.
@@ -409,9 +538,16 @@ export function abilityCount(card: any, lookup: Lookup = () => undefined): numbe
 const FOUNDATION_PIP_SURCHARGE = 1;
 
 /** Pips a card's abilities convert, before any surcharge. Bounded by the card's own value. */
+/**
+ * How many pips a card converts its energy into. This counts ELEMENT-BEARING abilities, not all
+ * abilities: an ability with no element (a plain damage or draw effect) leaves its cost as
+ * energy instead of converting it. So a card of purely colourless abilities is priced entirely
+ * in energy — the NEUTRAL class.
+ */
 const convertiblePips = (card: any, lookup: Lookup): number => {
   const baseEnergy = Math.round(cardBudgetValue(card, lookup));
-  return Math.max(0, Math.min(abilityCount(card, lookup), MAX_ABILITY_PIPS, baseEnergy));
+  const elemental = Object.values(pipBreakdown(card, lookup)).reduce<number>((s, n) => s + (n ?? 0), 0);
+  return Math.max(0, Math.min(elemental, MAX_ABILITY_PIPS, baseEnergy));
 };
 
 export function recommendedPips(card: any, lookup: Lookup = () => undefined): number {

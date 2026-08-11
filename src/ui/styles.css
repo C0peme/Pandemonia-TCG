@@ -1042,6 +1042,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   background: transparent; cursor: pointer;
   transition: transform 0.13s ease, filter 0.13s ease;
 }
+.handcard.chip--neutral { --elem: #8b919b; --elem-deep: #4f545c; }
 .handcard.chip--fire   { --elem: var(--fire);   --elem-deep: var(--fire-deep); }
 .handcard.chip--water  { --elem: var(--water);  --elem-deep: var(--water-deep); }
 .handcard.chip--nature { --elem: var(--nature); --elem-deep: var(--nature-deep); }
@@ -1168,6 +1169,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .erune--water  { background: radial-gradient(circle at 34% 28%, #7fc0ff, var(--water)  45%, var(--water-deep)); }
 .erune--nature { background: radial-gradient(circle at 34% 28%, #86d68f, var(--nature) 45%, var(--nature-deep)); }
 .erune--earth  { background: radial-gradient(circle at 34% 28%, #e6bd76, var(--earth)  45%, var(--earth-deep)); }
+/* Neutral is a CARD CLASS, not a fifth element — deliberately colourless, so it reads as
+   "belongs to no element" rather than competing with the four sigils. */
+.erune--neutral { background: radial-gradient(circle at 34% 28%, #d8d8de, #9aa0aa 45%, #5d626b); }
 /* Name banner */
 .card__name {
   font-family: var(--font-display); font-weight: 700; font-size: 11.5px; line-height: 1.1;

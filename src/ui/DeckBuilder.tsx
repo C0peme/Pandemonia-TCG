@@ -7,7 +7,7 @@
  * and pool cards that show stats + ability icons and open full details on click.
  */
 import { useMemo, useRef, useState } from 'react';
-import { ELEMENTS, RULES, type Element } from '@engine/constants';
+import { ELEMENTS, CARD_ELEMENTS, RULES, type Element, type CardElement } from '@engine/constants';
 import { formatCost, ABILITY_INFO } from '@cards/abilities';
 import { ElementRune, ELEMENT_SYMBOL } from '@ui/ElementRune';
 import type { Card, Deck, Keywords } from '@cards/schema';
@@ -472,13 +472,13 @@ function DeckInsights({ entries, registry, leaderElem }: { entries: Record<strin
   const total = rows.reduce((s, x) => s + x.ct, 0);
   const curve = Array(8).fill(0) as number[];
   const byType: Record<CardType, number> = { unit: 0, foundation: 0, spell: 0, environment: 0 };
-  const byElem: Record<Element, number> = { fire: 0, water: 0, nature: 0, earth: 0 };
+  const byElem: Record<CardElement, number> = { fire: 0, water: 0, nature: 0, earth: 0, neutral: 0 };
   let costSum = 0;
   for (const { c, ct } of rows) {
     const b = costBucket(c);
     curve[b] = (curve[b] ?? 0) + ct;
     byType[c.type] += ct;
-    byElem[c.element] += ct;
+    byElem[c.element] = (byElem[c.element] ?? 0) + ct;
     costSum += c.cost.energy * ct;
   }
   const maxCurve = Math.max(1, ...curve);
@@ -500,8 +500,8 @@ function DeckInsights({ entries, registry, leaderElem }: { entries: Record<strin
           <span key={t} className="db__bdchip" title={TYPE_LABEL[t]}>{TYPE_ICON[t]} {byType[t]}</span>
         ))}
         <span className="db__bdspace" />
-        {ELEMENTS.filter((el) => byElem[el] > 0).map((el) => (
-          <span key={el} className={`db__bdchip chip--${el} ${leaderElem && el !== leaderElem ? 'db__bdchip--off' : ''}`} title={`${byElem[el]} ${el} card(s)`}>
+        {CARD_ELEMENTS.filter((el) => (byElem[el] ?? 0) > 0).map((el) => (
+          <span key={el} className={`db__bdchip chip--${el} ${leaderElem && el !== leaderElem ? 'db__bdchip--off' : ''}`} title={`${byElem[el] ?? 0} ${el} card(s)`}>
             <ElementRune element={el} size={14} /> {byElem[el]}
           </span>
         ))}
