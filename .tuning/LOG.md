@@ -1119,3 +1119,30 @@ removal everywhere except Deck Out (mill by design). Curves 2.3-4.8 apart from R
 which is its identity.
 
 Cleanse remains in 1 deck of 13 — still deliberately open.
+
+---
+
+## Pre-flight checks before the long meta
+
+**Smoke test** (`.tuning/deckSmoke.test.ts`, greedy, ~2 min). The new mechanics — Countdown,
+Metamorphosis, `amountFrom`, Neutral cards, the hit-resolution rework — were covered in
+isolation but had never been played inside a real deck in a full game.
+
+- All 78 deck pairings x 2 seeds played to completion. No crashes.
+- **Every card in every deck got played at least once** across the field. No dead cards.
+
+**Two latent bugs found, neither from this session's balance work:**
+
+1. **Midrange was an ILLEGAL deck.** It listed `briar-colt` and `reef-darter` in two entries
+   each. `parseDeck` only bounds a SINGLE entry's count, so it passed — but `validateDeck`
+   (what the deck builder runs on a player's deck) rejects "Card listed more than once". A
+   shipped starter deck failed the game's own validation. Merged, and `deckValidity.test.ts`
+   now asserts every starter deck passes `validateDeck`.
+
+2. **MAX_COPIES was 4; intended 3.** Now 3. Midrange's merge had produced a 4-of, so it was
+   trimmed. Docs said "Max 4 copies" in two places — corrected. The UI reads the constant
+   everywhere, so nothing there needed changing. `registry.test.ts` hardcoded `count: 4` and
+   broke; it now derives from `RULES.MAX_COPIES` so the next change cannot silently rot it.
+
+The deck-legality test is the useful residue here: `parseDeck` passing is NOT the same as a
+deck being legal, and nothing had been checking the stronger condition.

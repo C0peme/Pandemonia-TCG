@@ -391,9 +391,7 @@ export const deckAggro = parseDeck({ name: 'Aggro', leaderId: 'orsyric', cards: 
 // Aleph's 2/2/2/2 caps), and the universal glue (Mend/Wind Redirect/Wilt) is trimmed to one
 // flex slot, so Midrange can no longer answer everything.
 export const deckMidrange = parseDeck({ name: 'Midrange', leaderId: 'aleph', cards: [
-  { cardId: 'field-mouse', count: 3 }, { cardId: 'frost-imp', count: 2 }, { cardId: 'ember-pup', count: 2 }, { cardId: 'mend', count: 1 }, { cardId: 'briar-colt', count: 3 },
-  { cardId: 'gravel-hound', count: 3 }, { cardId: 'reef-darter', count: 2 }, { cardId: 'spore-bat', count: 2 }, { cardId: 'current-rider', count: 2 },
-  { cardId: 'mud-crab', count: 2 }, { cardId: 'sharpened-stake', count: 2 }, { cardId: 'wandering-scholar', count: 2 }, { cardId: 'granite-ox', count: 2 }, { cardId: 'briar-colt', count: 1 }, { cardId: 'reef-darter', count: 1 },
+  { cardId: 'field-mouse', count: 3 }, { cardId: 'frost-imp', count: 2 }, { cardId: 'ember-pup', count: 3 }, { cardId: 'mend', count: 1 }, { cardId: 'briar-colt', count: 3 }, { cardId: 'gravel-hound', count: 3 }, { cardId: 'reef-darter', count: 3 }, { cardId: 'spore-bat', count: 2 }, { cardId: 'current-rider', count: 2 }, { cardId: 'mud-crab', count: 2 }, { cardId: 'sharpened-stake', count: 2 }, { cardId: 'wandering-scholar', count: 2 }, { cardId: 'granite-ox', count: 2 },
 ] });
 
 // Control plan: wall behind Frost Wall + River Turtle (Double Team), stall with Cold Spell /

@@ -398,7 +398,7 @@ The Signature card should:
 
 Rules:
   - Exactly 30 cards total.
-  - Max 4 copies of any single card.
+  - Max 3 copies of any single card.
   - leaderId must match an existing leader.
   - All cardIds must match existing cards.
 

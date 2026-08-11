@@ -28,7 +28,7 @@ export const RULES = {
 
   /** Deck construction. */
   DECK_SIZE: 30,
-  MAX_COPIES: 4,
+  MAX_COPIES: 3,
 
   /** Hand & draw. */
   STARTING_HAND: 4,

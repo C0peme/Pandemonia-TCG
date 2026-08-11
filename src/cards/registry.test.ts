@@ -54,12 +54,14 @@ describe('registry', () => {
       name: 'Expand',
       leaderId: 'kedou',
       cards: [
-        { cardId: 'ember-pup', count: 4 },
-        { cardId: 'cinder-archer', count: 2 },
+        // Reads MAX_COPIES rather than hardcoding it — this fixture broke when the limit moved
+        // from 4 to 3, which is the only reason anyone noticed it was hardcoded.
+        { cardId: 'ember-pup', count: RULES.MAX_COPIES },
+        { cardId: 'cinder-archer', count: 3 },
         ...Array.from({ length: 8 }, (_, i) => ({ cardId: `f-${i}`, count: 3 })),
       ],
     });
     expect(expandDeck(deck)).toHaveLength(RULES.DECK_SIZE);
-    expect(expandDeck(deck).filter((id) => id === 'ember-pup')).toHaveLength(4);
+    expect(expandDeck(deck).filter((id) => id === 'ember-pup')).toHaveLength(RULES.MAX_COPIES);
   });
 });
