@@ -2,8 +2,8 @@
  * Shared damage mitigation, used by both combat and ability/spell effects.
  *
  * Immunity does NOT block damage (combat or ability) — it protects against status
- * effects, displacement (expel/move) and offensive abilities (Lethal, Undershot's
- * defense-pierce). `ignoreDefenses` is Undershot and is itself stopped by Immunity.
+ * effects, displacement (expel/move) and offensive abilities (Lethal, Pierce's
+ * defense-pierce). `ignoreDefenses` is Pierce and is itself stopped by Immunity.
  */
 import { LANES, RULES } from '@engine/constants';
 import type { GameEvent } from '@engine/events';
@@ -68,7 +68,7 @@ export const reconcileLeaderUnit = (s: GameState, events: GameEvent[]): void => 
 };
 
 export interface DamageOpts {
-  /** Undershot: skip Shield/Tough (still stopped by True Shield / Immunity). */
+  /** Pierce: skip Shield/Tough (still stopped by True Shield / Immunity). */
   ignoreDefenses?: boolean;
   /**
    * True damage: bypass EVERY defense (Shield / Tough / True Shield / Immunity). Used by
@@ -90,7 +90,7 @@ export const mitigate = (
     target.hp -= amount;
     return amount;
   }
-  // Undershot (ignoreDefenses) pierces ALL defensive abilities — including True Shield
+  // Pierce (ignoreDefenses) pierces ALL defensive abilities — including True Shield
   // and Shield — and is only stopped by Immunity.
   const ignore = Boolean(opts.ignoreDefenses) && !target.keywords.immunity;
   if (!ignore && target.keywords.trueShield) {

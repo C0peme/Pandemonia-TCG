@@ -770,7 +770,7 @@ function StatBlock({ attack, hp, maxHp, atk, def }: {
 
 /** Keywords that read as "attack" abilities (glyph goes behind ATK) and "HP" abilities (behind HP). */
 const OFFENSIVE_KEYS = new Set<string>([
-  'sniper', 'branchShot', 'splashDamage', 'strikeThrough', 'undershot', 'overshot',
+  'sniper', 'branchShot', 'splashDamage', 'strikeThrough', 'pierce', 'overshot',
   'doubleStrike', 'lethal', 'brittle', 'bloodlust', 'battleReady',
 ]);
 const DEFENSIVE_KEYS = new Set<string>([
@@ -1318,7 +1318,7 @@ const SANDBOX_KEYWORDS: { group: string; items: { kw: DebugKeyword; label: strin
     items: [
       { kw: 'sniper', label: 'Sniper', title: 'Fires at a chosen enemy lane instead of straight ahead' },
       { kw: 'overshot', label: 'Overshot', title: 'Bypasses the lane to the leader (Airborne can intercept)' },
-      { kw: 'undershot', label: 'Undershot', title: 'Strikes the deepest target, piercing defenses' },
+      { kw: 'pierce', label: 'Pierce', title: 'Strikes the deepest target, piercing defenses' },
       { kw: 'branchShot', label: 'Branch', title: 'One full shot into each adjacent lane' },
       { kw: 'splashDamage', label: 'Splash', title: 'Full shot at the lane plus collateral on adjacent fronts' },
       { kw: 'strikeThrough', label: 'Strike Thru', title: 'Second shot at the back unit, else the leader' },

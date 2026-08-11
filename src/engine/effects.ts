@@ -5,7 +5,7 @@
  * against concrete targets supplied by the action. Targeted effects consume the
  * action's `targets` in order. Immunity blocks only HARMFUL control effects — status
  * effects, debuff, setStats, and displacement (move/expel) — plus offensive abilities
- * (Lethal, Undershot's pierce). It does NOT block damage or beneficial effects.
+ * (Lethal, Pierce's pierce). It does NOT block damage or beneficial effects.
  *
  * Wave 3 covers: damage, heal, draw, buff, debuff, applyStatus, energy, move, expel,
  * forget, summon (a unit onto the board), conjure (a card into a hand). `custom` is a
@@ -17,7 +17,7 @@ import type { Effect, UnitCard } from '@cards/schema';
 import type { Registry } from '@cards/registry';
 import type { TargetRef } from '@engine/actions';
 import { buffUnit, createUnitInstance, locateUnit, laneUnits, relocateUnit, vacateSlot } from '@engine/board';
-import { applyStatus, clearCleansableStatuses, isHarmfulStatus } from '@engine/status';
+import { applyStatus, clearCleansableStatuses, isHarmfulStatus, wakeOnHit } from '@engine/status';
 import { damageLeader, findLeaderUnit, healLeader, healUnit, mitigate, setDamageTriggerHook, type DamageOpts } from '@engine/damage';
 import { addCardToHand, millCards } from '@engine/hand';
 import { drawCard } from '@engine/draw';
@@ -99,16 +99,24 @@ const applyOne = (
       // path with no special case. `processDeaths` clears the slot afterwards.
       const target = resolveUnitTarget(s, caster, effect.target, ref);
       if ('error' in target) return target;
+      // Card damage is a HIT, resolved exactly like a unit's attack: it wakes the target, and
+      // Freeze absorbs it unless the effect pierces (`pierce`, the effect-side twin of the
+      // Pierce keyword). Routing through the shared `wakeOnHit` is what keeps a spell and a
+      // swing from disagreeing about what Freeze does.
+      const pierce = Boolean(effect.pierce);
+      // `amountFrom` derives the hit from the TARGET rather than a printed number, which is how
+      // Earth's removal answers threats without answering chaff. Read before wakeOnHit, which
+      // does not change attack, but kept alongside the other pre-hit reads for clarity.
+      const dmg = effect.amountFrom === 'targetAttack' ? Math.max(0, target.attack) : amount;
       // Wakeup Shock: sleeping units take bonus damage equal to their sleepHeal, then wake.
+      // Read BEFORE wakeOnHit, which clears the status.
       const wakeupBonus = target.status.sleep ? (target.status.sleepHeal ?? 0) : 0;
-      if (wakeupBonus > 0) {
-        target.status.sleep = 0;
-        delete target.status.sleepHeal;
-        events.push({ t: 'wake', iid: target.iid, from: 'sleep' });
+      const frozenBlock = wakeOnHit(target, pierce, events, dmg);
+      if (!frozenBlock) {
+        dealUnitDamage(s, target, dmg + wakeupBonus, { ignoreDefenses: pierce }, events, registry, (landed) =>
+          events.push({ t: 'damageUnit', iid: target.iid, amount: landed, hpAfter: target.hp, victim: target.owner }),
+        );
       }
-      dealUnitDamage(s, target, amount + wakeupBonus, {}, events, registry, (landed) =>
-        events.push({ t: 'damageUnit', iid: target.iid, amount: landed, hpAfter: target.hp, victim: target.owner }),
-      );
       // Chain: if this hit destroyed the target, splash to the weakest OTHER enemy unit.
       if (effect.chain && target.hp <= 0) {
         const opp = opponentOf(caster);
@@ -118,14 +126,12 @@ const applyOne = (
         if (others.length > 0) {
           const weakest = others.reduce((a, b) => (a.hp <= b.hp ? a : b));
           const chainShock = weakest.status.sleep ? (weakest.status.sleepHeal ?? 0) : 0;
-          if (chainShock > 0) {
-            weakest.status.sleep = 0;
-            delete weakest.status.sleepHeal;
-            events.push({ t: 'wake', iid: weakest.iid, from: 'sleep' });
+          // The chained hit is a hit too — same Freeze/pierce rules as the original.
+          if (!wakeOnHit(weakest, pierce, events, effect.chain)) {
+            dealUnitDamage(s, weakest, effect.chain + chainShock, { ignoreDefenses: pierce }, events, registry, (chained) =>
+              events.push({ t: 'damageUnit', iid: weakest.iid, amount: chained, hpAfter: weakest.hp, victim: weakest.owner }),
+            );
           }
-          dealUnitDamage(s, weakest, effect.chain + chainShock, {}, events, registry, (chained) =>
-            events.push({ t: 'damageUnit', iid: weakest.iid, amount: chained, hpAfter: weakest.hp, victim: weakest.owner }),
-          );
         }
       }
       // Diminishing chain: keep bouncing to the next-weakest enemy for amount-1, amount-2,
@@ -142,12 +148,10 @@ const applyOne = (
           const weakest = living.reduce((a, b) => (a.hp <= b.hp ? a : b));
           hit.add(weakest.iid);
           const diminishShock = weakest.status.sleep ? (weakest.status.sleepHeal ?? 0) : 0;
-          if (diminishShock > 0) {
-            weakest.status.sleep = 0;
-            delete weakest.status.sleepHeal;
-            events.push({ t: 'wake', iid: weakest.iid, from: 'sleep' });
-          }
-          dealUnitDamage(s, weakest, next + diminishShock, {}, events, registry, (dealt) =>
+          // Same hit rules down the chain. A Freeze that absorbs a bounce ends it, exactly as
+          // a non-lethal hit does — the unit survived, so the chain has run out.
+          if (wakeOnHit(weakest, pierce, events, next)) break;
+          dealUnitDamage(s, weakest, next + diminishShock, { ignoreDefenses: pierce }, events, registry, (dealt) =>
             events.push({ t: 'damageUnit', iid: weakest.iid, amount: dealt, hpAfter: weakest.hp, victim: weakest.owner }),
           );
           if (weakest.hp > 0) break; // a hit that doesn't kill ends the chain
@@ -170,7 +174,7 @@ const applyOne = (
       const target = resolveUnitTarget(s, caster, effect.target, ref);
       if ('error' in target) return target;
       buffUnit(target, effect.stat ?? {}, events); // Poison blocks gains internally
-      // Grant keywords (e.g. Immunity, Undershot) when the buff carries them.
+      // Grant keywords (e.g. Immunity, Pierce) when the buff carries them.
       if (effect.keywords) {
         Object.assign(target.keywords, effect.keywords);
         events.push({ t: 'buff', iid: target.iid, attack: 0, hp: 0 });

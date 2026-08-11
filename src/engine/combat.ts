@@ -4,7 +4,7 @@
  * The active player's units resolve attacks left-to-right (lane order, front then
  * back). Each unit's targeting and the defender's mitigation are shaped by keywords:
  *
- *   Targeting:  Overshot, Undershot, Sniper, Branch Shot, Splash, Strike Through,
+ *   Targeting:  Overshot, Pierce, Sniper, Branch Shot, Splash, Strike Through,
  *               Double Strike, Airborne (intercept).
  *   Defense:    Shield, True Shield, Taunt, Spike, Tough, Immunity, Lethal.
  *
@@ -14,13 +14,14 @@
  *
  * Modeling notes (documented decisions, refined in later waves):
  * - Sniper auto-targets the first enemy lane with a unit (manual targeting arrives
- *   with the UI). Foundation-layer Undershot priority arrives with the stacking wave;
- *   for now Undershot hits the back (deepest) unit, else the front.
+ *   with the UI). Foundation-layer Pierce priority arrives with the stacking wave;
+ *   for now Pierce hits the back (deepest) unit, else the front.
  * - True Shield is treated as "block all damage" while present on a unit.
  * - Lane retaliation is a single combined damage instance (one Shield blocks it).
  */
 import { LANES, type LaneId } from '@engine/constants';
 import { applyOnHitStatuses } from '@engine/board';
+import { wakeOnHit } from '@engine/status';
 import { damageLeader, reconcileLeaderUnit } from '@engine/damage';
 import { applyTriggeredEffects, applyEffects, processDeaths, dealUnitDamage, fireBloodlust } from '@engine/effects';
 import { refreshEnvironmentGrants } from '@engine/environment';
@@ -54,7 +55,7 @@ const applyOnHit = (source: UnitInstance, target: UnitInstance, events: GameEven
 };
 
 
-/** Undershot strikes the Foundation beneath a unit (direct, defense-ignoring). */
+/** Pierce strikes the Foundation beneath a unit (direct, defense-ignoring). */
 const damageFoundation = (host: UnitInstance, source: UnitInstance, events: GameEvent[], lane?: LaneId): void => {
   const f = host.foundation;
   if (!f) return;
@@ -110,28 +111,6 @@ const chooseSniperLane = (s: GameState, defender: PlayerId, fallback: LaneId, ov
   return fallback;
 };
 
-/**
- * Wake a unit that is attacked, clearing Sleep/Freeze.
- * Freeze normally blocks one hit; pass `bypassFreeze=true` (Undershot) to skip the block.
- * Returns true if the hit is blocked by Freeze.
- */
-const wakeOnAttack = (target: UnitInstance, bypassFreeze: boolean, events: GameEvent[], incoming = 0): boolean => {
-  let frozenBlock = false;
-  if (target.status.freeze) {
-    target.status.freeze = 0;
-    if (!bypassFreeze) {
-      frozenBlock = true;
-      events.push({ t: 'blocked', iid: target.iid, source: 'freeze', amount: incoming, victim: target.owner });
-    }
-    events.push({ t: 'wake', iid: target.iid, from: 'freeze' });
-  }
-  if (target.status.sleep) {
-    target.status.sleep = 0;
-    delete target.status.sleepHeal;
-    events.push({ t: 'wake', iid: target.iid, from: 'sleep' });
-  }
-  return frozenBlock;
-};
 
 /** A single strike against one unit: defenses, on-hit, Spike, Lethal. */
 const dealSingleHit = (
@@ -145,8 +124,8 @@ const dealSingleHit = (
   const ignore = Boolean(opts.ignoreDefenses) && !target.keywords.immunity;
   // Wakeup Shock: sleeping units take bonus damage equal to their sleepHeal before waking.
   const wakeupBonus = target.status.sleep ? (target.status.sleepHeal ?? 0) : 0;
-  // Undershot (ignoreDefenses) bypasses Freeze protection but still wakes the unit.
-  const frozenBlock = wakeOnAttack(target, Boolean(opts.ignoreDefenses), events, source.attack);
+  // Pierce (ignoreDefenses) bypasses Freeze protection but still wakes the unit.
+  const frozenBlock = wakeOnHit(target, Boolean(opts.ignoreDefenses), events, source.attack);
   const landed = frozenBlock
     ? 0
     : dealUnitDamage(s, target, source.attack + wakeupBonus, { ignoreDefenses: opts.ignoreDefenses }, events, registry, (amount) =>
@@ -163,7 +142,7 @@ const dealSingleHit = (
     }
   }
   // Spike fires whenever the unit is struck — even when the hit deals no damage (absorbed by
-  // Shield / Tough / True Shield / Freeze) — but an effective Undershot (ignoreDefenses) bypasses it.
+  // Shield / Tough / True Shield / Freeze) — but an effective Pierce (ignoreDefenses) bypasses it.
   if (!ignore && target.keywords.spike) {
     const spike = target.keywords.spike;
     dealUnitDamage(s, source, spike, { raw: true }, events, registry, () =>
@@ -313,7 +292,7 @@ const resolveAttacker = (
   // Taunt redirects to another lane) never provoke retaliation.
 
   // Sniper lane re-selection — resolved FIRST so all pattern keywords (Branch Shot, Splash,
-  // Overshot, Undershot, Strike Through) aim at the chosen lane. Requires the Heights lane
+  // Overshot, Pierce, Strike Through) aim at the chosen lane. Requires the Heights lane
   // or the Airborne keyword; a grounded Sniper outside Heights just strikes straight across.
   let targetLane = lane;
   if (source.keywords.sniper && (lane === 'heights' || source.keywords.airborne)) {
@@ -321,7 +300,7 @@ const resolveAttacker = (
   }
   // ── Per-shot primitive ─────────────────────────────────────────────────────────────────────
   // A single shot from `source` at one lane. Attack TYPES (Branch, Splash, plain) decide WHICH
-  // lanes get shot; the per-shot ATTRIBUTES (Overshot, Undershot, Strike Through, on-hit, Lethal,
+  // lanes get shot; the per-shot ATTRIBUTES (Overshot, Pierce, Strike Through, on-hit, Lethal,
   // Double Strike) are honored here, uniformly, for every shot. Retaliation fires from the struck
   // lane only when that lane is directly across from the attacker (`tl === lane`).
   const resolveShotAtLane = (tl: LaneId): void => {
@@ -395,9 +374,9 @@ const resolveAttacker = (
 
     if (!front) return; // unreachable guard for TypeScript narrowing
 
-    // Undershot — strike the deepest target (front Foundation → back Foundation → back unit →
+    // Pierce — strike the deepest target (front Foundation → back Foundation → back unit →
     // front unit), piercing defenses.
-    if (source.keywords.undershot) {
+    if (source.keywords.pierce) {
       const back = backOf(s, defender, tl);
       if (front.foundation) {
         for (let i = 0; i < strikes; i++) if (front.foundation) damageFoundation(front, source, events, tl);
@@ -430,7 +409,7 @@ const resolveAttacker = (
   // ── Attack-type dispatch ───────────────────────────────────────────────────────────────────
   // Branch Shot — one shot into each lane adjacent to the target lane (never the target lane
   // itself). Each wing is a full shot carrying the unit's attributes, so Branch composes with
-  // Overshot, Undershot, Strike Through, on-hit, etc. Wings are cross-lane, so they retaliate only
+  // Overshot, Pierce, Strike Through, on-hit, etc. Wings are cross-lane, so they retaliate only
   // in the rare case a wing lands on the attacker's own lane (a Sniper-redirected target).
   if (source.keywords.branchShot) {
     for (const adjLane of adjacentLanes(targetLane)) resolveShotAtLane(adjLane);
@@ -451,7 +430,7 @@ const resolveAttacker = (
   }
 
   // Plain attack type — a single shot at the target lane. This also covers a Sniper-redirected
-  // shot and a lone Overshot / Undershot / Strike Through unit, since those are per-shot attributes.
+  // shot and a lone Overshot / Pierce / Strike Through unit, since those are per-shot attributes.
   resolveShotAtLane(targetLane);
 };
 

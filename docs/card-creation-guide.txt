@@ -27,21 +27,40 @@ determine which leaders can efficiently use element-cost cards.
   distinct, and it is the basis for element-conditional content (e.g. Adventure relics
   that grant a keyword to units of one element — grant the element's SIGNATURE keyword).
 
-  Fire   — tempo & self-sacrifice. Signature: Battle Ready (attack the turn it enters).
-           Also: Strike Through, Double Strike, Branch Shot, Brittle, Kamikaze,
-           Sacrifice. Status: Burn. Theme — hit first, hit hard, trade the body.
+  COMPLETE ABILITY -> ELEMENT MAP. Every keyword in the schema is assigned to exactly one
+  element, 8 per element. This is the canonical list: it is what makes elements feel distinct,
+  the basis for element-scoped content (relics, enhancements), and the reference for any future
+  scheme that derives an ability's PIP from the ability's own element rather than the card's.
 
-  Water  — control & positioning. Signature: Aquatic (owns the Water lane; no drowning).
-           Also: Sniper, Overshot, Splash Damage, Shield, Taunt. Status: Freeze, Sleep.
-           Theme — pick your targets, deny theirs, hold the board.
+  It was previously incomplete and partly wrong: 10 of 32 keywords were unassigned, Earth held
+  only 2 entries against Fire's and Nature's 7, and four abilities were filed under an element
+  that no card actually used — Taunt and Spike were listed as Water/Nature while the cards put
+  them overwhelmingly on Earth (10 and 7 carriers), and Overshot/Splash Damage were listed as
+  Water while Fire carries most of them. Those four are reassigned to match the cards; Earth was
+  not ability-poor, its two biggest mechanics were filed elsewhere.
 
-  Nature — growth & resources. Signature: Growth (+X/+X each turn) and Bloodlust
-           (grow on kill). Also: Producer (banks energy), Airborne, Spike, Lethal,
-           Metamorphosis. Status: Poison. Theme — start small, snowball, out-resource.
+  Fire   — aggression, burst & self-sacrifice. Signature: Battle Ready.
+           Battle Ready, Strike Through, Double Strike, Brittle, Kamikaze, Smelt,
+           Overshot, Splash Damage.  Status: Burn.
+           Theme — hit first, hit hard, trade the body.
 
-  Earth  — defense & counter-punch. Signature: Tough (damage reduction). Also: Taunt,
-           Spike (retaliate when hit), Polish, Shield, strong Foundations. Theme —
-           absorb, punish attackers, win the long game.
+  Water  — control, positioning & denial. Signature: Aquatic.
+           Aquatic, Sniper, Pierce, Shield, Double Team, Healer, Mover, Expel.
+           Status: Freeze, Sleep.
+           Theme — pick your targets, deny theirs, decide where everything stands.
+
+  Nature — growth, resources & evolution. Signature: Growth and Bloodlust.
+           Growth, Bloodlust, Producer, Airborne, Lethal, Metamorphosis, Sacrifice,
+           Branch Shot.  Status: Poison.
+           Theme — start small, snowball, out-resource.
+
+  Earth  — defense, endurance & punishment. Signature: Tough.
+           Tough, Polish, Taunt, Spike, True Shield, Immunity, Zombified, Debuff.
+           Theme — absorb, punish attackers, win the long game.
+
+  These are design conventions, not engine rules: the schema lets any card take any keyword.
+  Deliberately going off-element is how a card reads as a splash or a hybrid — but it should be
+  a decision, not an accident.
 
   When adding element-scoped effects, prefer each element's signature keyword above:
   Fire→Battle Ready, Water→Aquatic, Nature→Growth/Bloodlust, Earth→Tough. NOTE: Aquatic
@@ -177,9 +196,39 @@ Kind reference:
   damage       Deal `amount` damage to target.
                chain: if the hit kills, splash `chain` damage to the weakest other enemy.
                chainDiminish: self-diminishing chain (amount, amount-1, amount-2… on each kill).
+               amountFrom: 'targetAttack' — derive the hit from the TARGET instead of a
+               printed `amount`: deals damage equal to the target's current attack. Priced at a
+               proxy of 3 (you cast it on a real threat, not a random unit).
+
+               DIFFERENTIATE REMOVAL BY CONDITION, NOT PRICE. Energy equals the round number
+               and is uncapped, so after round ~5 a costlier answer is barely a worse answer —
+               measured, +2 energy on 5 of a deck's 30 cards moved it 1.6pp, inside noise. A
+               conditional answer is genuinely good against some boards and dead against others
+               no matter how much energy the player has. Reprisal (Earth) kills a 5/5 and does
+               nothing to a 0/5 wall; that is what balances it, not its cost.
+
+               pierce: ignore the target's protective defences — Freeze, Shield, Tough, True
+               Shield and Spike — exactly as the `pierce` KEYWORD does for a unit's attack.
+               Only Immunity still stops it. Costs the same 1.0 the keyword table charges for
+               Pierce.
+
+               *** CARD DAMAGE IS A HIT. ***
+               A damage effect resolves through the same path as a unit's attack (wakeOnHit in
+               status.ts): it WAKES its target, and FREEZE ABSORBS IT — one hit, then the freeze
+               is consumed. A spell is a hit from a card; it does not get to ignore defences
+               that a swing respects.
+
+               Two consequences when authoring:
+
+               1. ORDER MATTERS. `[freeze, damage]` on one card is a bug: the freeze you just
+                  applied eats your own damage. Write `[damage, freeze]` (see Frostbite
+                  Harpoon). The engine will not warn you.
+               2. A deck that freezes needs `pierce` to follow up, or it protects the very
+                  units it means to answer. That is deliberate — it is the cost of freeze being
+                  cheap, and the reason Pierce/pierce exist as the premium answer.
   heal         Restore `amount` HP to target (capped at maxHp).
   buff         Give target +attack/+hp and/or keyword grants (immunity, overshot, lethal, taunt,
-               trueShield, airborne, battleReady, doubleStrike, bloodlust, undershot).
+               trueShield, airborne, battleReady, doubleStrike, bloodlust, pierce).
   debuff       Reduce target's attack/hp. Blocked by Immunity.
   applyStatus  Apply `status`: burn (amount=stacks), poison (amount=level), sleep, freeze,
                shield (amount=stacks), trueShield, zombified, taunt.
@@ -234,7 +283,7 @@ Keywords are fields on the `keywords` object. Omit (do not set false) to leave i
 --- Attack / Targeting ---
 
   overshot: true          Strikes the opposing leader over units (Airborne intercepts).
-  undershot: true         Strikes deepest target, piercing Shield/Tough (not Immunity).
+  pierce: true         Strikes deepest target, piercing Shield/Tough (not Immunity).
   sniper: true            From Heights or Airborne: choose which enemy lane to strike.
   branchShot: true        Attack also hits an adjacent ground lane simultaneously.
   splashDamage: true      Damage to front unit also hits the back unit in the same lane.
@@ -250,7 +299,7 @@ Keywords are fields on the `keywords` object. Omit (do not set false) to leave i
   taunt: true             Enemies must target this unit before any other in its lane.
   spike: N                Deals N damage back to any unit that attacks it.
   immunity: true          Blocks harmful control effects: statuses, debuff, setStats,
-                          displacement (move/expel), and Lethal/Undershot. Does NOT block
+                          displacement (move/expel), and Lethal/Pierce. Does NOT block
                           damage or beneficial effects.
   tough: N                Reduces all incoming damage by N (minimum 1 gets through).
   doubleTeam: true        Allows a second unit to occupy this lane alongside this unit.
@@ -426,7 +475,7 @@ Defensive:
   Shield 1 / +0.40 each stage      +2.00
   True Shield                      +2.40
   Immunity                         +1.60
-  Undershot                        +1.60
+  Pierce                        +1.60
   Lethal                           +2.40
 
 Triggered:

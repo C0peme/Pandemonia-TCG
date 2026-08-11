@@ -193,9 +193,9 @@ describe('defensive keywords', () => {
     expect(r.players[0].lanes.ground1.front?.keywords.lethal).toBe(true);
   });
 
-  it('Undershot bypasses Shield, Tough, and Spike', () => {
+  it('Pierce bypasses Shield, Tough, and Spike', () => {
     const s = blankState();
-    place(s, 0, 'ground1', unit({ owner: 0, attack: 3, hp: 5, keywords: { undershot: true } }));
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 3, hp: 5, keywords: { pierce: true } }));
     place(
       s,
       1,
@@ -208,9 +208,9 @@ describe('defensive keywords', () => {
     expect(r.players[0].lanes.ground1.front?.hp).toBe(5); // no spike
   });
 
-  it('Undershot targets the deepest (back) unit in a stack', () => {
+  it('Pierce targets the deepest (back) unit in a stack', () => {
     const s = blankState();
-    place(s, 0, 'ground1', unit({ owner: 0, attack: 3, hp: 5, keywords: { undershot: true } }));
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 3, hp: 5, keywords: { pierce: true } }));
     place(s, 1, 'ground1', unit({ owner: 1, attack: 0, hp: 5 }));
     place(s, 1, 'ground1', unit({ owner: 1, attack: 0, hp: 4 }), 'back');
     const r = run(s);
@@ -218,9 +218,9 @@ describe('defensive keywords', () => {
     expect(r.players[1].lanes.ground1.front?.hp).toBe(5); // untouched
   });
 
-  it('Immunity stops Undershot from bypassing defenses', () => {
+  it('Immunity stops Pierce from bypassing defenses', () => {
     const s = blankState();
-    place(s, 0, 'ground1', unit({ owner: 0, attack: 3, hp: 5, keywords: { undershot: true } }));
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 3, hp: 5, keywords: { pierce: true } }));
     place(s, 1, 'ground1', unit({ owner: 1, attack: 0, hp: 5, keywords: { immunity: true, shield: 1 } }));
     const r = run(s);
     expect(r.players[1].lanes.ground1.front?.hp).toBe(5); // shield still blocks
@@ -235,12 +235,12 @@ describe('defensive keywords', () => {
     expect(r.players[1].lanes.ground1.front?.hp).toBe(5);
   });
 
-  it('Undershot now pierces True Shield (and every other defense)', () => {
+  it('Pierce now pierces True Shield (and every other defense)', () => {
     const s = blankState();
-    place(s, 0, 'ground1', unit({ owner: 0, attack: 10, hp: 5, keywords: { undershot: true } }));
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 10, hp: 5, keywords: { pierce: true } }));
     place(s, 1, 'ground1', unit({ owner: 1, attack: 0, hp: 5, keywords: { trueShield: true } }));
     const r = run(s);
-    expect(r.players[1].lanes.ground1.front).toBeUndefined(); // True Shield no longer stops Undershot
+    expect(r.players[1].lanes.ground1.front).toBeUndefined(); // True Shield no longer stops Pierce
   });
 
   it('the whole struck lane retaliates, including the un-hit Double Team back unit', () => {

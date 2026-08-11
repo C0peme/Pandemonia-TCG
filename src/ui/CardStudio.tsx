@@ -59,7 +59,7 @@ const HEALER_TRIGGERS = ['onPlay', 'endOfTurn', 'startOfTurn'] as const;
 const EFFECT_KINDS = ['damage', 'heal', 'draw', 'buff', 'debuff', 'setStats', 'summon', 'conjure', 'applyStatus', 'energy', 'move', 'expel', 'forget', 'cleanse', 'extraAction', 'costMod', 'custom'] as const;
 const EFFECT_STATUSES = ['burn', 'poison', 'sleep', 'freeze', 'shield', 'zombified', 'trueShield', 'taunt'] as const;
 /** Keywords a `buff` effect can grant to its target (matches effectGrantKeywordsSchema). */
-const BUFF_GRANT_KEYS = ['immunity', 'undershot', 'overshot', 'lethal', 'taunt', 'trueShield', 'airborne', 'battleReady', 'doubleStrike'] as const;
+const BUFF_GRANT_KEYS = ['immunity', 'pierce', 'overshot', 'lethal', 'taunt', 'trueShield', 'airborne', 'battleReady', 'doubleStrike'] as const;
 const ENV_LANE_OPTIONS = ['ground', 'heights', 'water'] as const;
 const SUMMON_LANES = ['', 'heights', 'ground1', 'ground2', 'water'] as const;
 /** Human labels for the effect kinds in the editor dropdown. */
@@ -73,7 +73,7 @@ const EFFECT_KIND_LABEL: Record<(typeof EFFECT_KINDS)[number], string> = {
 
 // Keywords grouped by editor shape.
 const FLAG_KEYWORDS: (keyof Keywords)[] = [
-  'lethal', 'overshot', 'undershot', 'sniper', 'branchShot', 'splashDamage', 'strikeThrough',
+  'lethal', 'overshot', 'pierce', 'sniper', 'branchShot', 'splashDamage', 'strikeThrough',
   'doubleStrike', 'airborne', 'battleReady', 'trueShield', 'taunt', 'immunity', 'doubleTeam',
   'zombified', 'brittle',
 ];
@@ -81,7 +81,7 @@ const NUM_KEYWORDS: (keyof Keywords)[] = ['shield', 'spike', 'tough'];
 const STAT_KEYWORDS: (keyof Keywords)[] = ['growth'];
 
 const KW_LABEL: Partial<Record<keyof Keywords, string>> = {
-  lethal: 'Lethal', overshot: 'Overshot', undershot: 'Undershot', sniper: 'Sniper',
+  lethal: 'Lethal', overshot: 'Overshot', pierce: 'Pierce', sniper: 'Sniper',
   branchShot: 'Branch Shot', splashDamage: 'Splash DMG', strikeThrough: 'Strike Through',
   doubleStrike: 'Double Strike', airborne: 'Airborne', battleReady: 'Battle Ready',
   trueShield: 'True Shield', taunt: 'Taunt',
@@ -348,7 +348,7 @@ const ABILITY_FILTER_KEYS: (keyof Keywords)[] = [
   'expel','growth','healer','immunity','kamikaze','lethal','metamorphosis',
   'mover','overshot','polish','producer','sacrifice','shield','sniper',
   'smelt','spike','splashDamage','strikeThrough','taunt','tough','trueShield',
-  'undershot','brittle','zombified',
+  'pierce','brittle','zombified',
 ];
 
 function studioSortFn(sort: StudioSort) {

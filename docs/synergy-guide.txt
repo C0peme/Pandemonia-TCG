@@ -124,8 +124,8 @@ B-TIER — Real upside, needs setup
   Branch Shot attacks both neighbouring lanes (no retaliation). Lethal makes
   both hits lethal. Two guaranteed kills, zero return damage.
 
-▸ Lethal + Undershot
-  Undershot bypasses Shield, Taunt, Spike, and Tough to hit the deepest unit.
+▸ Lethal + Pierce
+  Pierce bypasses Shield, Taunt, Spike, and Tough to hit the deepest unit.
   Lethal kills it. Surgical removal of protected back-row supports or
   growth engines that the enemy has walled off.
 
@@ -215,9 +215,9 @@ C-TIER — Situational / minor upside
   The wall becomes much harder to grind down, but neither keyword is dramatically
   better for having the other — just sustained durability.
 
-▸ Undershot + high attack
-  Undershot ignores all defensive keywords and hits the deepest unit in the lane.
-  High attack ensures the undershot target (usually a low-HP support or Growth
+▸ Pierce + high attack
+  Pierce ignores all defensive keywords and hits the deepest unit in the lane.
+  High attack ensures the pierce target (usually a low-HP support or Growth
   engine tucked in the back) dies outright rather than just taking a chip.
 
 ▸ Mover (self) + friendly lane hazards

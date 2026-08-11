@@ -65,7 +65,7 @@ export type Action =
  * `spike`) toggle between unset and 1.
  */
 export type DebugKeyword =
-  | 'lethal' | 'sniper' | 'overshot' | 'undershot' | 'branchShot' | 'splashDamage'
+  | 'lethal' | 'sniper' | 'overshot' | 'pierce' | 'branchShot' | 'splashDamage'
   | 'strikeThrough' | 'doubleStrike' | 'taunt' | 'trueShield' | 'immunity' | 'brittle'
   | 'zombified' | 'airborne' | 'battleReady' | 'aquatic' | 'doubleTeam'
   | 'tough' | 'spike';

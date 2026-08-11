@@ -103,14 +103,20 @@ describe('run reducer', () => {
     const at = run.map.nodes[nodeId]!;
     const leader = registry.leaders.get('orsyric')!;
     const offer = rollStoreOffer(registry, at.seed, leader.element);
-    const price = buyPrice(registry.cards.get(offer[0]!)!, leader.element);
+    // Pick the first slot the starting purse can actually afford. The offer is rolled from the
+    // whole card pool, so WHICH slot is affordable shifts every time a card is added to the
+    // game — hardcoding slot 0 made this test fail for an unrelated reason. The rule under test
+    // is one-buy-per-slot; refusing an unaffordable card is correct behaviour, tested elsewhere.
+    const slot = offer.findIndex((id) => buyPrice(registry.cards.get(id)!, leader.element) <= run.coins);
+    expect(slot).toBeGreaterThanOrEqual(0);
+    const price = buyPrice(registry.cards.get(offer[slot]!)!, leader.element);
 
     const deckBefore = run.deck.length;
-    run = buyCard(run, registry, 0);
+    run = buyCard(run, registry, slot);
     expect(run.deck.length).toBe(deckBefore + 1);
     expect(run.coins).toBe(ECON.STARTING_COINS - price);
     // Same slot can't be bought twice.
-    expect(buyCard(run, registry, 0)).toBe(run);
+    expect(buyCard(run, registry, slot)).toBe(run);
 
     const sold = sellCard(run, registry, run.deck[0]!.uid);
     expect(sold.deck.length).toBe(run.deck.length - 1);

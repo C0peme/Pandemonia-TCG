@@ -95,6 +95,19 @@ const rawCards = [
   { id: 'river-minnow', name: 'River Minnow', element: 'water', tags: [], wip: false, type: 'unit', cost: { energy: 1 }, attack: 1, hp: 2, keywords: {} },
   { id: 'reef-darter', name: 'Reef Darter', element: 'water', tags: [], wip: false, type: 'unit', cost: { energy: 2 }, attack: 2, hp: 3, keywords: {} },
   { id: 'current-rider', name: 'Current Rider', element: 'water', tags: [], wip: false, type: 'unit', cost: { energy: 3 }, attack: 3, hp: 3, keywords: {} },
+  // --- CONTROL's answers. Water had walls, freezes and bounces but no way to KILL anything and
+  //     no way to draw, so every answer was a 1-for-1 that gave up a card to buy one turn. Its
+  //     disruption spells measured at the BOTTOM of its own deck's win table. These are the
+  //     removal and the card-replacement that a control plan needs to exist at all.
+  //     Freeze absorbs one hit (including card damage), so the removal PIERCES — that is what
+  //     lets the deck answer the very thing it just froze instead of protecting it.
+  { id: 'abyssal-verdict', name: 'Abyssal Verdict', element: 'water', text: 'Pierces: deal 4 damage to any unit, ignoring Freeze, Shield and Tough.', tags: [], wip: false, type: 'spell', cost: { energy: 5, elements: [{ type: 'water', amount: 1 }] }, effects: [{ kind: 'damage', amount: 4, target: 'any', pierce: true }] },
+  // Damage BEFORE freeze, deliberately: reversing the order would have the freeze absorb this
+  // card's own damage. Ordering matters now that card damage resolves as a hit.
+  { id: 'frostbite-harpoon', name: 'Frostbite Harpoon', element: 'water', text: 'Deal 2 damage to any unit, then Freeze it.', tags: [], wip: false, type: 'spell', cost: { energy: 1, elements: [{ type: 'water', amount: 2 }] }, effects: [{ kind: 'damage', amount: 2, target: 'any' }, { kind: 'applyStatus', target: 'any', status: 'freeze' }] },
+  { id: 'riptide-executioner', name: 'Riptide Executioner', element: 'water', text: 'Pierce: strikes the deepest unit, ignoring Freeze, Shield, Taunt, Spike and Tough.', tags: [], wip: false, type: 'unit', cost: { energy: 4, elements: [{ type: 'water', amount: 1 }] }, attack: 2, hp: 3, keywords: { pierce: true } },
+  { id: 'tidecaller-adept', name: 'Tidecaller Adept', element: 'water', text: 'On play: draw a card.', tags: [], wip: false, type: 'unit', cost: { energy: 2, elements: [{ type: 'water', amount: 1 }] }, attack: 2, hp: 3, keywords: {}, onPlay: [{ kind: 'draw', amount: 1 }] },
+  { id: 'brackish-warden', name: 'Brackish Warden', element: 'water', text: 'Taunt. On play: draw a card.', tags: [], wip: false, type: 'unit', cost: { energy: 3, elements: [{ type: 'water', amount: 2 }] }, attack: 1, hp: 5, keywords: { taunt: true }, onPlay: [{ kind: 'draw', amount: 1 }] },
   { id: 'glacial-ray', name: 'Glacial Ray', element: 'water', text: 'Splash: its attack also hits the front unit of each adjacent lane (no retaliation).', tags: [], wip: false, type: 'unit', cost: { energy: 4, elements: [{ type: 'water', amount: 1 }] }, attack: 2, hp: 3, keywords: { splashDamage: true } },
   { id: 'abyss-warden', name: 'Abyss Warden', element: 'water', tags: [], wip: false, type: 'unit', cost: { energy: 5 }, attack: 4, hp: 5, keywords: {} },
   { id: 'field-mouse', name: 'Field Mouse', element: 'nature', tags: [], wip: false, type: 'unit', cost: { energy: 1 }, attack: 1, hp: 2, keywords: {} },
@@ -111,6 +124,72 @@ const rawCards = [
   { id: 'ember-tick', name: 'Ember Tick', element: 'fire', text: 'On hit: inflict Burn 1.', tags: [], wip: false, type: 'unit', cost: { energy: 2, elements: [{ type: 'fire', amount: 1 }] }, attack: 1, hp: 2, keywords: {}, onHit: { burn: 1 } },
   { id: 'plague-rat', name: 'Plague Rat', element: 'nature', text: 'On hit: inflict Poison.', tags: [], wip: false, type: 'unit', cost: { energy: 2, elements: [{ type: 'nature', amount: 1 }] }, attack: 1, hp: 2, keywords: {}, onHit: { poison: true } },
   { id: 'ashen-bomber', name: 'Ashen Bomber', element: 'fire', text: 'On death: deal 3 damage to enemies in its lane.', tags: [], wip: false, type: 'unit', cost: { energy: 2, elements: [{ type: 'fire', amount: 1 }] }, attack: 2, hp: 2, keywords: { kamikaze: { kind: 'damage', amount: 3, target: 'enemy' } } },
+  // --- DEAD MECHANICS, NOW REACHABLE. `metamorphosis` and `smelt` each had a full engine
+  //     implementation, AI valuation and dedicated tests, and ZERO cards — the cheapest content
+  //     in the game, since only the cards were missing.
+  //
+  // NB: metamorphosis REQUIRES `into` (endOfTurn.ts returns early without it), so a gains-only
+  // metamorphosis is a silent no-op. It needs a base form and an evolved form.
+  { id: 'emerald-drake', name: 'Emerald Drake', element: 'nature', text: 'Airborne.', tags: [], wip: false, type: 'unit', cost: { energy: 6, elements: [{ type: 'nature', amount: 1 }] }, attack: 4, hp: 5, keywords: { airborne: true } },
+  { id: 'chrysalis-grub', name: 'Chrysalis Grub', element: 'nature', text: 'Metamorphosis: becomes an Emerald Drake after 2 turns.', tags: [], wip: false, type: 'unit', cost: { energy: 3, elements: [{ type: 'nature', amount: 1 }] }, attack: 1, hp: 3, keywords: { metamorphosis: { everyTurns: 2, into: 'emerald-drake' } } },
+  // Smelt burns the body for cards every turn — fire's idiom, and fire's second answer to the
+  // pool-wide card shortage. Its effect must be PLAYER-scoped (draw/energy): triggered effects
+  // dispatch from a whitelist and a unit-targeting effect would silently do nothing here.
+  { id: 'ember-chronicler', name: 'Ember Chronicler', element: 'fire', text: 'Smelt: each turn, lose 1 HP to draw a card.', tags: [], wip: false, type: 'unit', cost: { energy: 3, elements: [{ type: 'fire', amount: 1 }] }, attack: 2, hp: 4, keywords: { smelt: { hpCost: 1, effect: { kind: 'draw', amount: 1 } } } },
+  // Lethal could not be PRINTED on any playable card — the only sources were an Earth foundation
+  // and an Earth environment, while the creation guide lists Lethal in NATURE's toolkit. This
+  // makes the guide true and gives the keyword a body.
+  { id: 'venom-sniper', name: 'Venom Sniper', element: 'nature', text: 'Sniper. Lethal.', tags: [], wip: false, type: 'unit', cost: { energy: 4, elements: [{ type: 'nature', amount: 2 }] }, attack: 1, hp: 2, keywords: { lethal: true, sniper: true } },
+  // --- GRANT COVERAGE. Every grantable keyword should be obtainable from BOTH a foundation and
+  //     an environment; an audit found four keywords missing one or both.
+  { id: 'tidal-rift', name: 'Tidal Rift', element: 'water', text: 'Units here gain Pierce. On enter: heal your units 1.', tags: [], wip: false, type: 'environment', cost: { energy: 2, elements: [{ type: 'water', amount: 2 }] }, lanes: ['water'], effects: [{ kind: 'heal', amount: 1, target: 'all-ally' }], grantKeywords: { pierce: true } },
+  { id: 'mortar-emplacement', name: 'Mortar Emplacement', element: 'fire', text: 'Grants Splash Damage.', tags: [], wip: false, type: 'foundation', cost: { energy: 5, elements: [{ type: 'fire', amount: 2 }] }, attack: 2, hp: 3, keywords: {}, grants: { keywords: { splashDamage: true } } },
+  { id: 'aegis-plinth', name: 'Aegis Plinth', element: 'earth', text: 'Grants True Shield.', tags: [], wip: false, type: 'foundation', cost: { energy: 5, elements: [{ type: 'earth', amount: 2 }] }, attack: 0, hp: 4, keywords: {}, grants: { keywords: { trueShield: true } } },
+  // Brittle had NO foundation and NO environment — the only grantable keyword missing both.
+  // It is a downside, so these are a glass-cannon trade and a hazard lane rather than gifts.
+  { id: 'glass-forge', name: 'Glass Forge', element: 'fire', text: 'Grants Brittle. A heavy body that shatters what it lifts.', tags: [], wip: false, type: 'foundation', cost: { energy: 3, elements: [{ type: 'fire', amount: 1 }] }, attack: 4, hp: 2, keywords: {}, grants: { keywords: { brittle: true } } },
+  { id: 'shattered-span', name: 'Shattered Span', element: 'fire', text: 'Every unit here becomes Brittle. On enter: 1 damage to enemies.', tags: [], wip: false, type: 'environment', cost: { energy: 0, elements: [{ type: 'fire', amount: 1 }] }, lanes: [], effects: [{ kind: 'damage', amount: 1, target: 'all-enemy' }], grantKeywords: { brittle: true } },
+  // --- POOL GAP-FILLERS. An audit of element x function found holes that no amount of cost
+  //     tuning could reach. The largest by far: before these, the ENTIRE pool contained ONE
+  //     card that draws (grove-elder) plus Screyera's hero power. Cards — not energy — are the
+  //     binding resource (1 draw/turn, 8 board slots, energy uncapped), so card ACCESS was a
+  //     resource only one leader could buy at any price. That is the likeliest reason Combo led
+  //     every configuration measured and survived six repricings untouched.
+  //     Also filled: Water had no healing, Nature no cleanse, Earth no draw/AOE and only two
+  //     spells in the whole element. Each fill is in its element's idiom.
+  //
+  // FIRE draws by spending the body — it is the element that trades bodies for tempo.
+  { id: 'powder-monkey', name: 'Powder Monkey', element: 'fire', text: 'On death: draw a card.', tags: [], wip: false, type: 'unit', cost: { energy: 0, elements: [{ type: 'fire', amount: 1 }] }, attack: 2, hp: 1, keywords: { kamikaze: { kind: 'draw', amount: 1 } } },
+  // WATER had NO healing anywhere. Sustain suits a control element that wins long games.
+  { id: 'reef-nurse', name: 'Reef Nurse', element: 'water', text: 'On play: heal an ally 2.', tags: [], wip: false, type: 'unit', cost: { energy: 2, elements: [{ type: 'water', amount: 1 }] }, attack: 1, hp: 3, keywords: { healer: { amount: 2, target: 'ally', trigger: 'onPlay' } } },
+  // NATURE had no cleanse — and `purify` (water) was the ONLY answer to Burn/Poison/Freeze/Sleep
+  // in the game. Regrowth idiom: strip the affliction and heal the scar.
+  { id: 'rejuvenate', name: 'Rejuvenate', element: 'nature', text: 'Remove all status effects from an ally and heal it 2.', tags: [], wip: false, type: 'spell', cost: { energy: 0, elements: [{ type: 'nature', amount: 1 }] }, effects: [{ kind: 'cleanse', target: 'ally' }, { kind: 'heal', amount: 2, target: 'ally' }] },
+  { id: 'ironroot-ward', name: 'Ironroot Ward', element: 'nature', text: 'On play: remove all status effects from an ally and heal it 2.', tags: [], wip: false, type: 'unit', cost: { energy: 2, elements: [{ type: 'nature', amount: 2 }] }, attack: 2, hp: 4, keywords: {}, onPlay: [{ kind: 'cleanse', target: 'ally' }, { kind: 'heal', amount: 2, target: 'ally' }] },
+  // EARTH was the thinnest element in the pool: 2 spells total, no draw, no AOE, and a curve
+  // with 24 cards at 5+ but only 4 at 0-1.
+  { id: 'quarry-hand', name: 'Quarry Hand', element: 'earth', tags: [], wip: false, type: 'unit', cost: { energy: 1 }, attack: 1, hp: 2, keywords: {} },
+  { id: 'tremor', name: 'Tremor', element: 'earth', text: 'Deal 1 damage to all enemy units.', tags: [], wip: false, type: 'spell', cost: { energy: 1, elements: [{ type: 'earth', amount: 1 }] }, effects: [{ kind: 'damage', amount: 1, target: 'all-enemy' }] },
+  { id: 'bulwark', name: 'Bulwark', element: 'earth', text: 'Give an ally Tough 1.', tags: [], wip: false, type: 'spell', cost: { energy: 3, elements: [{ type: 'earth', amount: 1 }] }, effects: [{ kind: 'buff', target: 'ally', keywords: { tough: 1 } }] },
+  // Earth's card engine: slow, must survive, and it cannot attack. The element that wins long
+  // games gets its cards the same way it wins them.
+  { id: 'runestone-keeper', name: 'Runestone Keeper', element: 'earth', text: 'Taunt. At end of turn: draw a card.', tags: [], wip: false, type: 'unit', cost: { energy: 2, elements: [{ type: 'earth', amount: 2 }] }, attack: 0, hp: 4, keywords: { taunt: true }, endOfTurn: [{ kind: 'draw', amount: 1 }] },
+  // --- REMOVAL, distributed by element. Every element needs an answer, because a player can
+  //     always build the deck that has one: balancing around a starter LIST is unenforceable
+  //     when the card pool is open. Differentiated by CONDITION, not price — energy equals the
+  //     round number and is uncapped, so after round ~5 a costlier answer is barely a worse
+  //     one (measured: +2 energy on 5 of 30 cards moved a deck 1.6pp, inside noise).
+  //     Fire already had reach (firebolt/chain-spark/ashen-bomber); Water has abyssal-verdict
+  //     and void-caller; these fill the two real gaps.
+  //
+  // EARTH had no spells at all. Counter-punch idiom: it answers THREATS and is dead against
+  // chaff — damage equal to the target's own attack. Kills a 5/5, does nothing to a 0/5 wall.
+  // (Pool: median attack 2, only 24% of units have 3+.)
+  { id: 'reprisal', name: 'Reprisal', element: 'earth', text: "Deal damage to an enemy unit equal to its own attack.", tags: [], wip: false, type: 'spell', cost: { energy: 1, elements: [{ type: 'earth', amount: 1 }] }, effects: [{ kind: 'damage', target: 'enemy', amountFrom: 'targetAttack' }] },
+  // NATURE had only mass poison (creeping-blight, Poison 1 to all) and Lethal bodies. This is
+  // the single-target attrition answer: slow, cleansable, outpaced by healing, and it shuts off
+  // Growth/Bloodlust because a poisoned unit cannot be buffed.
+  { id: 'strangleroot', name: 'Strangleroot', element: 'nature', text: 'Inflict Poison 2 on an enemy unit.', tags: [], wip: false, type: 'spell', cost: { energy: 2, elements: [{ type: 'nature', amount: 1 }] }, effects: [{ kind: 'applyStatus', target: 'enemy', status: 'poison', amount: 2 }] },
   { id: 'creeping-blight', name: 'Creeping Blight', element: 'nature', text: 'Inflict Poison on all enemy units.', tags: [], wip: false, type: 'spell', cost: { energy: 3, elements: [{ type: 'nature', amount: 1 }] }, effects: [{ kind: 'applyStatus', target: 'all-enemy', status: 'poison' }] },
   { id: 'wildfire-spread', name: 'Wildfire Spread', element: 'fire', text: 'Inflict Burn 2 on all enemy units.', tags: [], wip: false, type: 'spell', cost: { energy: 7, elements: [{ type: 'fire', amount: 1 }] }, effects: [{ kind: 'applyStatus', amount: 2, target: 'all-enemy', status: 'burn' }] },
   { id: 'dream-eater', name: 'Dream Eater', element: 'water', text: 'Sniper. On hit: inflict Sleep.', tags: [], wip: false, type: 'unit', cost: { energy: 1, elements: [{ type: 'water', amount: 2 }] }, attack: 1, hp: 2, keywords: { sniper: true }, onHit: { sleep: 1 } },
@@ -147,7 +226,7 @@ const rawCards = [
   { id: 'launch-ramp', name: 'Launch Ramp', element: 'fire', text: 'Grants Overshot and +1/0.', tags: [], wip: false, type: 'foundation', cost: { energy: 7, elements: [{ type: 'fire', amount: 2 }] }, attack: 3, hp: 3, keywords: {}, grants: { keywords: { overshot: true } } },
   { id: 'siege-platform', name: 'Siege Platform', element: 'fire', text: 'Grants Strike Through.', tags: [], wip: false, type: 'foundation', cost: { energy: 6, elements: [{ type: 'fire', amount: 2 }] }, attack: 2, hp: 4, keywords: {}, grants: { keywords: { strikeThrough: true } } },
   { id: 'forked-mount', name: 'Forked Mount', element: 'nature', text: 'Grants Branch Shot.', tags: [], wip: false, type: 'foundation', cost: { energy: 7, elements: [{ type: 'nature', amount: 2 }] }, attack: 2, hp: 4, keywords: {}, grants: { keywords: { branchShot: true } } },
-  { id: 'undertow-base', name: 'Undertow Base', element: 'water', text: 'Grants Undershot.', tags: [], wip: false, type: 'foundation', cost: { energy: 4, elements: [{ type: 'water', amount: 2 }] }, attack: 2, hp: 4, keywords: {}, grants: { keywords: { undershot: true } } },
+  { id: 'undertow-base', name: 'Undertow Base', element: 'water', text: 'Grants Pierce.', tags: [], wip: false, type: 'foundation', cost: { energy: 6, elements: [{ type: 'water', amount: 2 }] }, attack: 2, hp: 4, keywords: {}, grants: { keywords: { pierce: true } } },
   { id: 'whetstone-altar', name: 'Whetstone Altar', element: 'earth', text: 'Grants Lethal.', tags: [], wip: false, type: 'foundation', cost: { energy: 8, elements: [{ type: 'earth', amount: 2 }] }, attack: 2, hp: 4, keywords: {}, grants: { keywords: { lethal: true } } },
   { id: 'springboard', name: 'Springboard', element: 'fire', text: 'Grants Battle Ready and +1/0.', tags: [], wip: false, type: 'foundation', cost: { energy: 5, elements: [{ type: 'fire', amount: 2 }] }, attack: 2, hp: 3, keywords: {}, grants: { keywords: { battleReady: true } } },
   { id: 'twin-perch', name: 'Twin Perch', element: 'water', text: 'Grants Double Team.', tags: [], wip: false, type: 'foundation', cost: { energy: 5, elements: [{ type: 'water', amount: 2 }] }, attack: 2, hp: 4, keywords: {}, grants: { keywords: { doubleTeam: true } } },
@@ -195,7 +274,7 @@ const rawCards = [
   { id: 'shifting-sands', name: 'Shifting Sands', element: 'earth', text: 'All units gain Mover (self): wander each turn.', tags: [], wip: false, type: 'environment', cost: { energy: 1, elements: [{ type: 'earth', amount: 1 }] }, lanes: [], effects: [{ kind: 'custom', note: 'All units wander each turn' }], grantKeywords: { mover: { scope: 'self', trigger: 'endOfTurn' } } },
   { id: 'sig-pyre-bloom', name: 'Steam Bath', element: 'fire', text: 'Signature: inflict Burn 2 on all enemy units.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', amount: 2, target: 'all-enemy', status: 'burn' }] },
   { id: 'sig-final-charge', name: 'Overexert', element: 'fire', text: 'Signature: all allies gain +1/0 and a bonus attack.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'buff', target: 'all-ally', stat: { attack: 1 } }, { kind: 'extraAction', target: 'all-ally' }] },
-  { id: 'sig-deep-freeze', name: 'Masking', element: 'water', text: 'Signature: freeze all enemy units and give one of your units Undershot and Double Strike.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', target: 'all-enemy', status: 'freeze' }, { kind: 'buff', target: 'ally', keywords: { undershot: true, doubleStrike: true } }] },
+  { id: 'sig-deep-freeze', name: 'Masking', element: 'water', text: 'Signature: freeze all enemy units and give one of your units Pierce and Double Strike.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', target: 'all-enemy', status: 'freeze' }, { kind: 'buff', target: 'ally', keywords: { pierce: true, doubleStrike: true } }] },
   { id: 'sig-time-stop', name: 'Time Stop', element: 'nature', text: 'Signature: put all enemy units to Sleep.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', amount: 2, target: 'all-enemy', status: 'sleep' }] },
   { id: 'sig-overflow', name: 'Stage 4', element: 'nature', text: 'Signature: fill every element bank to its cap.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'bankMax' }] },
   { id: 'sig-oblivion', name: 'Happy Hour', element: 'water', text: 'Signature: expel every enemy unit to the opponent\'s hand (overflowing it).', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'expel', target: 'all-enemy' }] },
@@ -204,9 +283,9 @@ const rawCards = [
   { id: 'sig-equalize', name: 'Reflections of Omniscience', element: 'nature', text: 'Signature: reduce every enemy unit by -2/-2.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'debuff', target: 'all-enemy', stat: { attack: 2, hp: 2 } }] },
   { id: 'sig-keystone', name: 'Fortune Foretold', element: 'earth', text: 'Signature Foundation: grants +1/+3, Taunt, Tough 1 and Spike 2 to the unit above it.', tags: ['signature'], wip: false, type: 'foundation', cost: { energy: 0 }, attack: 3, hp: 5, keywords: {}, grants: { keywords: { taunt: true, spike: 2, tough: 1 } } },
   { id: 'sig-ascension', name: 'Death Goddess\' Will', element: 'nature', text: 'Signature Foundation: grants Immunity, Zombified and Growth +2/+2 to the unit above it.', tags: ['signature'], wip: false, type: 'foundation', cost: { energy: 0 }, attack: 3, hp: 4, keywords: {}, grants: { keywords: { immunity: true, zombified: true, growth: { attack: 2, hp: 2 } } } },
-  { id: 'sig-pathmaker', name: 'Guardian of Ruins', element: 'water', text: 'Signature: give an ally Immunity and Undershot. All environments cost 0 energy this turn. Conjure a Tundra.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'buff', target: 'ally', keywords: { immunity: true, undershot: true } }, { kind: 'costMod', amount: -99, cardType: 'environment' }, { kind: 'conjure', target: 'self', cardId: 'tundra' }] },
+  { id: 'sig-pathmaker', name: 'Guardian of Ruins', element: 'water', text: 'Signature: give an ally Immunity and Pierce. All environments cost 0 energy this turn. Conjure a Tundra.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'buff', target: 'ally', keywords: { immunity: true, pierce: true } }, { kind: 'costMod', amount: -99, cardType: 'environment' }, { kind: 'conjure', target: 'self', cardId: 'tundra' }] },
   { id: 'ringleader-avatar', name: 'Ring Leader, Incarnate', element: 'nature', text: 'Leader-unit. Airborne, Taunt, Immunity. If it dies, you lose.', tags: ['signature'], wip: false, type: 'unit', cost: { energy: 0 }, attack: 0, hp: 30, keywords: { airborne: true, taunt: true, immunity: true } },
-  { id: 'sig-incarnate', name: 'Core Component', element: 'nature', text: 'Signature: your leader-unit gains Shield 1, Bloodlust +0/+1 and Undershot.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', amount: 1, target: 'leaderUnit', status: 'shield' }, { kind: 'buff', target: 'leaderUnit', keywords: { undershot: true, bloodlust: { buff: { attack: 0, hp: 1 } } } }] },
+  { id: 'sig-incarnate', name: 'Core Component', element: 'nature', text: 'Signature: your leader-unit gains Shield 1, Bloodlust +0/+1 and Pierce.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', amount: 1, target: 'leaderUnit', status: 'shield' }, { kind: 'buff', target: 'leaderUnit', keywords: { pierce: true, bloodlust: { buff: { attack: 0, hp: 1 } } } }] },
   { id: 'iron-ward', name: 'Iron Ward', element: 'water', text: 'Give an ally unit Shield 1.', tags: [], wip: false, type: 'spell', cost: { energy: 2, elements: [{ type: 'water', amount: 1 }] }, effects: [{ kind: 'applyStatus', amount: 1, target: 'ally', status: 'shield' }] },
   { id: 'purify', name: 'Purify', element: 'water', text: 'Remove all status effects from an allied unit.', tags: [], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'cleanse', target: 'ally' }] },
 ];
@@ -251,9 +330,8 @@ export const starterRegistry: Registry = buildRegistry(starterCards, starterLead
 import { parseDeck } from '@cards/schema';
 
 // DoT plan: stack Burn/Poison on everything and let tick damage do the killing.
-// Flame Guard (Taunt) sits in front so on-hit units (Ember Tick, Plague Rat, Revolving Sun)
-// can swing freely without dying — Midrange bodies are forced to attack the Taunt wall and
-// get burnt/poisoned in retaliation. Wildfire Spread + Creeping Blight mass-apply DoT as a
+// (An earlier version of this comment built the plan around "Flame Guard", a card that does
+// not exist in the pool. Galatian Spirit is the actual wall — see below.) Wildfire Spread + Creeping Blight mass-apply DoT as a
 // finisher when the board is already ticking. Cinder Golem (Tough + on-hit Burn) is the
 // durable mid-game core. Molten Floor punishes any unit that enters the lane. Inferno Ox is
 // the late vanilla threat.
@@ -267,7 +345,7 @@ import { parseDeck } from '@cards/schema';
 export const deckDoT = parseDeck({ name: 'DoT', leaderId: 'kedou', cards: [
   { cardId: 'ash-cloud', count: 3 }, { cardId: 'firebolt', count: 3 }, { cardId: 'pyroclasm', count: 2 },
   { cardId: 'ember-tick', count: 3 }, { cardId: 'coal-runner', count: 1 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'pumpkindle', count: 2 }, { cardId: 'wildfire-spread', count: 2 },
-  { cardId: 'plague-rat', count: 2 }, { cardId: 'creeping-blight', count: 2 }, { cardId: 'galatian-spirit', count: 2 },
+  { cardId: 'strangleroot', count: 2 }, { cardId: 'creeping-blight', count: 2 }, { cardId: 'galatian-spirit', count: 2 },
   { cardId: 'cinder-witch', count: 2 }, { cardId: 'revolving-sun', count: 2 },
   { cardId: 'whistle-blower', count: 2 },
 ] });
@@ -301,22 +379,34 @@ export const deckMidrange = parseDeck({ name: 'Midrange', leaderId: 'aleph', car
 // is locked. Frost King (freeze all on play) is the panic-button board wipe. Abyss Warden
 // closes out once the opponent's board is exhausted.
 export const deckControl = parseDeck({ name: 'Control', leaderId: 'phantom', cards: [
-  { cardId: 'river-minnow', count: 1 }, { cardId: 'target-spell', count: 2 },
-  { cardId: 'cold-spell', count: 3 }, { cardId: 'hypnotic-patterns', count: 1 }, { cardId: 'peel-back', count: 2 },
+  // REBUILT. The old list was pure delay — freeze, sleep, bounce, taunt, walls — with no
+  // removal and no draw. By Legends of Runeterra's taxonomy that is not a control deck at all:
+  // stun-likes "don't destroy or remove a unit from play", so they aren't removal, and a deck
+  // built on them is a tempo deck with no payoff. Measured, every one of those spells sat at
+  // the BOTTOM of this deck's own win-rate table (cold-spell 36%, hypnotic-patterns 35%) while
+  // the beaters sat at the top (tide-serpent 20.2 dmg/game) — the deck won when it stopped
+  // trying to control and started attacking.
+  //
+  // Out: cold-spell x3, frost-king x2, hypnotic-patterns x1, river-minnow x1, target-spell x2,
+  //      lull x1 — the ten worst performers, all delay.
+  // In:  real removal (abyssal-verdict, riptide-executioner), delay that also kills
+  //      (frostbite-harpoon), and bodies that replace themselves (tidecaller-adept,
+  //      brackish-warden) so an answer no longer costs a card.
+  { cardId: 'peel-back', count: 2 },
+  { cardId: 'frostbite-harpoon', count: 2 }, { cardId: 'abyssal-verdict', count: 3 },
+  { cardId: 'riptide-executioner', count: 2 }, { cardId: 'tidecaller-adept', count: 2 }, { cardId: 'brackish-warden', count: 1 },
   { cardId: 'river-turtle', count: 2 }, { cardId: 'current-rider', count: 2 }, { cardId: 'tide-serpent', count: 2 }, { cardId: 'sleep-walker', count: 2 },
   { cardId: 'frost-wall', count: 2 }, { cardId: 'dream-eater', count: 2 }, { cardId: 'crag-hawk', count: 2 },
-  { cardId: 'lull', count: 1 }, { cardId: 'frost-king', count: 2 }, { cardId: 'abyss-warden', count: 1 },
+  { cardId: 'abyss-warden', count: 1 },
   { cardId: 'glacial-ray', count: 3 },
 ] });
 
-// Combo plan: assemble Lethal carriers to cut through anything. Whetstone Altar (grants
-// Lethal) bonded under Crag Hawk (airborne reach) or Stone Golem (durable body) = instakill
-// anything it touches. Venom Sniper (Lethal+Sniper built-in) picks off key threats from
-// heights. Deathspike Lancer (Lethal+Undershot) reaches back-row targets through walls.
-// Boulder Titan (printed Lethal+Tough) is the standalone midrange closer. Target Spell gives
-// Barbed Sentinel (Spike 2) Taunt so the opponent bleeds on every forced attack. Screyera's
-// Scry draws into whichever combo half is missing. Real bodies on curve (Gravel Hound,
-// Granite Ox, Mountain Bull) mean the deck has pressure even without the combo assembled.
+// NOTE: a previous version of this comment described a Lethal-carrier plan built around
+// Stone Golem, Venom Sniper, Deathspike Lancer and Boulder Titan. NONE of those cards existed
+// in the pool — it documented a deck that was never built, which is worse than no comment
+// when reasoning about why this deck performs as it does. Removed. (`venom-sniper` now EXISTS,
+// authored to give Lethal a printed body, but it is not in this list.) The accurate
+// description of the list actually shipped follows.
 // Combo plan: Screyera's Scry hero draws into nature3 war-beasts and earth2 boulder-titans
 // that Midrange/Attrition can't run (Aleph earth2/nature2, Eksana nature2). Whetstone Altar
 // grants Lethal to bonded units; Crag Hawk (airborne) + lethal = instakill air threats.
@@ -338,7 +428,7 @@ export const deckCombo = parseDeck({ name: 'Combo', leaderId: 'screyera', cards:
 ] });
 
 // Guardian plan: survive early (Ring Leader starts at 0 attack — purely a sponge), stack attack via
-// the Modification skill each turn, then ride Bloodlust + Undershot after the Signature fires at ≤15 HP.
+// the Modification skill each turn, then ride Bloodlust + Pierce after the Signature fires at ≤15 HP.
 // Protection (shield, heal, True Shield) and freeze/sleep control buy the turns needed; Lull is the
 // panic-button "survive to Signature" finisher.
 export const deckTempo = parseDeck({ name: 'Guardian', leaderId: 'ringleader', cards: [
@@ -421,7 +511,7 @@ export const deckSwarm = parseDeck({ name: 'Swarm', leaderId: 'autopus', cards: 
 // Wither and Wilt grind attackers down. Poison/on-hit is a supplement, not the main plan.
 // Granite Ox is the closer once the enemy board has bled itself out.
 export const deckAttrition = parseDeck({ name: 'Attrition', leaderId: 'eksana', cards: [
-  { cardId: 'mud-crab', count: 3 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'plague-rat', count: 2 }, { cardId: 'thorn-beast', count: 2 },
+  { cardId: 'mud-crab', count: 3 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 },
   { cardId: 'whistle-blower', count: 2 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'spike-wall', count: 2 }, { cardId: 'mandrake', count: 2 }, { cardId: 'thornfield', count: 1 },
   { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'pebble-snake', count: 2 }, { cardId: 'barbed-sentinel', count: 2 }, { cardId: 'galatian-spirit', count: 1 }, { cardId: 'creeping-blight', count: 1 },
   { cardId: 'shinero', count: 1 }, { cardId: 'reactive-plating', count: 1 },
@@ -439,7 +529,7 @@ export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', ca
 // anything that enters, Molten Floor burns it. Displacement Wave bounces a built-up threat back
 // to hand for a full tempo reset. Meanwhile our own evasive bodies — aquatic, airborne, snipers —
 // attack freely across the hazards we set. The Pathmaker signature (free environments + an
-// Immune/Undershot finisher + a conjured Tundra) seals a lane for good.
+// Immune/Pierce finisher + a conjured Tundra) seals a lane for good.
 // Consolidated from a pile of 8 singletons into a tight two-package list: a DISRUPTION core
 // (Wind Redirect / Fearie / Tidal Wave / Displacement Wave shove attackers into dead ground;
 // Cold Spell + Tundra freeze; Seaweed Octopus drags enemies into the Water lane to Drown) and

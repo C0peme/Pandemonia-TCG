@@ -70,7 +70,7 @@ export interface EvalWeights {
   kamikaze: number;
   onHit: number;
   airborne: number;
-  targeting: number; // undershot target-selection flat
+  targeting: number; // pierce target-selection flat
   // Offensive multipliers, applied as a fraction of the unit's base attack value:
   overshotFactor: number; // Overshot converts the body's full attack to unblockable face damage
   doubleStrike: number; // ≈ a second swing
@@ -260,7 +260,7 @@ const unitValue = (W: EvalWeights, registry: Registry, u: UnitInstance): number 
   // an Overshot foundation. Scaled (not flat) so the AI foresees that payoff at bond time, before
   // the summoning-sick host can actually swing. Suppressed if Branch/Splash keeps it hitting units.
   if (seeksLeader) v += atkVal * W.overshotFactor;
-  if (kw.undershot) v += W.targeting;
+  if (kw.pierce) v += W.targeting;
   if (kw.lethal && !seeksLeader) v += W.lethal;
   if (kw.sniper) v += W.sniper; // reaches into any lane — picks its target rather than trading head-on
   if (kw.airborne) v += W.airborne;
@@ -439,7 +439,7 @@ const synergyValue = (W: EvalWeights, side: GameState['players'][PlayerId]): num
 
       // ── B-TIER ──────────────────────────────────────────────────────────
       // Lethal + multi-reach: clean kills against protected or back-row targets.
-      if (kw.lethal && (kw.splashDamage || kw.branchShot || kw.strikeThrough || kw.undershot)) v += W.lethal * 0.3;
+      if (kw.lethal && (kw.splashDamage || kw.branchShot || kw.strikeThrough || kw.pierce)) v += W.lethal * 0.3;
       // True Shield + Spike: attacker hits True Shield (takes 0 damage back), still triggers Spike — free tax.
       if (kw.trueShield && (kw.spike ?? 0) > 0) v += W.spike * 0.3;
       // Immunity + Taunt: spell-proof wall that must be killed by bodies — no soft answers.
@@ -488,7 +488,7 @@ const GENERIC_HOST: HostBody = { attack: 3, hp: 3, keywords: {} };
  *    but BYPASSES units, wasting the host's own on-hit / Lethal — so it wants a vanilla beater;
  *  - Growth compounds only while the host survives → worth more on a durable / Bloodlust body;
  *  - Lethal is a kill-feeder: huge on reach (Sniper / Strike-Through / Splash / Branch /
- *    Undershot) or Bloodlust, modest on a plain body that just trades head-on.
+ *    Pierce) or Bloodlust, modest on a plain body that just trades head-on.
  */
 const grantOnHostValue = (W: EvalWeights, grants: import('@cards/schema').FoundationCard['grants'], host: HostBody): number => {
   const gk = (grants.keywords ?? {}) as import('@cards/schema').Keywords;
@@ -517,7 +517,7 @@ const grantOnHostValue = (W: EvalWeights, grants: import('@cards/schema').Founda
   // Lethal — kill-feeder: trades up into anything; reach / Bloodlust make it land reliably.
   if (gk.lethal && !hk.lethal) {
     v += W.lethal;
-    const reach = hk.sniper || hk.strikeThrough || hk.splashDamage || hk.branchShot || hk.undershot;
+    const reach = hk.sniper || hk.strikeThrough || hk.splashDamage || hk.branchShot || hk.pierce;
     if (reach || hk.bloodlust) v += W.lethal;
   }
   // Flat defensive / utility grants — value independent of host, only if it lacks them.

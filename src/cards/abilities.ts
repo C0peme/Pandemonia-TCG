@@ -20,7 +20,7 @@ const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object'
 export const ABILITY_INFO: Record<keyof Keywords, AbilityInfo> = {
   lethal: { name: 'Lethal', icon: '☠', describe: () => 'Destroys any unit it damages (then this is used up).' },
   overshot: { name: 'Overshot', icon: '⤴', describe: () => 'Attacks the enemy leader directly, past blockers. No retaliation.' },
-  undershot: { name: 'Undershot', icon: '⤵', describe: () => 'Ignores Shield, Taunt, Spike and Tough; hits the deepest unit.' },
+  pierce: { name: 'Pierce', icon: '⤵', describe: () => 'Ignores Shield, Taunt, Spike and Tough; hits the deepest unit.' },
   sniper: { name: 'Sniper', icon: '◎', describe: () => 'From the Heights lane, may attack any lane.' },
   branchShot: { name: 'Branch Shot', icon: '↔', describe: () => 'Attacks both neighbouring lanes instead of its own. No retaliation.' },
   splashDamage: { name: 'Splash DMG', icon: '≋', describe: () => 'Hits its own lane and both neighbours at once.' },

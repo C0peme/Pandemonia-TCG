@@ -159,3 +159,39 @@ export const clearCleansableStatuses = (u: UnitInstance): void => {
     }
   }
 };
+
+/**
+ * Wake a unit that is HIT, clearing Sleep/Freeze, and report whether Freeze absorbed the blow.
+ *
+ * "Hit" means a unit attack OR damage dealt by a card effect — a spell is a hit from a card, so
+ * both route through here. Freeze normally blocks one hit; pass `pierce = true` to skip the
+ * block. That is the shared meaning of piercing: the `pierce` KEYWORD supplies it on a unit
+ * (which also makes it strike the deepest target), and the `pierce` FLAG supplies it on a damage
+ * effect (where the target is already chosen explicitly, so only the defence-piercing half
+ * applies).
+ *
+ * Freeze protecting its victim is deliberate — it is why a deck that freezes needs a piercing
+ * answer to follow up, rather than freeze being a strict upgrade over doing nothing.
+ */
+export const wakeOnHit = (
+  target: UnitInstance,
+  pierce: boolean,
+  events: GameEvent[],
+  incoming = 0,
+): boolean => {
+  let frozenBlock = false;
+  if (target.status.freeze) {
+    target.status.freeze = 0;
+    if (!pierce) {
+      frozenBlock = true;
+      events.push({ t: 'blocked', iid: target.iid, source: 'freeze', amount: incoming, victim: target.owner });
+    }
+    events.push({ t: 'wake', iid: target.iid, from: 'freeze' });
+  }
+  if (target.status.sleep) {
+    target.status.sleep = 0;
+    delete target.status.sleepHeal;
+    events.push({ t: 'wake', iid: target.iid, from: 'sleep' });
+  }
+  return frozenBlock;
+};

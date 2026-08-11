@@ -1,6 +1,6 @@
 /**
  * Foundation stacking: a Foundation card sits beneath a unit and grants it stats and
- * keywords. If the Foundation is destroyed (e.g. by Undershot) the host immediately
+ * keywords. If the Foundation is destroyed (e.g. by Pierce) the host immediately
  * loses what the Foundation provided. If the host dies, the Foundation goes with it.
  */
 import type { FoundationCard } from '@cards/schema';

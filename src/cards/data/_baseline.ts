@@ -147,7 +147,7 @@ const rawCards = [
   { id: 'launch-ramp', name: 'Launch Ramp', element: 'fire', text: 'Grants Overshot and +1/0.', tags: [], wip: false, type: 'foundation', cost: { energy: 2 }, attack: 2, hp: 2, keywords: {}, grants: { stat: { attack: 1 }, keywords: { overshot: true } } },
   { id: 'siege-platform', name: 'Siege Platform', element: 'fire', text: 'Grants Strike Through.', tags: [], wip: false, type: 'foundation', cost: { energy: 3 }, attack: 1, hp: 3, keywords: {}, grants: { keywords: { strikeThrough: true } } },
   { id: 'forked-mount', name: 'Forked Mount', element: 'nature', text: 'Grants Branch Shot.', tags: [], wip: false, type: 'foundation', cost: { energy: 3 }, attack: 1, hp: 3, keywords: {}, grants: { keywords: { branchShot: true } } },
-  { id: 'undertow-base', name: 'Undertow Base', element: 'water', text: 'Grants Undershot.', tags: [], wip: false, type: 'foundation', cost: { energy: 3 }, attack: 1, hp: 3, keywords: {}, grants: { keywords: { undershot: true } } },
+  { id: 'undertow-base', name: 'Undertow Base', element: 'water', text: 'Grants Pierce.', tags: [], wip: false, type: 'foundation', cost: { energy: 3 }, attack: 1, hp: 3, keywords: {}, grants: { keywords: { pierce: true } } },
   { id: 'whetstone-altar', name: 'Whetstone Altar', element: 'earth', text: 'Grants Lethal.', tags: [], wip: false, type: 'foundation', cost: { energy: 3 }, attack: 1, hp: 3, keywords: {}, grants: { keywords: { lethal: true } } },
   { id: 'springboard', name: 'Springboard', element: 'fire', text: 'Grants Battle Ready and +1/0.', tags: [], wip: false, type: 'foundation', cost: { energy: 2 }, attack: 1, hp: 2, keywords: {}, grants: { stat: { attack: 1 }, keywords: { battleReady: true } } },
   { id: 'twin-perch', name: 'Twin Perch', element: 'water', text: 'Grants Double Team.', tags: [], wip: false, type: 'foundation', cost: { energy: 3 }, attack: 1, hp: 3, keywords: {}, grants: { keywords: { doubleTeam: true } } },
@@ -195,7 +195,7 @@ const rawCards = [
   { id: 'shifting-sands', name: 'Shifting Sands', element: 'earth', text: 'All units gain Mover (self): wander each turn.', tags: [], wip: false, type: 'environment', cost: { energy: 3 }, lanes: [], effects: [{ kind: 'custom', note: 'All units wander each turn' }], grantKeywords: { mover: { scope: 'self', trigger: 'endOfTurn' } } },
   { id: 'sig-pyre-bloom', name: 'Steam Bath', element: 'fire', text: 'Signature: inflict Burn 2 on all enemy units.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', amount: 2, target: 'all-enemy', status: 'burn' }] },
   { id: 'sig-final-charge', name: 'Overexert', element: 'fire', text: 'Signature: all allies gain +1/0 and a bonus attack.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'buff', target: 'all-ally', stat: { attack: 1 } }, { kind: 'extraAction', target: 'all-ally' }] },
-  { id: 'sig-deep-freeze', name: 'Masking', element: 'water', text: 'Signature: freeze all enemy units and give one of your units Undershot and Double Strike.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', target: 'all-enemy', status: 'freeze' }, { kind: 'buff', target: 'ally', keywords: { undershot: true, doubleStrike: true } }] },
+  { id: 'sig-deep-freeze', name: 'Masking', element: 'water', text: 'Signature: freeze all enemy units and give one of your units Pierce and Double Strike.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', target: 'all-enemy', status: 'freeze' }, { kind: 'buff', target: 'ally', keywords: { pierce: true, doubleStrike: true } }] },
   { id: 'sig-time-stop', name: 'Time Stop', element: 'nature', text: 'Signature: put all enemy units to Sleep.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', amount: 2, target: 'all-enemy', status: 'sleep' }] },
   { id: 'sig-overflow', name: 'Stage 4', element: 'nature', text: 'Signature: all cards in your hand cost 2 less this turn.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'costMod', amount: -2, cardType: 'all' }] },
   { id: 'sig-oblivion', name: 'Happy Hour', element: 'water', text: 'Signature: expel every enemy unit to the opponent\'s hand (overflowing it).', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'expel', target: 'all-enemy' }] },
@@ -204,9 +204,9 @@ const rawCards = [
   { id: 'sig-equalize', name: 'Reflections of Omniscience', element: 'nature', text: 'Signature: reduce every enemy unit by -2/-2.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'debuff', target: 'all-enemy', stat: { attack: 2, hp: 2 } }] },
   { id: 'sig-keystone', name: 'Fortune Foretold', element: 'earth', text: 'Signature Foundation: grants +1/+3, Taunt, Tough 1 and Spike 2 to the unit above it.', tags: ['signature'], wip: false, type: 'foundation', cost: { energy: 0 }, attack: 2, hp: 4, keywords: {}, grants: { stat: { attack: 1, hp: 3 }, keywords: { taunt: true, spike: 2, tough: 1 } } },
   { id: 'sig-ascension', name: 'Death Goddess\' Will', element: 'nature', text: 'Signature Foundation: grants Immunity, Zombified and Growth +2/+2 to the unit above it.', tags: ['signature'], wip: false, type: 'foundation', cost: { energy: 0 }, attack: 2, hp: 3, keywords: {}, grants: { keywords: { immunity: true, zombified: true, growth: { attack: 2, hp: 2 } } } },
-  { id: 'sig-pathmaker', name: 'Guardian of Ruins', element: 'water', text: 'Signature: give an ally Immunity and Undershot. All environments cost 0 energy this turn. Conjure a Tundra.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'buff', target: 'ally', keywords: { immunity: true, undershot: true } }, { kind: 'costMod', amount: -99, cardType: 'environment' }, { kind: 'conjure', target: 'self', cardId: 'tundra' }] },
+  { id: 'sig-pathmaker', name: 'Guardian of Ruins', element: 'water', text: 'Signature: give an ally Immunity and Pierce. All environments cost 0 energy this turn. Conjure a Tundra.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'buff', target: 'ally', keywords: { immunity: true, pierce: true } }, { kind: 'costMod', amount: -99, cardType: 'environment' }, { kind: 'conjure', target: 'self', cardId: 'tundra' }] },
   { id: 'ringleader-avatar', name: 'Ring Leader, Incarnate', element: 'nature', text: 'Leader-unit. Airborne, Taunt, Immunity. If it dies, you lose.', tags: ['signature'], wip: false, type: 'unit', cost: { energy: 0 }, attack: 0, hp: 30, keywords: { airborne: true, taunt: true, immunity: true } },
-  { id: 'sig-incarnate', name: 'Core Component', element: 'nature', text: 'Signature: your leader-unit gains Shield 1, Bloodlust +0/+1 and Undershot.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', amount: 1, target: 'leaderUnit', status: 'shield' }, { kind: 'buff', target: 'leaderUnit', keywords: { undershot: true, bloodlust: { buff: { attack: 0, hp: 1 } } } }] },
+  { id: 'sig-incarnate', name: 'Core Component', element: 'nature', text: 'Signature: your leader-unit gains Shield 1, Bloodlust +0/+1 and Pierce.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'applyStatus', amount: 1, target: 'leaderUnit', status: 'shield' }, { kind: 'buff', target: 'leaderUnit', keywords: { pierce: true, bloodlust: { buff: { attack: 0, hp: 1 } } } }] },
   { id: 'iron-ward', name: 'Iron Ward', element: 'water', text: 'Give an ally unit Shield 1.', tags: [], wip: false, type: 'spell', cost: { energy: 2, elements: [{ type: 'water', amount: 1 }] }, effects: [{ kind: 'applyStatus', amount: 1, target: 'ally', status: 'shield' }] },
   { id: 'purify', name: 'Purify', element: 'water', text: 'Remove all status effects from an allied unit.', tags: [], wip: false, type: 'spell', cost: { energy: 1, elements: [{ type: 'water', amount: 1 }] }, effects: [{ kind: 'cleanse', target: 'ally' }] },
 ];
@@ -312,7 +312,7 @@ export const deckControl = parseDeck({ name: 'Control', leaderId: 'phantom', car
 // Combo plan: assemble Lethal carriers to cut through anything. Whetstone Altar (grants
 // Lethal) bonded under Crag Hawk (airborne reach) or Stone Golem (durable body) = instakill
 // anything it touches. Venom Sniper (Lethal+Sniper built-in) picks off key threats from
-// heights. Deathspike Lancer (Lethal+Undershot) reaches back-row targets through walls.
+// heights. Deathspike Lancer (Lethal+Pierce) reaches back-row targets through walls.
 // Boulder Titan (printed Lethal+Tough) is the standalone midrange closer. Target Spell gives
 // Barbed Sentinel (Spike 2) Taunt so the opponent bleeds on every forced attack. Screyera's
 // Scry draws into whichever combo half is missing. Real bodies on curve (Gravel Hound,
@@ -338,7 +338,7 @@ export const deckCombo = parseDeck({ name: 'Combo', leaderId: 'screyera', cards:
 ] });
 
 // Guardian plan: survive early (Ring Leader starts at 0 attack — purely a sponge), stack attack via
-// the Modification skill each turn, then ride Bloodlust + Undershot after the Signature fires at ≤15 HP.
+// the Modification skill each turn, then ride Bloodlust + Pierce after the Signature fires at ≤15 HP.
 // Protection (shield, heal, True Shield) and freeze/sleep control buy the turns needed; Lull is the
 // panic-button "survive to Signature" finisher.
 export const deckTempo = parseDeck({ name: 'Guardian', leaderId: 'ringleader', cards: [
@@ -439,7 +439,7 @@ export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', ca
 // anything that enters, Molten Floor burns it. Displacement Wave bounces a built-up threat back
 // to hand for a full tempo reset. Meanwhile our own evasive bodies — aquatic, airborne, snipers —
 // attack freely across the hazards we set. The Pathmaker signature (free environments + an
-// Immune/Undershot finisher + a conjured Tundra) seals a lane for good.
+// Immune/Pierce finisher + a conjured Tundra) seals a lane for good.
 // Consolidated from a pile of 8 singletons into a tight two-package list: a DISRUPTION core
 // (Wind Redirect / Fearie / Tidal Wave / Displacement Wave shove attackers into dead ground;
 // Cold Spell + Tundra freeze; Seaweed Octopus drags enemies into the Water lane to Drown) and

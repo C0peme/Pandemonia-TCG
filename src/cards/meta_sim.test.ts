@@ -8,7 +8,13 @@ import { runMeta } from '@engine/sim';
 const GAMES = Number(process.env.META_GAMES ?? 30);
 const USE_PLAN = process.env.USE_PLAN !== '0'; // planning AI (the shipped policy) unless USE_PLAN=0
 
-describe('meta sim', () => {
+// OPT-IN ONLY. This is a manual balance harness, not a unit test: it is minutes-to-HOURS long
+// under the planning AI (the shipped policy, now the sim default). Leaving it in the default
+// suite turned `npm test` into a ~9.5h job. Run it deliberately:
+//   RUN_BALANCE=1 npx vitest run <this file> --reporter=verbose --disable-console-intercept
+const RUN_BALANCE = process.env.RUN_BALANCE === '1';
+
+describe.skipIf(!RUN_BALANCE)('meta sim', () => {
   it('prints win-rate matrix', { timeout: 36_000_000 }, () => {
     const decks = starterDecks.map((d) => ({ deck: d, name: d.name }));
     const names = decks.map((d) => d.name);

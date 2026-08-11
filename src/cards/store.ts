@@ -84,11 +84,39 @@ const emptyPersist = (): PersistShape => ({
   selected: [deckAggro.name, deckControl.name],
 });
 
+/**
+ * MIGRATION — `undershot` was renamed to `pierce`.
+ *
+ * The keyword was named for its original niche (striking UNDER the front line, at
+ * foundations); it now means "ignore protective defences" everywhere, including on damage
+ * effects, so it is named for what it does.
+ *
+ * This must run BEFORE the schema parse below. `keywordsSchema` is `.strict()` and
+ * `loadPersist` DROPS anything that fails to parse, so without this every saved custom card
+ * carrying the old keyword would silently disappear from the player's collection — not lose a
+ * keyword, vanish entirely.
+ *
+ * Renames the key wherever it appears (unit keywords, foundation `grants.keywords`, and the
+ * `keywords` of any buff effect at any trigger depth). A blanket key-rename is safe precisely
+ * because `undershot` no longer means anything else anywhere in the schema.
+ */
+const migrateUndershot = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(migrateUndershot);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k === 'undershot' ? 'pierce' : k] = migrateUndershot(v);
+    }
+    return out;
+  }
+  return value;
+};
+
 const loadPersist = (): PersistShape => {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return emptyPersist();
-    const parsed = JSON.parse(raw) as Partial<PersistShape>;
+    const parsed = migrateUndershot(JSON.parse(raw)) as Partial<PersistShape>;
     const base = emptyPersist();
     // Validate stored cards/decks individually; drop anything that no longer parses.
     const cards = Array.isArray(parsed.cards)

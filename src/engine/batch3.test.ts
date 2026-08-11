@@ -16,10 +16,10 @@ const eff = (s: GameState, effects: Effect[], targets: TargetRef[] = [], caster:
   return events;
 };
 
-describe('Undershot pierces all defenses', () => {
+describe('Pierce pierces all defenses', () => {
   it('ignores Spike and Freeze (no spike damage, not blocked by freeze)', () => {
     const s = blankState();
-    place(s, 0, 'ground1', unit({ owner: 0, attack: 6, hp: 5, keywords: { undershot: true } }));
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 6, hp: 5, keywords: { pierce: true } }));
     place(s, 1, 'ground1', unit({ owner: 1, attack: 0, hp: 4, keywords: { spike: 3 }, status: { freeze: 2 } }));
     const { state } = resolveCombat(s);
     expect(state.players[1].lanes.ground1.front).toBeUndefined(); // killed through freeze
@@ -28,7 +28,7 @@ describe('Undershot pierces all defenses', () => {
 
   it('hits the deep (back) Double Team unit, bypassing the front', () => {
     const s = blankState();
-    place(s, 0, 'ground1', unit({ owner: 0, attack: 4, hp: 5, keywords: { undershot: true } }));
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 4, hp: 5, keywords: { pierce: true } }));
     place(s, 1, 'ground1', unit({ owner: 1, attack: 0, hp: 5 }));                 // front
     place(s, 1, 'ground1', unit({ owner: 1, attack: 0, hp: 3 }), 'back');          // back (deepest)
     const { state } = resolveCombat(s);

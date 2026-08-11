@@ -1,0 +1,25 @@
+
+ RUN  v4.1.8 C:/Users/adria/Pandemonia TCG
+
+
+=== Control rebuild A/B · 12 games/matchup · PLANNING · start 18:10:09 ===
+old list: 16 entries | new list: 15 entries
+
+| seed | old  | new  | delta |
+|------|------|------|-------|
+|    1 | 38.2 | 77.8 | +39.6 |   [18:40:30]
+| 5000 | 34.0 | 77.1 | +43.1 |   [19:13:32]
+| 9000 | 34.7 | 81.3 | +46.5 |   [19:46:33]
+
+mean delta +43.1pp
+DELTA SPREAD ACROSS SEEDS: 6.9pp   (absolute cross-seed spread was 6.2 mean / 10 worst)
+=> paired A/B is NOT much better than unpaired: A/B probes detect large effects only.
+
+########## CONTROL A/B COMPLETE ##########
+ ✓ src/cards/_controlAB.test.ts > Control rebuild: paired A/B across three seeds 5784146ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  18:10:08
+   Duration  5784.69s (transform 244ms, setup 0ms, import 368ms, tests 5784.15s, environment 0ms)
+

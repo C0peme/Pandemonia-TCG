@@ -24,7 +24,7 @@ describe('keyword field sweep', () => {
       ['zombified', { zombified: true }],
       ['battleReady', { battleReady: true }],
       ['doubleTeam', { doubleTeam: true }],
-      ['undershot', { undershot: true }],
+      ['pierce', { pierce: true }],
       ['growth +1/+1', { growth: { attack: 1, hp: 1 } }],
       ['bloodlust +1/+1', { bloodlust: { buff: { attack: 1, hp: 1 } } }],
     ];

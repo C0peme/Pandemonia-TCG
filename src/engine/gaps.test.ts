@@ -117,10 +117,10 @@ describe('Foundation', () => {
     expect(state.players[0].lanes.ground1.front!.justPlaced).toBe(true); // still summoning-sick
   });
 
-  it('Undershot destroys the Foundation and the host loses the grant', () => {
+  it('Pierce destroys the Foundation and the host loses the grant', () => {
     const s = withBondedFoundation(5);
-    // Attacker with Undershot 3 hits the Foundation (hp 3) first — bypasses Tough.
-    place(s, 1, 'ground1', unit({ owner: 1, attack: 3, hp: 5, keywords: { undershot: true } }));
+    // Attacker with Pierce 3 hits the Foundation (hp 3) first — bypasses Tough.
+    place(s, 1, 'ground1', unit({ owner: 1, attack: 3, hp: 5, keywords: { pierce: true } }));
     s.active = 1;
     const { state } = resolveCombat(s);
     const host = state.players[0].lanes.ground1.front!;

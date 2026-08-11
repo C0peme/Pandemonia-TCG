@@ -99,7 +99,7 @@ apply to Burn or Poison ticks (those would just overwrite/ignore the Sleep rathe
 
 Heights lane: only Airborne units attack or defend in the Heights lane. Non-airborne units in other lanes cannot attack into or be attacked from the Heights.
 
-Overshot / Undershot: Overshot bypasses the front units to strike the opposing leader directly (an Airborne defender in the lane can intercept it). Undershot strikes the deepest target — the foundation beneath the front unit, else the back unit — piercing defenses (Shield/Tough) and stopped only by Immunity. Branch Shot hits an adjacent ground lane simultaneously.
+Overshot / Pierce: Overshot bypasses the front units to strike the opposing leader directly (an Airborne defender in the lane can intercept it). Pierce strikes the deepest target — the foundation beneath the front unit, else the back unit — piercing defenses (Shield/Tough) and stopped only by Immunity. Branch Shot hits an adjacent ground lane simultaneously.
 
 Splash Damage: damage dealt to a front unit also hits the back unit in the same lane (half, or same amount depending on card).
 
@@ -158,7 +158,7 @@ Drowning   — unit's Attack is 0 and it takes 1 damage at the start of its owne
 
 Attack / Targeting
   Overshot       — strikes the opposing leader over the lane's units (an Airborne defender can intercept).
-  Undershot      — strikes the deepest target (foundation beneath, else the back unit), piercing Shield/Tough; stopped only by Immunity.
+  Pierce      — strikes the deepest target (foundation beneath, else the back unit), piercing Shield/Tough; stopped only by Immunity.
   Sniper         — from the Heights (or while Airborne), may choose which enemy lane to strike; no effect from a ground/water lane.
   Branch Shot    — attack also hits an adjacent ground lane simultaneously.
   Splash Damage  — damage to the front unit also hits the back unit.
@@ -171,7 +171,7 @@ Defensive
   Shield (N)     — blocks N incoming damage instances.
   True Shield    — blocks ALL incoming damage while active; expires at the owner's next turn.
   Taunt          — must be targeted first in its lane.
-  Spike (N)      — deals N damage back to any unit that attacks it (combat or ability), even when the hit deals no damage (e.g. absorbed by Shield/Tough). Bypassed by an effective Undershot.
+  Spike (N)      — deals N damage back to any unit that attacks it (combat or ability), even when the hit deals no damage (e.g. absorbed by Shield/Tough). Bypassed by an effective Pierce.
   Immunity       — immune to all unit-targeted effects (harmful and beneficial).
   Tough (N)      — reduces all incoming damage by N (minimum 1 damage still gets through).
   Double Team    — allows a second unit in the same lane (front + back slots).
@@ -226,7 +226,7 @@ Current environments: Vent, Graveyard, Molten Floor, Sludge Pool, Watchtowers, C
 
 --- FOUNDATIONS ---
 
-Foundations are placed standalone in a lane (not on top of a unit). When a unit is placed in the same lane, the foundation bonds beneath it, granting its bonuses to that unit. A foundation can grant stats, keywords, an on-hit status package, AND per-turn / before-attack effects — the bonded unit runs all of them as if printed on it. A bonded foundation is destroyed when its unit dies; if the foundation is destroyed first (e.g. by Undershot) the host loses everything it granted.
+Foundations are placed standalone in a lane (not on top of a unit). When a unit is placed in the same lane, the foundation bonds beneath it, granting its bonuses to that unit. A foundation can grant stats, keywords, an on-hit status package, AND per-turn / before-attack effects — the bonded unit runs all of them as if printed on it. A bonded foundation is destroyed when its unit dies; if the foundation is destroyed first (e.g. by Pierce) the host loses everything it granted.
 
 Prepared position (Battle Ready on bond): a unit that bonds onto a foundation which was ALREADY in play (placed on a previous turn) deploys ready to fight — it ignores summoning sickness and may attack the same turn. A foundation and unit dropped on the SAME turn do not get this; the ground must have been set in advance.
 

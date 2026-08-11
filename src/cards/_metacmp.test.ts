@@ -39,7 +39,13 @@ function runOne(label: string, registry: any, decks: any[]) {
   return new Map(standings.map((s) => [s.name, s.field]));
 }
 
-describe('meta comparison', () => {
+// OPT-IN ONLY. This is a manual balance harness, not a unit test: it is minutes-to-HOURS long
+// under the planning AI (the shipped policy, now the sim default). Leaving it in the default
+// suite turned `npm test` into a ~9.5h job. Run it deliberately:
+//   RUN_BALANCE=1 npx vitest run <this file> --reporter=verbose --disable-console-intercept
+const RUN_BALANCE = process.env.RUN_BALANCE === '1';
+
+describe.skipIf(!RUN_BALANCE)('meta comparison', () => {
   it('baseline vs formula-derived pips', { timeout: 36_000_000 }, () => {
     const before = runOne('BEFORE (original pips, elemental Producers, Cultivate)', baseRegistry, baseDecks as any[]);
     const after = runOne('IT7 (effect table repriced from field data)', starterRegistry, starterDecks as any[]);

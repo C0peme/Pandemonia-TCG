@@ -94,12 +94,12 @@ export type TargetScope = z.infer<typeof targetScopeSchema>;
  *     `applyStatus` status:'shield' path, not the keyword merge.
  *   - doubleTeam — a lane-capacity structural flag, not a unit buff.
  *   - polish / kamikaze / bloodlust-with-effects — carry `Effect[]` (authoring-only).
- * (Sable's Pathmaker grants Immunity + Undershot; sig-incarnate seeds Spike.)
+ * (Sable's Pathmaker grants Immunity + Pierce; sig-incarnate seeds Spike.)
  */
 const grantableKeywordsShape = {
   lethal: z.boolean().optional(),
   overshot: z.boolean().optional(),
-  undershot: z.boolean().optional(),
+  pierce: z.boolean().optional(),
   sniper: z.boolean().optional(),
   branchShot: z.boolean().optional(),
   splashDamage: z.boolean().optional(),
@@ -168,9 +168,34 @@ export const effectSchema = z
      * fails to kill or the damage reaches 0. (Attrition signature.)
      */
     chainDiminish: z.boolean().optional(),
+    /**
+     * For `damage`: pierce the target's protective defences — Freeze, Shield, Tough and True
+     * Shield — the same promise the `pierce` KEYWORD makes for a unit's attack. Immunity still
+     * stops it, as it stops the keyword.
+     *
+     * The keyword additionally ignores Taunt and Spike; this flag does not, because neither
+     * exists on this path rather than by any deliberate exception — a damage effect names its
+     * own target (so there is no Taunt redirect to ignore) and provokes no retaliation (so
+     * there is no Spike to bypass). Same promise, fewer things in scope.
+     *
+     * Card damage is a HIT, so by default it wakes its target and Freeze absorbs it. This flag
+     * is how a card is allowed to answer something it has just frozen.
+     */
+    pierce: z.boolean().optional(),
+    /**
+     * For `damage`: derive the amount from the TARGET instead of a fixed `amount`.
+     * `targetAttack` deals damage equal to the target's current attack.
+     *
+     * This is how removal is differentiated by CONDITION rather than by price. Energy equals
+     * the round number and is uncapped, so a costlier answer is barely a worse answer after
+     * round ~5 — measured: +2 energy on 5 of a deck's 30 cards moved it 1.6pp, inside noise.
+     * A conditional answer, by contrast, is genuinely good against some boards and dead
+     * against others no matter how much energy you have.
+     */
+    amountFrom: z.enum(['targetAttack']).optional(),
     /** For `costMod`: which card type's costs are modified. Defaults to 'spell' if omitted. */
     cardType: z.enum(['unit', 'spell', 'foundation', 'environment', 'all']).optional(),
-    /** For `buff`: keywords granted to the target unit (e.g. Immunity, Undershot). */
+    /** For `buff`: keywords granted to the target unit (e.g. Immunity, Pierce). */
     keywords: effectGrantKeywordsSchema.optional(),
     /**
      * For `energy`: the player chooses which element to bank at cast time (an `element`

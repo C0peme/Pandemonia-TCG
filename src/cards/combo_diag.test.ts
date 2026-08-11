@@ -8,7 +8,13 @@ import type { PlayerId } from '@engine/types';
 const GAMES = Number(process.env.DIAG_GAMES ?? 10);
 const USE_PLAN = process.env.USE_PLAN !== '0'; // planning AI (the shipped policy) unless USE_PLAN=0
 
-describe('combo diag', () => {
+// OPT-IN ONLY. This is a manual balance harness, not a unit test: it is minutes-to-HOURS long
+// under the planning AI (the shipped policy, now the sim default). Leaving it in the default
+// suite turned `npm test` into a ~9.5h job. Run it deliberately:
+//   RUN_BALANCE=1 npx vitest run <this file> --reporter=verbose --disable-console-intercept
+const RUN_BALANCE = process.env.RUN_BALANCE === '1';
+
+describe.skipIf(!RUN_BALANCE)('combo diag', () => {
   it('profiles Combo across the field', { timeout: 3_600_000 }, () => {
     const combo = starterDecks.find((d) => d.name === 'Combo')!;
     const opps = starterDecks.filter((d) => d.name !== 'Combo');

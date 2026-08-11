@@ -83,7 +83,7 @@ describe('Riku leader-unit', () => {
       0,
       [
         { kind: 'applyStatus', amount: 2, target: 'leaderUnit', status: 'shield' },
-        { kind: 'buff', target: 'leaderUnit', keywords: { undershot: true, bloodlust: { buff: { attack: 0, hp: 2 } } } },
+        { kind: 'buff', target: 'leaderUnit', keywords: { pierce: true, bloodlust: { buff: { attack: 0, hp: 2 } } } },
       ],
       [],
       undefined,
@@ -92,7 +92,7 @@ describe('Riku leader-unit', () => {
     );
     const after = s.players[0].lanes.ground1.front!;
     expect(after.shield).toBe(2);
-    expect(after.keywords.undershot).toBe(true);
+    expect(after.keywords.pierce).toBe(true);
     expect(after.keywords.bloodlust?.buff?.hp).toBe(2);
   });
 });

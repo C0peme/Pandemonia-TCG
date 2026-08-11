@@ -80,6 +80,24 @@ function statusCost(status: string, amount = 1): number {
   }
 }
 
+/**
+ * PIERCE — 1.0 -> 2.5.
+ *
+ * The 1.0 came from a field probe run under the GREEDY 1-ply AI. Removal and defence-piercing
+ * are exactly what a lookahead policy exploits best (greedy cannot sequence a kill or hold an
+ * answer), so that measurement understated it. Pierce negates Shield (3.4), Tough (3.3), True
+ * Shield (3.0), Freeze (1.4), Spike and Taunt, and is stopped only by Immunity (3.2) — pricing
+ * the thing that beats all of them BELOW any of them was never coherent.
+ *
+ * 2.5 sits just under Immunity: comprehensive, but conditional on the opponent actually owning
+ * a defence worth piercing.
+ *
+ * Blast radius is small and deliberate. Of six Pierce holders, four are 0-cost signatures or an
+ * undecked foundation, so this reprices exactly the two new Control removal cards — the
+ * package that took Control from 36.7 to 80.3 (+44.7pp measured, three seeds).
+ */
+const PIERCE_COST = 2.5;
+
 /** Base cost of a single effect, ignoring the all-units and recurrence multipliers. */
 function effectCostBase(e: any, lookup: Lookup, depth: number): number {
   switch (e.kind) {
@@ -87,8 +105,16 @@ function effectCostBase(e: any, lookup: Lookup, depth: number): number {
     // underpriced (+11.1) — big hits kill real bodies where small ones only chip, so the value
     // per point rises. Same reasoning as the geometric stat curve, applied to removal.
     case 'damage': {
-      let c = num(e.amount) * 0.5 + Math.max(0, num(e.amount) - 2) * 0.55;
+      // `amountFrom: 'targetAttack'` has no printed amount. Priced at a proxy of 3 — not the
+      // pool's MEAN attack (1.88), because you cast it on a real threat, not on a random unit;
+      // 24% of units have 3+ attack and those are what it is for. Deliberately not discounted
+      // for being conditional: the conditionality is the card's identity (dead against a 0/5
+      // wall, lethal to a 5/5), and after round ~5 a price is not what restrains a card anyway.
+      const amt = e.amountFrom ? 3 : num(e.amount);
+      let c = amt * 0.5 + Math.max(0, amt - 2) * 0.55;
       if (e.chainDiminish || e.chain) c += 1.0;
+      // Same concept as the Pierce KEYWORD, so it tracks the keyword's price (see below).
+      if (e.pierce) c += PIERCE_COST;
       return c;
     }
     case 'heal': return num(e.amount) * 0.3;   // was 0.5/pt (field -6.7 on heal 3)
@@ -177,12 +203,12 @@ function keywordsCost(kw: any, allUnits: boolean, lookup: Lookup, depth = 0): nu
       case 'airborne': c += 1.95; break;  // field delta +11.8 -> repriced
       case 'strikeThrough': c += 2.4; break;  // field delta +9.4 -> repriced
       case 'branchShot': c += 3.5; break;  // field delta +38.9 -> repriced
-      case 'splashDamage': c += 2.5; break; // multi-target (3 fronts) — empirically Undershot-tier+, not 1.5
+      case 'splashDamage': c += 2.5; break; // multi-target (3 fronts) — empirically Pierce-tier+, not 1.5
       case 'doubleStrike': c += 3.9; break;  // field delta +23.6 -> repriced
       case 'taunt': c += 0.2; break;  // field delta -8.0 -> repriced
       case 'doubleTeam': c += 1.7; break;  // field delta +6.6 -> repriced
       case 'immunity': c += 3.2; break;  // field delta +11.8 -> repriced
-      case 'undershot': c += 1.0; break;  // field delta -9.7 -> repriced
+      case 'pierce': c += PIERCE_COST; break;
       case 'lethal': c += 4.5; break;  // field delta +15.3 -> repriced
       case 'trueShield': c += 3.0; break;
       case 'zombified': c += 2.75; break;
@@ -200,7 +226,11 @@ function keywordsCost(kw: any, allUnits: boolean, lookup: Lookup, depth = 0): nu
       case 'debuff': c += (1.25 + statCost(v)) * 1.4; break;
       case 'sacrifice': c += -0.5 + statCost(v?.buff); break;
       case 'kamikaze': c += -0.5 + effectCost(v, lookup, false, depth); break;
-      case 'smelt': c += effectCost(v?.effect, lookup, false, depth) - 0.5 * num(v?.hpCost); break;
+      // Smelt fires at EVERY end of turn (endOfTurn.ts), so it takes the recurrence premium
+      // like any other repeating trigger — it was priced as a one-shot, which made a per-turn
+      // engine cost the same as using its effect once. The HP is charged per tick for the same
+      // reason: you pay it every turn the unit lives.
+      case 'smelt': c += effectCost(v?.effect, lookup, true, depth) - 0.5 * num(v?.hpCost); break;
       case 'metamorphosis': {
         // one level only: value the "into" card's printed body/effects, not its further
         // metamorphosis (avoids double-counting A<->B transform loops). Minus 2 / turn.

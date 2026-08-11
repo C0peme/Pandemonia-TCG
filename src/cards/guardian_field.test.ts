@@ -9,7 +9,13 @@ const GAMES = Number(process.env.META_GAMES ?? 30);
 const HERO = process.env.HERO ?? 'Guardian';
 const USE_PLAN = process.env.USE_PLAN !== '0'; // planning AI (the shipped policy) unless USE_PLAN=0
 
-describe('field probe', () => {
+// OPT-IN ONLY. This is a manual balance harness, not a unit test: it is minutes-to-HOURS long
+// under the planning AI (the shipped policy, now the sim default). Leaving it in the default
+// suite turned `npm test` into a ~9.5h job. Run it deliberately:
+//   RUN_BALANCE=1 npx vitest run <this file> --reporter=verbose --disable-console-intercept
+const RUN_BALANCE = process.env.RUN_BALANCE === '1';
+
+describe.skipIf(!RUN_BALANCE)('field probe', () => {
   it('hero vs field', { timeout: 1_800_000 }, () => {
     const hero = starterDecks.find((d) => d.name === HERO)!;
     const opponents = starterDecks.filter((d) => d.name !== HERO).map((d) => ({ deck: d, name: d.name }));

@@ -604,3 +604,419 @@ Combo base 56%.
 Control measured **36%** in the meta and **43.8%** in runField — same policy, same 12
 games/matchup, same 144 games. A 7.8pp gap between two supposedly equivalent measurements
 bounds how much any single number here should be trusted. Treat +-8 as the real band.
+
+---
+
+## Naming: `undershot` -> `pierce`
+
+The keyword was named for its original niche (striking UNDER the front line, at foundations).
+It has since come to mean "ignore protective defences" and now also exists as a flag on damage
+effects, so it is renamed for what it does. **Every measurement recorded ABOVE this entry that
+names `undershot` refers to what is now `pierce`** — the historical entries are left as written
+rather than rewritten.
+
+Renamed across 23 files (109 occurrences). `store.ts` gained a `migrateUndershot` pass that
+rewrites the key on load: `keywordsSchema` is `.strict()` and `loadPersist` DROPS anything that
+fails to parse, so without it every saved custom card using the old keyword would have silently
+vanished from the player's collection.
+
+---
+
+## PHASE B — the real noise band (measured, not assumed)
+
+Same 13-deck PLANNING meta, 12 games/matchup, run at three seed bases (1 / 5000 / 9000).
+Nothing changed between runs but the seed. Full output: `.tuning/noise-band.txt`.
+
+| deck | s1 | s2 | s3 | mean | spread |
+|---|---|---|---|---|---|
+| Ramp | 63 | 60 | 67 | **63.3** | 7 |
+| Aggro | 60 | 61 | 68 | **63.0** | 8 |
+| Combo | 59 | 66 | 57 | **60.7** | 9 |
+| Swarm | 59 | 55 | 57 | **57.0** | 4 |
+| Stall | 60 | 56 | 52 | **56.0** | 8 |
+| Lane Control | 51 | 49 | 51 | **50.3** | 2 |
+| Guardian | 46 | 47 | 50 | **47.7** | 4 |
+| Snowball | 50 | 49 | 42 | **47.0** | 8 |
+| Midrange | 49 | 46 | 44 | **46.3** | 5 |
+| Attrition | 47 | 40 | 42 | **43.0** | 7 |
+| DoT | 40 | 45 | 43 | **42.7** | 5 |
+| Control | 31 | 41 | 38 | **36.7** | 10 |
+| Deck Out | 36 | 35 | 39 | **36.7** | 4 |
+
+**mean spread 6.2pp, worst 10pp. Treat anything under ~7pp as unmeasurable at 12
+games/matchup.** The binomial SE (+-4.2) was badly optimistic, as suspected: games within a
+matchup are correlated (same two decks, similar lines), so effective sample size is far below
+nominal.
+
+**The band is NOT uniform.** Deck Out (4), Swarm (4), Guardian (4) and Lane Control (2) are
+steady; Control (10), Combo (9), Aggro (8), Stall (8) and Snowball (8) swing hard. Decks with
+polarised matchups are the noisy ones — which is the same rock-paper-scissors effect the
+planning switch introduced. A single field number is a worse summary for exactly the decks we
+care most about.
+
+Aggro (60/61/68) is the cautionary pattern: two agreeing runs, then an 8-point third. Two
+consistent readings are not confirmation.
+
+### What this retroactively invalidates
+
+Applies directly to PLANNING at 12 games/matchup; greedy runs at 30 games/matchup have their
+own (probably smaller) band, so this is not a blanket retraction.
+
+- **Survives**: the planning-vs-greedy switch (Swarm +18, Aggro +14, Combo -13 — all well
+  clear of 10).
+- **Downgraded to noise**: Control -9 on that same comparison; Scry `hpCost` -3.6; Cancerous
+  Growth -2.6; and every IT7/IT9 per-deck delta I described as small-but-real.
+- The "+-5.2 noise band" quoted throughout the earlier entries was too tight. Read those
+  entries with +-7 or worse.
+
+### The useful by-product: a 3x-sample BASELINE
+
+The `mean` column is a 36-games/matchup estimate — three times any single run and the most
+reliable standings we have. It captures the tree at commit 5358ffd (post Scry hpCost, post
+Cancerous Growth, post energy-term removal) and BEFORE the Control rebuild, because vitest
+loaded the modules at run start. That makes it exactly the right baseline to measure the
+Control rebuild against.
+
+### Method going forward
+
+- A full meta at 12 games/matchup answers "did anything large move" and nothing finer.
+- For one deck, `runField` at 40+ games/matchup (~480 games, ~2h) is far cheaper than a meta
+  and answers a single question properly.
+- For anything important, average >= 3 seeds. That is what makes the mean column trustworthy.
+
+---
+
+## Control rebuild A/B + paired-noise calibration (one run, two answers)
+
+Old list vs rebuilt list, PLANNING, 12 games/matchup, three seed bases, both arms sharing a
+seed. Full output: `.tuning/control-ab.txt`.
+
+| seed | old | new | delta |
+|---|---|---|---|
+| 1 | 38.2 | 85.4 | +47.2 |
+| 5000 | 34.0 | 75.0 | +41.0 |
+| 9000 | 34.7 | 80.6 | +45.8 |
+
+**mean delta +44.7pp.**
+
+### 1. The harness cross-validates
+
+Old-list mean **35.6** against the Phase B baseline's **36.7** for the same deck, measured by a
+different harness on a different day. ~1pp apart. That is strong evidence the measurement is
+sound and, importantly, that the hit-resolution engine change did NOT handicap the old list
+(it runs almost no damage spells, so Freeze-absorbs-card-damage barely touches it). The +44.7
+is attributable to the new list, not to the engine change kneecapping the old one.
+
+### 2. The diagnosis was right and the execution OVERSHOT
+
+Control goes from worst deck (36.7) to **80.3** — **17pp clear of the previous best deck**
+(Ramp 63.3). That is not "fixed", it is broken in the other direction.
+
+So: removal + card draw were genuinely the missing pieces (a 45pp swing does not come from
+nowhere), but the package as priced is far too strong. Suspects, in order:
+- `pierce` at 1.0 — it now also bypasses Freeze on card damage, and it is the only keyword
+  that answers everything. Almost certainly underpriced.
+- `abyssal-verdict` — 4 damage that pierces everything for 3e+1W, x3.
+- draw at 0.85/card — the list gained three draw sources at once.
+
+Next step is a card-level field report on the new list (~16 min, one arm) to see which cards
+carry it, rather than guessing which dial to turn.
+
+### 3. Paired A/B is NOT better than unpaired — the methodological answer
+
+**Delta spread across seeds: 6.2pp** — identical to the mean *absolute* cross-seed spread from
+Phase B (6.2 mean / 10 worst). Common random numbers bought us nothing.
+
+The reason: any change worth testing perturbs play immediately, so the two arms decorrelate
+within a few turns and the shared shuffle stops helping.
+
+Consequences, and this settles the earlier uncertainty:
+- **The retractions stand.** Scry `hpCost` -3.6 and Cancerous Growth -2.6 are noise. They were
+  paired probes, and pairing does not rescue them.
+- **A/B probes detect large effects only** (>~7pp). Every keyword/effect price in this log
+  measured below that threshold is unresolved, not confirmed.
+- Balance changes should be sized to be readable, or made on design reasoning and not
+  measured at all. Fine-tuning by simulation is not available at this sample size.
+
+---
+
+## Pierce reprice: NULL. And the reason unifies the whole session.
+
+`PIERCE_COST` 1.0 -> 2.5, repricing abyssal-verdict 3e+1W -> 5e+1W (x3) and
+riptide-executioner 2e+1W -> 4e+1W (x2). Re-ran the same three-seed A/B.
+
+| | before | after |
+|---|---|---|
+| Control (new list) | 80.3 | **78.7** |
+| delta vs old list | +44.7 | +43.1 |
+
+**+2 energy on 5 of 30 cards moved the deck 1.6pp — deep inside the 6.9pp delta noise.**
+Old-list arms reproduced to within 0.1pp across both runs (38.2/34.0/34.7 twice), so the
+harness is sound. This is a real null, not a miss.
+
+### Why: ENERGY IS NOT SCARCE, so cost is a weak balance lever
+
+`turn.ts`: `energy = round number`, uncapped. By round 6 every deck can cast almost anything;
+most cards cost 2-6. A +2 tax delays a card by at most one round and then stops mattering.
+
+That retro-explains every cost-side null result in this log:
+- overnight cost-formula tuning (IT1-IT6): per-deck moves mostly inside noise
+- effect cost table reprice (IT7): explicit null
+- pierce reprice (this entry): null
+
+...against everything that DID move the meta, none of which was a price:
+- deck surgery, swapping spells for units: **+17.2**
+- the Control rebuild, adding removal + draw: **+43.1**
+- switching the AI policy greedy -> planning: **up to +-18**
+
+**The binding constraints are CARDS (1 draw/turn) and BOARD SLOTS (8), not energy.** That is
+also why draw is so strong and why card QUALITY (Combo) was never touchable by repricing.
+
+Cost still matters for the first ~5 rounds and for element/pip gating. It is not a lever for a
+deck's overall win rate. Balance via card function, stats and counts instead.
+
+### The open fork on Control
+
+Before the rebuild the game had NO hard removal anywhere. Giving it to one deck made that deck
+dominant by 18pp over the previous best. Two coherent responses:
+
+1. **Nerf Control back** and keep the game removal-free — cheapest, preserves the existing
+   meta, but leaves the design problem that no deck can answer a threat.
+2. **Distribute removal across the elements** so every deck has answers, and re-baseline the
+   whole meta. Larger content change; matches how essentially every mature TCG works, and the
+   LoR/MTG research that started this thread.
+
+This is a design decision, not a measurement one.
+
+---
+
+## Removal distributed by element (option 2)
+
+Chosen over nerfing Control, on the reasoning that **balancing around a starter LIST is
+unenforceable when the card pool is open** — a player can always build the deck that has the
+answers, so the answers have to exist for everyone.
+
+Corrected premise first: the game was NOT removal-free. It was unevenly distributed, with a
+power cliff. Pool HP: 2 damage kills 49% of units, 3 kills 74%, 4 kills 85%.
+
+| element | had | added |
+|---|---|---|
+| Fire | firebolt (2), chain-spark (2+chain), ashen-bomber (3 lane) | nothing — best served already |
+| Water | tidal-wave (2, lane-gated), void-caller (2 AOE, **in no deck**), abyssal-verdict (4, pierce) | nothing |
+| Nature | verdant-cataclysm (3 AOE, 8e), creeping-blight (Poison 1 to all), Lethal bodies | **strangleroot** — Poison 2, single target |
+| Earth | **NOTHING — no spells at all** | **reprisal** — damage = target's own attack |
+
+- `reprisal` (earth, 1e+1E): counter-punch idiom. Kills a 5/5, does nothing to a 0/5 wall.
+- `strangleroot` (nature, 2e+1N): attrition idiom. Slow, cleansable, outpaced by healing, and
+  shuts off Growth/Bloodlust (a poisoned unit cannot be buffed).
+
+Slotted into the two below-average decks whose identity matches: DoT 42.7 (plague-rat x2 ->
+strangleroot x2) and Attrition 43.0 (plague-rat x2 -> reprisal x2).
+
+**Abyssal Verdict kept as-is** (user call): deleting one card does not remove the effect from
+the game when future cards will carry it, so the fix is that every element can answer, not that
+this card stops existing.
+
+### New engine support: `amountFrom: 'targetAttack'`
+
+Damage derived from the target instead of a printed number — the mechanism for differentiating
+removal by CONDITION rather than price. That distinction is the session's main finding: energy
+is uncapped and equals the round number, so price stops restraining a card after round ~5.
+
+No AI work needed, unlike `energyNext`: the beam search values a damage spell by simulating the
+kill and scoring the resulting board, so a dynamic amount is observed correctly. The `e.amount`
+reads in ai.ts are only heuristics (environment/polish/lethal-check) and target the leader.
+
+### Held back deliberately
+
+`void-caller` (2 damage to all enemies, 3e+1W) exists and is in NO deck. It was in the plan to
+add it to Control — NOT done: Control currently measures 78.7% and does not need another tool.
+Revisit when Control is re-baselined.
+
+No meta test run (user call).
+
+---
+
+## Pool audit: element x function, and the gaps filled
+
+Audited the whole pool by element x function (`.tuning/poolAudit.test.ts`). The headline:
+
+**Before today the ENTIRE card pool contained ONE card that draws** — `grove-elder` — plus
+Screyera's hero power. In a game where energy is uncapped and grows every round, the binding
+resources are CARDS (1 draw/turn) and BOARD SLOTS (8). So card ACCESS was a resource exactly
+one leader could buy, at any price.
+
+That is the best explanation yet for Combo leading every configuration measured and surviving
+six repricings untouched: it was not mispriced, it was the only deck buying the scarce
+resource. It also explains why two draw bodies instantly made Control the best deck in the game.
+
+### Filled (8 cards, each in its element's idiom)
+
+| element | gap | card |
+|---|---|---|
+| Fire | no draw | `powder-monkey` 2/1, on death draw 1 — fire pays with the body |
+| Water | **no healing at all** | `reef-nurse` 1/3, on play heal an ally 2 |
+| Nature | no cleanse (`purify` was the game's ONLY one) | `rejuvenate` (spell), `ironroot-ward` (body) |
+| Earth | 2 spells total, no draw, no AOE, top-heavy curve | `quarry-hand` (1-drop), `tremor` (AOE), `bulwark` (Tough grant), `runestone-keeper` (0/4 Taunt, draws each turn) |
+
+Every element now has draw, and cleanse exists outside Water.
+
+### Deliberately NOT filled — identity, not gaps
+
+Fire heal/cleanse, Water DoT, Earth ramp, Nature protection. Those absences are what make the
+elements distinct; filling them would homogenise the pool.
+
+### Still open
+
+`summon` exists only in Nature (2 cards), and `mill` exists only as John Pork's hero power, not
+as a card effect anywhere.
+
+### Fallout: one brittle test
+
+`run.test.ts` store test hardcoded offer slot 0 and assumed it was affordable. Store offers roll
+from the WHOLE pool, so adding cards shifted the roll and slot 0 became a 65-coin card against a
+60-coin purse — `buyCard` correctly refused. Fixed by selecting the first affordable slot; the
+rule under test (one buy per slot) is unchanged. Any future card addition would have broken it.
+
+---
+
+## Gaps round 2: dead mechanics, unobtainable keywords, unplayed card types
+
+Audit: `.tuning/gaps2.test.ts` (keyword support, orphan cards, foundations/environments).
+
+### A. TWO MECHANICS ARE FULLY BUILT AND HAVE ZERO CARDS
+
+**`metamorphosis` — 0 cards in the pool.** It has: a `metamorphose()` implementation in
+endOfTurn.ts, a dedicated 150-line `metamorphosis.test.ts`, `metamorphValue()` in the AI, and
+its own section in CLAUDE.md documenting the Foundation re-bond subtlety. All of it is
+unreachable in play.
+
+**`smelt` — 0 cards.** Engine support in endOfTurn.ts plus tests in batch3.test.ts.
+
+This is the cheapest content in the game: the engine, AI valuation and tests already exist, so
+these are card-authoring tasks, not feature work.
+
+### B. Lethal cannot be printed on a card
+
+No playable card has printed `lethal`. The only sources are `whetstone-altar` (Earth foundation
+that GRANTS it) and `killing-fields` (Earth environment). The one unit with it, `critter-elite`,
+is a token.
+
+Worse, the card-creation guide lists Lethal in **Nature's** toolkit while every source is
+**Earth** — a doc/data mismatch that will mislead anyone authoring to the guide.
+
+### C. Environments are a nearly-unused card TYPE
+
+29 environments in the pool; **4 appear in any starter deck**. Fire has 7 and plays none. A
+whole card type is content that no demonstrator deck shows off.
+
+### D. 57 of 179 cards (32%) are in no starter deck
+
+Some is deliberate (Adventure pool, custom-deck fodder), but it includes whole sub-themes:
+Fire's foundations (5, one played) and Water's foundations (5, one played).
+
+### E. Thin keywords (1-2 carriers)
+
+`trueShield` 1, `immunity` 2, `zombified` 2, `brittle` 2, `sacrifice` 2. Mechanics that exist
+but are too rare to build around or plan against.
+
+(Note: `producer`/`healer`/`mover`/`debuff`/`expel` also read as 0-1, but those are the
+expansion keywords — starter data authors them as trigger effects instead, so the keyword count
+undercounts them. Not real gaps.)
+
+### F. Stale deck comments reference cards that do not exist
+
+Combo's and DoT's comments describe `venom-sniper`, `deathspike-lancer`, `boulder-titan`,
+`stone-golem` and `flame-guard` — none are in the pool. The comments document a deck that was
+never built, which is actively misleading when reasoning about why a deck performs as it does.
+
+---
+
+## Gaps round 2: filled
+
+9 cards, all verified against the formula (printed cost == recommended cost for all 24 cards
+added today).
+
+### Dead mechanics made reachable
+
+| card | element | cost | fills |
+|---|---|---|---|
+| `emerald-drake` | nature | 6e+1N | evolved form (4/5 Airborne) |
+| `chrysalis-grub` | nature | 3e+1N | **metamorphosis** — 1/3 that becomes the Drake after 2 turns |
+| `ember-chronicler` | fire | 3e+1F | **smelt** — lose 1 HP each turn to draw a card |
+
+Two traps found while authoring, both now covered by tests:
+- **metamorphosis silently does nothing without `into`** (endOfTurn.ts returns early), and
+  `gains` alone never applies. It needs a base AND an evolved card.
+- **smelt runs a TRIGGERED effect**, so it must be player-scoped (draw/energy/energyNext/
+  bankMax/forget). A unit-targeting effect is dropped by the dispatch whitelist — the same trap
+  that made `energyNext` a no-op earlier in this session.
+
+Also fixed a real pricing bug: **smelt was priced as a one-shot** despite firing every end of
+turn, so a per-turn engine cost the same as using its effect once. Now takes the universal x1.4
+recurrence premium (ember-chronicler 2e+1F -> 3e+1F).
+
+### Lethal is printable
+
+`venom-sniper` (nature, 4e+2N, 1/2 Sniper+Lethal). Lethal previously existed only as an Earth
+foundation/environment grant while the creation guide listed it in NATURE's toolkit — the card
+makes the guide true rather than the guide being edited to match an accident.
+
+### Grant coverage completed
+
+An audit of all 19 grantable keywords x {foundation, environment} found four holes:
+
+| keyword | was missing | added |
+|---|---|---|
+| pierce | environment | `tidal-rift` (water, 2e+2W) |
+| splashDamage | foundation | `mortar-emplacement` (fire, 5e+2F) |
+| trueShield | foundation | `aegis-plinth` (earth, 5e+2E) |
+| brittle | **both** | `glass-forge` (fire foundation), `shattered-span` (fire environment) |
+
+Brittle is a downside, so those two are a glass-cannon trade and a hazard lane rather than
+gifts. A test now asserts every grantable keyword has both sources, so this cannot regress.
+
+### Stale comments removed
+
+Combo's deck comment described a Lethal-carrier plan built from `stone-golem`, `venom-sniper`,
+`deathspike-lancer` and `boulder-titan` — **none existed in the pool**. DoT's described a
+"Flame Guard" wall that also did not exist. Both deleted with a note. This mattered: those
+comments were read earlier in this session while reasoning about why Combo wins, and they
+describe decks that were never built.
+
+---
+
+## Ability -> element map completed (8/8/8/8)
+
+The card-creation guide already had an ELEMENT TOOLKITS list. It was incomplete and partly
+contradicted by the cards:
+
+- **10 of 32 keywords were unassigned**: pierce, trueShield, immunity, zombified, doubleTeam,
+  smelt, healer, debuff, mover, expel.
+- **Wildly uneven**: Fire 7, Nature 7, Water 6, **Earth 2**.
+- **Four assignments disagreed with the data**: Taunt (guide: water) is on earth:10/water:1;
+  Spike (guide: nature) is on earth:7/nature:2; Overshot and Splash Damage (guide: water) are
+  mostly fire. Earth was never ability-poor — its two biggest mechanics were filed elsewhere.
+
+Now canonical, every keyword assigned exactly once, 8 per element:
+
+| element | abilities |
+|---|---|
+| Fire | battleReady*, strikeThrough, doubleStrike, brittle, kamikaze, smelt, overshot, splashDamage |
+| Water | aquatic*, sniper, pierce, shield, doubleTeam, healer, mover, expel |
+| Nature | growth*, bloodlust*, producer, airborne, lethal, metamorphosis, sacrifice, branchShot |
+| Earth | tough*, polish, taunt, spike, trueShield, immunity, zombified, debuff |
+
+(* = signature, unchanged.)
+
+### For the proposed ability-derived pips
+
+The idea is to derive each pip from the ABILITY's element rather than the card's, producing
+dual-element cards. Two things to know before building it:
+
+1. **Pips are not a gate.** `settleCost` pays any element shortfall from generic energy, so an
+   off-element pip makes a card EXPENSIVE, not unplayable. The scheme would add real cost
+   pressure (banking and elementCaps are genuinely constrained, unlike energy) but would not
+   lock anyone out.
+2. **An ability-dense card can exceed `MAX_ELEMENT_COST` (4)** once pips come from 3-4 different
+   elements, so it needs a clamping rule — `recommendedPips` currently clamps a single total.
