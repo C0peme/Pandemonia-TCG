@@ -1237,3 +1237,53 @@ All still 30 cards, all legal, smoke test clean (78 pairings, every card played 
 
 These four changes and the Snowball revert have not been measured. The prior run's numbers
 still stand for the other nine decks.
+
+---
+
+## Leader cap reallocation + an AI blind spot Deck Out was losing to
+
+### Colourless abilities make "wasted caps" unfixable by adding cards
+
+Three of the four cards added in the previous entry to spend unused caps DO NOT SPEND THEM:
+`ironroot-ward` (cleanse+heal), `void-caller` (damage) and `tremor` (damage) are all colourless,
+so they carry no pips. Deck Out's nature demand stayed 0, Attrition's water 0, Lane Control's
+earth 0.
+
+This is structural, and worth remembering: since colourless abilities earn no pip, REMOVAL,
+DRAW, HEAL and CLEANSE cannot use up a wasted cap. Only element-BEARING abilities (keywords and
+statuses) do. So a mismatched cap has to be fixed by moving the cap.
+
+### Caps reallocated (schema enforces 1-4 per element, exactly 8 total)
+
+| leader | was | now | why |
+|---|---|---|---|
+| Orsyric (Aggro) | 2/2/2/2 | 3/1/3/1 | spends F6/N6, never W or E |
+| Ring Leader (Guardian) | 2/3/2/1 | 1/3/2/2 | F unused; E demand 10 against a cap of 1 |
+| John Pork (Deck Out) | 1/3/3/1 | 1/4/1/2 | N3 entirely unused; W demand 19 |
+| Autopus (Swarm) | 2/1/3/2 | 2/1/4/1 | E unused; N demand 15 |
+| Eksana (Attrition) | 1/2/2/3 | 1/1/2/4 | W unused; E demand 22 |
+| Naife (Lane Control) | 1/3/2/2 | 1/4/2/1 | E unused; W demand 23 |
+
+Every reduction is on an element with ZERO demand, so nothing became uncastable, and no cap
+drops below 1 — single-pip splashes still work everywhere. Every "WASTED" flag cleared except
+Midrange, whose even 2/2/2/2 is the neutral baseline's identity.
+
+NB the audit's "cap > max single need" flag is NOT waste: a cap above the biggest single card
+still buys banking headroom for many 1-pip cards (DoT spends 18 fire in 1-pip chunks).
+
+### The AI could not play Deck Out's plan
+
+The smoke test found `cursed-gift` (Deck Out x3) was **never cast in a single game across 78
+pairings** — and it is that deck's entire plan.
+
+Cause: `evaluate()` scored `me.hand.length - opp.hand.length`, so conjuring a Dead Weight into
+the enemy's hand read as HANDING THEM CARD ADVANTAGE. There was already a +0.3 heuristic for the
+card in hand, but the state score after playing it swamped that.
+
+Fixed: hand advantage now counts cards you can USE. Junk (Dead Weight, Null) scores -0.5 rather
+than +1 for its holder — it is not merely worthless, it occupies a slot in a capped hand.
+Every card in every deck is now played at least once across the field.
+
+This is the same class of bug as `energyNext` and the greedy energy crutch: the AI was blind to
+a non-obvious value, so a whole strategy silently did not exist. Worth suspecting first whenever
+a deck underperforms with its key cards intact.

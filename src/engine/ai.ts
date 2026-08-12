@@ -31,6 +31,7 @@ import { resolveEndOfTurn } from '@engine/endOfTurn';
 import { locateUnit } from '@engine/board';
 import { signatureThreshold } from '@engine/damage';
 import { opponentOf, type GameState, type PlayerId, type UnitInstance } from '@engine/types';
+import { NULL_CARD_ID } from '@cards/special';
 
 const unitsOf = (state: GameState, side: PlayerId): UnitInstance[] =>
   LANES.flatMap((l) => {
@@ -131,6 +132,14 @@ export const DEFAULT_WEIGHTS: EvalWeights = {
   // without it. It was scaffolding for a policy the game does not ship. Do not re-add it.
   synergy: 1,
 };
+
+/**
+ * Cards in hand that are actually worth having. Junk cards are worse than nothing to their
+ * holder — they take a slot in a capped hand — so they score below zero rather than at zero.
+ */
+const JUNK_CARD_IDS = new Set<string>([NULL_CARD_ID, 'dead-weight']);
+const handValue = (hand: { cardId: string }[]): number =>
+  hand.reduce((n, c) => n + (JUNK_CARD_IDS.has(c.cardId) ? -0.5 : 1), 0);
 
 /** Raw stat worth of a body: attack weighted over HP (it's both output and a standing threat). */
 const bodyValue = (W: EvalWeights, attack: number, hp: number): number => attack * W.attack + hp * W.hp;
@@ -743,7 +752,12 @@ const evaluate = (W: EvalWeights, registry: Registry, state: GameState, me: Play
     lifeValue(W, oppHp, signatureThreshold(state.players[opp]));
   for (const u of unitsOf(state, me)) score += unitValue(W, registry, u);
   for (const u of unitsOf(state, opp)) score -= unitValue(W, registry, u);
-  score += (state.players[me].hand.length - state.players[opp].hand.length) * W.cardAdvantage;
+  // Hand advantage counts CARDS YOU CAN USE, not hand size. Junk (Dead Weight, Null) occupies a
+  // slot and does nothing, so counting it made shoving one into the enemy's hand read as GIVING
+  // them card advantage — Deck Out's three Cursed Gifts were never cast in a single game across
+  // 78 pairings, and Cursed Gift is that deck's entire plan. Junk is scored slightly NEGATIVE
+  // for its holder: it is not merely worthless, it clogs a hand that has a cap.
+  score += (handValue(state.players[me].hand) - handValue(state.players[opp].hand)) * W.cardAdvantage;
   score += deckValue(W, state.players[me].deck.length) - deckValue(W, state.players[opp].deck.length);
   score += bankValue(W, registry, state.players[me]) - bankValue(W, registry, state.players[opp]);
   // Energy queued for next turn is real energy, just later. Without this the AI sees
