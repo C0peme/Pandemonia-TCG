@@ -4,11 +4,7 @@ import { PlayArea, type Detail } from '@ui/App';
 import { useGame } from '@ui/useGame';
 import { ELEMENT_SYMBOL } from '@ui/ElementRune';
 import type { RunState } from '@adventure/schema';
-import { rollEncounter, playerDeck, buildEncounterState } from '@adventure/encounters';
-import { buildRunRegistry } from '@adventure/runRegistry';
-import { aggregateMods, applyRelicsToState, applyDeckBuffs } from '@adventure/relics';
-import { heroStateMods, applyHeroModsToState } from '@adventure/hero';
-import { subSeed } from '@adventure/seed';
+import { buildFight } from '@adventure/encounters';
 import * as adv from '@adventure/store';
 
 /**
@@ -23,53 +19,15 @@ export function CombatView({ run, nodeId, fightSeed, onDetail }: {
   onDetail: (d: Detail) => void;
 }) {
   const base = useContent().registry;
-  const { registry, initial, enc } = useMemo(() => {
-    const node = run.map.nodes[nodeId]!;
-    const mods = aggregateMods(run.relics);
-    const enc = rollEncounter(base, node, run.act, mods.enemyHpDelta);
-    // Element-conditional relic buffs are transient stat enhancements on the player's
-    // deck; both the registry (which materializes the buffed defs) and the deck-list
-    // must see the same buffed copies, so derive it once and pass it to both.
-    const buffedDeck = applyDeckBuffs(base, run.deck, mods);
-    const registry = buildRunRegistry(base, {
-      deck: buffedDeck,
-      enemyLeaderId: enc.enemyLeaderId,
-      enemyLeaderHp: enc.enemyHp,
-      playerLeaderId: run.leaderId,
-      heroUpgrades: run.heroUpgrades,
-      signatureBuff: run.signatureBuff,
-      ...(enc.twist ? { twist: enc.twist } : {}),
-      ...(enc.boss?.heroPowerOverride ? { enemyHeroPowerOverride: enc.boss.heroPowerOverride } : {}),
-    });
-    let initial = buildEncounterState(registry, playerDeck(run.leaderId, buffedDeck), enc, fightSeed, run.hp);
-    initial = applyRelicsToState(registry, initial, mods, subSeed(run.seed, run.act, 'relicstate', nodeId));
-    // Leader upgrades that can't live on the hero power: Attune's element caps and
-    // any unique's cost discount (Naife's Environments).
-    applyHeroModsToState(initial, heroStateMods(run.leaderId, run.heroUpgrades));
-
-    // Boss curses that aren't twists: a fixed-energy override and/or an asymmetric
-    // per-turn card modifier (player mills, boss draws extra). `initGame` already ran
-    // round 1's beginTurn before we get here, so the override must also be patched
-    // onto the opening player's energy directly — every later turn reads it live.
-    if (enc.boss?.energyOverride !== undefined) {
-      initial.energyOverride = enc.boss.energyOverride;
-      // Take the HIGHER of the two: a flat assignment here silently erased any
-      // start-energy relic `applyRelicsToState` just added on the line above, so the
-      // one boss with an override was also the one boss that quietly disabled a relic.
-      const opener = initial.players[initial.active];
-      opener.energy = Math.max(opener.energy, enc.boss.energyOverride);
-    }
-    if (enc.boss?.curse?.playerMillPerTurn) {
-      initial.players[0].turnCardMod = { ...initial.players[0].turnCardMod, millSelf: enc.boss.curse.playerMillPerTurn };
-    }
-    if (enc.boss?.curse?.bossExtraDrawPerTurn) {
-      initial.players[1].turnCardMod = { ...initial.players[1].turnCardMod, extraDraws: enc.boss.curse.bossExtraDrawPerTurn };
-    }
-
-    return { registry, initial, enc };
+  // The whole encounter construction lives in `buildFight` (encounters.ts) so the headless
+  // run simulator seats a run at exactly the board a player gets. Keep it there: anything
+  // added here instead is invisible to every measurement of Adventure.
+  const { registry, initial, enc } = useMemo(
+    () => buildFight(base, run, nodeId, fightSeed),
     // Mount-scoped: the parent keys this component per encounter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    [],
+  );
   const g = useGame({ registry, initialState: initial, fixedPov: 0, aiSides: { 0: false, 1: true } });
   const enemyLeader = base.leaders.get(enc.enemyLeaderId);
   const node = run.map.nodes[nodeId];

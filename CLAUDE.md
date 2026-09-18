@@ -191,6 +191,33 @@ internal-only flag `pickRelic` (run.ts) checks: after the first relic is claimed
 the flag so it only chains once. No new UI or relic content needed — same screen fires
 twice.
 
+### Adventure run simulation
+
+`engine/sim.ts` measures deck vs deck; `adventure/runSim.ts` measures the RUN — does it
+survive its acts, does the economy pay for the deck it expects, does carried HP recover fast
+enough. It drives the real `run.ts` reducer (every transition is the one the UI's buttons
+call) and plays each fight through `playOutGame` (`sim.ts`), so relics, attune caps, unique
+discounts, element deck buffs, trial twists and boss curses are all live.
+
+The seam that makes this possible is `buildFight` (`encounters.ts`): the whole "seat this run
+at a board" procedure — roll encounter, apply deck buffs, build the run registry, apply relic
+state mods and hero mods, patch boss curses — in ONE pure function that both `CombatView` and
+the simulator call. It used to live inline in CombatView's useMemo, where nothing headless
+could reach it. Add encounter setup there, not in the view, or it is invisible to every
+measurement of Adventure.
+
+What is NOT real is the player: `RunPolicy` supplies routing, shopping, camp and event
+choices. A number from here is "what this policy achieves", not a fact about the game.
+`DEFAULT_POLICY` is deliberately an ordinary competent player (thresholds are named
+constants: `HP_SEEK_REST`, `HP_AVOID_RISK`, `HP_KINDLE`), and it is swappable so two
+policies can be compared on one build. An outcome of `stalled` is always a bug in the
+policy or the reducer, never data.
+
+`adventure/adventure_sim.test.ts` is the opt-in report (same shape as
+`cards/meta_sim.test.ts`), gated on `RUN_BALANCE=1`: under the planning AI a run is ~20
+fights, so a 13-leader sweep is hours. `ADV_RUNS`, `ADV_ACTS`, `ADV_LEADERS` and `USE_PLAN`
+are the knobs; rows stream per leader so an interrupted sweep still yields data.
+
 ### Test conventions
 
 Tests use the helpers in `src/engine/testkit.ts`:
@@ -218,6 +245,9 @@ Tests use the helpers in `src/engine/testkit.ts`:
 | `src/engine/draw.ts` | `drawCard` — handles deck-out Null cards |
 | `src/engine/hand.ts` | `addCardToHand`, `forgetCard` — enforces hand cap |
 | `src/engine/testkit.ts` | Test fixtures: `blankState`, `unit`, `place`, `testRegistry` |
+| `src/engine/sim.ts` | Headless AI-vs-AI balance sim; `playOutGame` plays an already-built state |
+| `src/adventure/encounters.ts` | `rollEncounter`, `buildEncounterState`, and `buildFight` — the one shared encounter-construction path for the UI and the run sim |
+| `src/adventure/runSim.ts` | Headless Adventure-run sim: drives `run.ts` under a swappable `RunPolicy` |
 | `src/ui/App.tsx` | Top-level React shell: game board, tabs, event log, card detail, debug/sandbox panel. Exports `MiniCard`, `CardDetail`, `cardAbilityLine`, `effectLine`. |
 | `src/ui/useGame.ts` | Central UI hook: dispatches actions, orchestrates the combat animation, holds sandbox/hint state |
 | `src/ui/combatFx.ts` | DOM-driven combat/ability animations (attack lunges, sniper tracer, status/keyword flourishes) |

@@ -13,8 +13,11 @@ import { starterDecks } from '@cards/data/starter';
 import { RULES } from '@engine/constants';
 import { initGame } from '@engine/setup';
 import type { GameState } from '@engine/types';
-import type { MapNode, OwnedCard } from '@adventure/schema';
-import { makeRoller } from '@adventure/seed';
+import type { MapNode, OwnedCard, RunState } from '@adventure/schema';
+import { makeRoller, subSeed } from '@adventure/seed';
+import { aggregateMods, applyRelicsToState, applyDeckBuffs } from '@adventure/relics';
+import { buildRunRegistry } from '@adventure/runRegistry';
+import { heroStateMods, applyHeroModsToState } from '@adventure/hero';
 import { combatReward } from '@adventure/economy';
 import { advCardId, ENEMY_LEADER_ID } from '@adventure/runRegistry';
 import { applyTrialToState, trialById, TRIAL_TWISTS, type TrialTwist } from '@adventure/trials';
@@ -198,4 +201,72 @@ export const buildEncounterState = (
     state.players[0].leaderHp = Math.max(1, Math.min(state.players[0].leaderMaxHp ?? playerHp, Math.floor(playerHp)));
   }
   return enc.twist ? applyTrialToState(registry, state, enc.twist) : state;
+};
+
+/**
+ * Everything one Adventure fight needs: the run-scoped registry, the opening GameState
+ * and the rolled encounter.
+ *
+ * This is the whole "sit the run down at a board" procedure, and it is shared rather than
+ * duplicated: it used to live inline in `CombatView`'s mount-scoped useMemo, which made it
+ * unreachable from anything headless. The run simulator must measure the fight the player
+ * actually gets — relic state mods, element-conditional deck buffs, attune caps, unique
+ * cost discounts, boss curses and all — and the only way that stays true as content is
+ * added is for both callers to run the same code.
+ *
+ * Order matters and is load-bearing:
+ *  - `applyDeckBuffs` is derived ONCE and fed to BOTH `buildRunRegistry` and `playerDeck`,
+ *    so the materialized defs and the deck-list ids agree (see CLAUDE.md).
+ *  - `applyRelicsToState` runs before `applyHeroModsToState`, which adds element caps and
+ *    the unique's persistent `costBase` discount on top.
+ *  - a boss `energyOverride` takes the HIGHER of itself and the opener's energy, so it
+ *    cannot erase a start-energy relic applied a moment earlier.
+ */
+export interface Fight {
+  registry: Registry;
+  initial: GameState;
+  enc: Encounter;
+}
+
+export const buildFight = (base: Registry, run: RunState, nodeId: string, fightSeed: number): Fight => {
+  const node = run.map.nodes[nodeId];
+  if (!node) throw new Error(`buildFight: no node ${nodeId}`);
+  const mods = aggregateMods(run.relics);
+  const enc = rollEncounter(base, node, run.act, mods.enemyHpDelta);
+  // Element-conditional relic buffs are transient stat enhancements on the player's deck;
+  // both the registry (which materializes the buffed defs) and the deck-list must see the
+  // same buffed copies, so derive it once and pass it to both.
+  const buffedDeck = applyDeckBuffs(base, run.deck, mods);
+  const registry = buildRunRegistry(base, {
+    deck: buffedDeck,
+    enemyLeaderId: enc.enemyLeaderId,
+    enemyLeaderHp: enc.enemyHp,
+    playerLeaderId: run.leaderId,
+    heroUpgrades: run.heroUpgrades,
+    signatureBuff: run.signatureBuff,
+    ...(enc.twist ? { twist: enc.twist } : {}),
+    ...(enc.boss?.heroPowerOverride ? { enemyHeroPowerOverride: enc.boss.heroPowerOverride } : {}),
+  });
+  let initial = buildEncounterState(registry, playerDeck(run.leaderId, buffedDeck), enc, fightSeed, run.hp);
+  initial = applyRelicsToState(registry, initial, mods, subSeed(run.seed, run.act, 'relicstate', nodeId));
+  // Leader upgrades that can't live on the hero power: Attune's element caps and any
+  // unique's cost discount (Naife's Environments).
+  applyHeroModsToState(initial, heroStateMods(run.leaderId, run.heroUpgrades));
+
+  // Boss curses that aren't twists: a fixed-energy override and/or an asymmetric per-turn
+  // card modifier (player mills, boss draws extra). `initGame` already ran round 1's
+  // beginTurn, so the override must also be patched onto the opening player's energy
+  // directly — every later turn reads it live.
+  if (enc.boss?.energyOverride !== undefined) {
+    initial.energyOverride = enc.boss.energyOverride;
+    const opener = initial.players[initial.active];
+    opener.energy = Math.max(opener.energy, enc.boss.energyOverride);
+  }
+  if (enc.boss?.curse?.playerMillPerTurn) {
+    initial.players[0].turnCardMod = { ...initial.players[0].turnCardMod, millSelf: enc.boss.curse.playerMillPerTurn };
+  }
+  if (enc.boss?.curse?.bossExtraDrawPerTurn) {
+    initial.players[1].turnCardMod = { ...initial.players[1].turnCardMod, extraDraws: enc.boss.curse.bossExtraDrawPerTurn };
+  }
+  return { registry, initial, enc };
 };

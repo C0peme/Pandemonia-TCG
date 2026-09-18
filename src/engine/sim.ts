@@ -46,7 +46,18 @@ export interface GameResult {
  * Cost: ~15 s/game vs ~0.3 s/game.
  */
 export function simulateGame(registry: Registry, decks: [Deck, Deck], seed: number, usePlan = true): GameResult {
-  let state: GameState = initGame({ registry, decks, seed });
+  return playOutGame(registry, initGame({ registry, decks, seed }), usePlan);
+}
+
+/**
+ * Play an ALREADY-BUILT opening state to completion, same policy and accounting as
+ * `simulateGame`. Split out for Adventure: a run's encounter is not two decklists and a
+ * seed — it is a state carrying carried-over leader HP, relic mods, attune caps, trial
+ * twists and boss curses (see `buildFight`). Feeding that state in here is what lets the
+ * run simulator measure the fight a player actually gets rather than an approximation.
+ */
+export function playOutGame(registry: Registry, initial: GameState, usePlan = true): GameResult {
+  let state: GameState = initial;
   const played: [Record<string, number>, Record<string, number>] = [{}, {}];
   const damageByCard: [Record<string, number>, Record<string, number>] = [{}, {}];
   const heroPowers: [number, number] = [0, 0];
