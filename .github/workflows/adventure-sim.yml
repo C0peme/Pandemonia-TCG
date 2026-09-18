@@ -1,0 +1,85 @@
+# Measured Adventure run pass on hosted runners, one leader per runner.
+#
+# Secondary evidence by construction: the runs are played by `DEFAULT_POLICY`, an
+# ordinary-competent-player stand-in, so a number here is "what that policy achieves"
+# rather than a fact about the game. Read it against the meta pass, not instead of it.
+name: Adventure Sim
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Runs per leader
+        default: '10'
+      acts:
+        description: Acts a run must clear to count as cleared
+        default: '3'
+  push:
+    branches: ['claude/**']
+    paths: ['.github/workflows/adventure-sim.yml']
+
+concurrency:
+  group: adventure-sim-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  leader:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        leader:
+          - kedou
+          - cleath
+          - orsyric
+          - aleph
+          - phantom
+          - screyera
+          - ringleader
+          - corpselock
+          - johnpork
+          - autopus
+          - eksana
+          - noctua
+          - naife
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci || npm install
+      - name: Run ${{ matrix.leader }}
+        env:
+          RUN_BALANCE: '1'
+          ADV_LEADERS: ${{ matrix.leader }}
+          ADV_RUNS: ${{ github.event.inputs.runs || '10' }}
+          ADV_ACTS: ${{ github.event.inputs.acts || '3' }}
+        run: |
+          npx vitest run src/adventure/adventure_sim.test.ts --reporter=verbose --disable-console-intercept \
+            | tee adventure-${{ matrix.leader }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adventure-${{ matrix.leader }}
+          path: adventure-${{ matrix.leader }}.txt
+
+  report:
+    needs: leader
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: adv
+          pattern: adventure-*
+          merge-multiple: true
+      - name: Write job summary
+        run: |
+          {
+            echo '## Adventure runs'
+            echo '```'
+            grep -h -E '^[a-z]+ +[0-9]+%|^Leader ' adv/*.txt | sort -u || cat adv/*.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat adv/*.txt

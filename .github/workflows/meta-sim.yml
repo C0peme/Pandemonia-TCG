@@ -1,0 +1,115 @@
+# Measured meta pass on hosted runners.
+#
+# The 13x13 round robin is 78 pairings and, under the planning AI (the shipped policy and
+# the only one balance work may use), a game is ~5-15s. One machine is therefore hours.
+# Every pairing is independent and seeded from its own pairing index, so the work shards
+# cleanly: N runners produce exactly the matrix one machine would, in 1/N the wall clock.
+#
+# Trigger: push a change to this file on the working branch, or dispatch it once this
+# workflow is on the default branch.
+name: Meta Sim
+
+on:
+  workflow_dispatch:
+    inputs:
+      games:
+        description: Games per pairing (higher = tighter confidence, linear cost)
+        default: '24'
+      shards:
+        description: Parallel runners to split the 78 pairings across
+        default: '20'
+      seed:
+        description: Base seed
+        default: '1'
+  push:
+    branches: ['claude/**']
+    paths: ['.github/workflows/meta-sim.yml']
+
+concurrency:
+  group: meta-sim-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+      count: ${{ steps.plan.outputs.count }}
+      games: ${{ steps.plan.outputs.games }}
+      seed: ${{ steps.plan.outputs.seed }}
+    steps:
+      - id: plan
+        env:
+          GAMES: ${{ github.event.inputs.games || '24' }}
+          SHARDS: ${{ github.event.inputs.shards || '20' }}
+          SEED: ${{ github.event.inputs.seed || '1' }}
+        run: |
+          node -e '
+            const n = Number(process.env.SHARDS);
+            console.log("shards=" + JSON.stringify([...Array(n).keys()]));
+            console.log("count=" + n);
+            console.log("games=" + Number(process.env.GAMES));
+            console.log("seed=" + Number(process.env.SEED));
+          ' >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+  shard:
+    needs: prep
+    runs-on: ubuntu-latest
+    # A shard that dies must not cancel the rest: the combine step reports missing
+    # pairings explicitly, so partial data is still worth having.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.prep.outputs.shards) }}
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci || npm install
+      - name: Run shard ${{ matrix.shard }}
+        env:
+          RUN_BALANCE: '1'
+          META_SHARD: ${{ matrix.shard }}
+          META_SHARDS: ${{ needs.prep.outputs.count }}
+          META_GAMES: ${{ needs.prep.outputs.games }}
+          META_SEED: ${{ needs.prep.outputs.seed }}
+        run: npx vitest run src/cards/meta_shard.test.ts --reporter=verbose --disable-console-intercept
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meta-shard-${{ matrix.shard }}
+          path: meta-out/*.json
+          if-no-files-found: error
+
+  combine:
+    needs: [prep, shard]
+    # Runs even when a shard failed, so a partial matrix still produces a report.
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: meta-out
+          pattern: meta-shard-*
+          merge-multiple: true
+      - name: Combine shards
+        run: |
+          node scripts/meta-combine.mjs meta-out --json meta-report.json | tee meta-report.txt
+      - name: Write job summary
+        run: |
+          {
+            echo '## Meta matrix'
+            echo '```'
+            cat meta-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meta-report
+          path: |
+            meta-report.txt
+            meta-report.json
