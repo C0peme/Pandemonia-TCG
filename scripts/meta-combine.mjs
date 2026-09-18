@@ -33,12 +33,23 @@ const deckGames = {};
 const deckWins = {};
 const heroPowers = {};
 const turns = {};
+// The denominator for the per-card aggregates: games in which this deck's plays were actually
+// observed. Current shards credit BOTH sides of every game and report it as `cardGames`, so it
+// is just every game the deck played. Shard files written before that change credited only the
+// LOWER-INDEXED deck of each pairing, so a deck was observed in just its j>i pairings — deck 0
+// in all 12, the last deck in none. Dividing those by `deckGames` deflated every play rate by a
+// factor that depended purely on the deck's position in the list and reported the last deck's
+// whole list as never played, so for those files the denominator is derived from the pairs
+// instead. Either way it is the honest one, and old artifacts need no re-run.
+const cardGames = {};
+const haveCardGames = shards.some((s) => s.cardGames);
 for (const name of names) {
   cards[name] = {};
   deckGames[name] = 0;
   deckWins[name] = 0;
   heroPowers[name] = 0;
   turns[name] = 0;
+  cardGames[name] = 0;
 }
 
 let elapsed = 0;
@@ -47,6 +58,8 @@ for (const s of shards) {
   for (const { i, j, iWins, games } of s.pairs) {
     matrix[i][j] = iWins;
     matrix[j][i] = games - iWins; // sides alternate within a pairing, so the pair is symmetric
+    // Pre-`cardGames` shards: deck i is the hero in this pairing, deck j contributes nothing.
+    if (!haveCardGames) cardGames[names[i]] += games;
   }
   for (const [name, agg] of Object.entries(s.cards)) {
     for (const [cardId, a] of Object.entries(agg)) {
@@ -63,6 +76,7 @@ for (const s of shards) {
     deckWins[name] += s.deckWins?.[name] ?? 0;
     heroPowers[name] += s.heroPowers?.[name] ?? 0;
     turns[name] += s.turns?.[name] ?? 0;
+    if (haveCardGames) cardGames[name] += s.cardGames?.[name] ?? 0;
   }
 }
 
@@ -106,7 +120,7 @@ console.log(`\nSpread: ${spread.toFixed(1)}pp   (min ${Math.min(...pcts).toFixed
 console.log('\n--- Per-card: play rate and win rate when played ---');
 console.log('Deck'.padEnd(14) + 'Card'.padEnd(26) + 'copies  play%   win%   dmg/game');
 for (const name of names) {
-  const gp = deckGames[name] || 1;
+  const gp = cardGames[name] || 1;
   const rows = Object.entries(cards[name])
     .map(([cardId, a]) => ({
       cardId,
@@ -129,12 +143,20 @@ for (const name of names) {
   }
 }
 
+// A deck with no hero games has no card data at all; that is a hole in the measurement, not a
+// pool of dead cards, so it is reported as such rather than listed card-by-card as unplayed.
 const never = [];
-for (const name of names) for (const [cardId, a] of Object.entries(cards[name])) if (a.gamesPlayedIn === 0) never.push(`${name}/${cardId}`);
+const unmeasured = names.filter((nm) => !cardGames[nm]);
+for (const name of names) {
+  if (!cardGames[name]) continue;
+  for (const [cardId, a] of Object.entries(cards[name])) if (a.gamesPlayedIn === 0) never.push(`${name}/${cardId}`);
+}
 console.log(`\nNever played across the field: ${never.length ? never.join(', ') : 'none'}`);
-console.log(`\nHero power casts per game: ` + names.map((nm) => `${nm} ${(heroPowers[nm] / (deckGames[nm] || 1)).toFixed(2)}`).join(', '));
+if (unmeasured.length) console.log(`No per-card data (never the hero side): ${unmeasured.join(', ')}`);
+console.log(`\nPer-card denominator (games observed${haveCardGames ? '' : ', hero side only — pre-both-sides shards'}): ` + names.map((nm) => `${nm} ${cardGames[nm]}`).join(', '));
+console.log(`\nHero power casts per game: ` + names.map((nm) => `${nm} ${(heroPowers[nm] / (cardGames[nm] || 1)).toFixed(2)}`).join(', '));
 
 if (jsonOut) {
-  writeFileSync(jsonOut, JSON.stringify({ names, leaders, gamesPer, usePlan, matrix, field, cards, deckGames, deckWins, heroPowers, turns, missing }, null, 1));
+  writeFileSync(jsonOut, JSON.stringify({ names, leaders, gamesPer, usePlan, matrix, field, cards, deckGames, cardGames, deckWins, heroPowers, turns, missing }, null, 1));
   console.log(`\nwrote ${jsonOut}`);
 }

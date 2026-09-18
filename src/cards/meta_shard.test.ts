@@ -2,7 +2,8 @@ import { describe, it } from 'vitest';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { starterRegistry, starterDecks } from '@cards/data/starter';
 import { expandDeck } from '@cards/registry';
-import { playHeroGame } from '@engine/sim';
+import { simulateGame } from '@engine/sim';
+import type { Deck } from '@cards/schema';
 import type { PlayerId } from '@engine/types';
 
 /**
@@ -18,6 +19,13 @@ import type { PlayerId } from '@engine/types';
  * It also collects what `runMeta` throws away: per-deck per-card play/win/damage
  * aggregates, which is the signal a balance pass acts on. `scripts/meta-combine.mjs`
  * merges the shard files into one report.
+ *
+ * BOTH sides of every game are credited. `playHeroGame` reports only the hero's plays, so
+ * crediting through it gave card data to the lower-indexed deck of a pairing alone — deck 0 was
+ * the hero in all 12 of its pairings, the last deck in none, and its whole list read as never
+ * played. `simulateGame` already returns `played`/`damageByCard` for both players, so taking
+ * both costs no extra simulation and gives every deck the same full-field denominator.
+ * The seeds and pairing order are unchanged, so the MATRIX is identical either way.
  *
  * OPT-IN ONLY, same gate as meta_sim.test.ts — hours of work under the planning AI:
  *
@@ -58,6 +66,9 @@ describe.skipIf(!RUN_BALANCE)('meta shard', () => {
     const deckWins: Record<string, number> = {};
     const heroPowers: Record<string, number> = {};
     const turns: Record<string, number> = {};
+    // Games in which this deck's cards were observed — the honest denominator for the card
+    // aggregates, and now simply every game the deck played.
+    const cardGames: Record<string, number> = {};
     for (const d of decks) {
       const counts: Record<string, number> = {};
       for (const e of d.cards) counts[e.cardId] = e.count;
@@ -70,6 +81,7 @@ describe.skipIf(!RUN_BALANCE)('meta shard', () => {
       deckWins[d.name] = 0;
       heroPowers[d.name] = 0;
       turns[d.name] = 0;
+      cardGames[d.name] = 0;
     }
 
     const credit = (deckName: string, won: boolean, played: Record<string, number>, damage: Record<string, number>): void => {
@@ -97,16 +109,27 @@ describe.skipIf(!RUN_BALANCE)('meta shard', () => {
         // Seed derives from the PAIRING INDEX, so a shard's results never depend on which
         // other pairings ran before it on the same machine.
         const seed = SEED_BASE + idx * GAMES + g;
-        const heroSide: PlayerId = g % 2 === 0 ? 0 : 1;
-        const r = playHeroGame(starterRegistry, a, b, heroSide, seed, USE_PLAN);
-        if (r.heroWon) iWins += 1;
-        credit(a.name, r.heroWon, r.heroPlayed, r.heroDamage);
+        // `a` alternates sides so neither deck keeps the first-player advantage. Seating is
+        // identical to the `playHeroGame(a, b, heroSide, ...)` this used to call, so the
+        // matrix is unchanged; only the discarded second side is now kept.
+        const aSide: PlayerId = g % 2 === 0 ? 0 : 1;
+        const seated: [Deck, Deck] = aSide === 0 ? [a, b] : [b, a];
+        const r = simulateGame(starterRegistry, seated, seed, USE_PLAN);
+        const aWon = r.winner === aSide;
+        const bSide: PlayerId = aSide === 0 ? 1 : 0;
+        if (aWon) iWins += 1;
+        credit(a.name, aWon, r.played[aSide]!, r.damageByCard[aSide]!);
+        credit(b.name, !aWon, r.played[bSide]!, r.damageByCard[bSide]!);
+        cardGames[a.name]! += 1;
+        cardGames[b.name]! += 1;
         deckGames[a.name]! += 1;
         deckGames[b.name]! += 1;
-        if (r.heroWon) deckWins[a.name]! += 1;
+        if (aWon) deckWins[a.name]! += 1;
         else deckWins[b.name]! += 1;
-        heroPowers[a.name]! += r.heroPowers;
+        heroPowers[a.name]! += r.heroPowers[aSide]!;
+        heroPowers[b.name]! += r.heroPowers[bSide]!;
         turns[a.name]! += r.turns;
+        turns[b.name]! += r.turns;
       }
       results.push({ i, j, iWins, games: GAMES });
       console.log(`  ${a.name} vs ${b.name}: ${iWins}/${GAMES}  (${((Date.now() - t0) / 1000).toFixed(0)}s elapsed)`);
@@ -124,6 +147,7 @@ describe.skipIf(!RUN_BALANCE)('meta shard', () => {
       pairs: results,
       cards,
       deckGames,
+      cardGames,
       deckWins,
       heroPowers,
       turns,
