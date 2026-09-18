@@ -148,9 +148,11 @@ low-stakes (heal / free card / attune only).
   target (`targets[cursor++]` in `effects.ts`), so "hits a second unit" needs no engine work.
 - **Act 2 boss** awards the **signature buff** (`SIGNATURE_UPGRADES`, same file) — a
   per-leader rewrite of the SIGNATURE card, applied by `runRegistry` when
-  `RunState.signatureBuff` is set. Framework only — the 13 per-leader effects are
-  authored incrementally, same pattern as `LEADER_UPGRADES`; a leader with no entry
-  just keeps their base signature.
+  `RunState.signatureBuff` is set. All 13 are authored, same pattern as
+  `LEADER_UPGRADES`; a leader with no entry (a custom one) is not offered the unlock and
+  gets a bonus relic instead. A transform must keep the card's `id` (`runRegistry` re-keys
+  by it) and rewrite `text` (the detail panel renders it verbatim); `signatureUpgrades.test.ts`
+  enforces both, plus schema validity — `applySignatureUpgrade` does not re-parse.
 - Both are boss-kill reward-screen gates (`RunPhase` `reward.unlock: 'unique' | 'signature'`,
   claimed via `claimUnlock`), resolved the same way as the existing card/relic gates.
 

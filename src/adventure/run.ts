@@ -169,12 +169,13 @@ export const resolveCombat = (run: RunState, registry: Registry, won: boolean, p
  * Which progression unlock (if any) this boss kill awards.
  *
  * BOTH unlocks are gated on an upgrade actually being AUTHORED for the run's leader.
- * `SIGNATURE_UPGRADES` is currently empty (the delivery framework shipped ahead of the
- * per-leader content), and offering `signature` regardless meant the act 2 boss handed
- * out a reward screen promising a permanently empowered Signature that changed nothing
- * — and, because an unlock suppresses `bonusRelic`, it also cost the player the relic
- * they would otherwise have received. Gating here is self-healing: authoring an entry
- * in SIGNATURE_UPGRADES turns the unlock back on for that leader with no change here.
+ * All 13 shipped leaders now have both, but the gate stays for anything that doesn't —
+ * a custom leader, or a future one added ahead of its content. Offering `signature`
+ * regardless meant the act 2 boss handed out a reward screen promising a permanently
+ * empowered Signature that changed nothing — and, because an unlock suppresses
+ * `bonusRelic`, it also cost the player the relic they would otherwise have received.
+ * Gating here is self-healing: authoring an entry in SIGNATURE_UPGRADES turns the
+ * unlock on for that leader with no change here.
  */
 const bossUnlock = (run: RunState, kind: MapNode['kind']): 'unique' | 'signature' | undefined => {
   if (kind !== 'boss') return undefined;

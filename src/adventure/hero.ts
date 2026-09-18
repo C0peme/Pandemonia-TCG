@@ -16,7 +16,7 @@
  * live on the hero power, so they are collected by `heroStateMods` and applied to the
  * opening GameState alongside relic mods (see CombatView).
  */
-import type { Card, Effect, Element, Leader } from '@cards/schema';
+import type { Card, Effect, Element, FoundationCard, Leader, UnitCard } from '@cards/schema';
 import type { GameState, PlayerId, PlayerState } from '@engine/types';
 import type { HeroUpgrade } from '@adventure/schema';
 
@@ -194,13 +194,16 @@ export const applyHeroUpgrades = (leader: Leader, upgrades: readonly HeroUpgrade
  * `runRegistry` swaps the rewritten def in, so the buffed signature is what gets
  * delivered to hand when the leader crosses the Signature threshold.
  *
- * NOTE: the per-leader effects are not yet authored — this is the delivery framework.
- * Add entries here (same shape as LEADER_UPGRADES) and they take effect immediately.
+ * All 13 leaders are authored below. A leader with NO entry is not offered the unlock at
+ * all: `bossUnlock` (run.ts) reads this table, so the act 2 boss grants that leader a bonus
+ * relic instead of a reward screen promising an empowered Signature that does nothing. That
+ * gate stays — it is what keeps a custom or future leader with no authored buff honest.
  *
- * A leader with NO entry is not offered the unlock at all: `bossUnlock` (run.ts) reads
- * this table, so the act 2 boss grants that leader a bonus relic instead of a reward
- * screen promising an empowered Signature that does nothing. Authoring an entry here is
- * the only step needed to turn the real unlock back on for that leader.
+ * The transform must preserve the card's `id`: `runRegistry` re-keys the rewritten def by
+ * `buffed.id`, so changing it would file the buff under a card nothing looks up. It must
+ * also rewrite `text`, which the card detail panel renders verbatim — the authored line
+ * describes the BASE card and would lie about the upgraded one (the same reason
+ * `applyHeroUpgrades` drops the hero power's `text`).
  */
 export interface SignatureUpgrade {
   name: string;
@@ -209,8 +212,192 @@ export interface SignatureUpgrade {
   card: (c: Card) => Card;
 }
 
+/**
+ * Rewrite a SPELL signature: new rules text plus a transform of its effect list. A card of
+ * any other type is returned untouched, so a mis-keyed entry degrades to a no-op rather
+ * than producing a malformed card.
+ */
+const spellSig =
+  (text: string, fx: (effects: Effect[]) => Effect[]) =>
+  (c: Card): Card =>
+    c.type === 'spell' ? { ...c, text, effects: fx(c.effects) } : c;
+
+/** Rewrite a UNIT signature (Cleath's free defender). */
+const unitSig =
+  (text: string, fn: (u: UnitCard) => UnitCard) =>
+  (c: Card): Card =>
+    c.type === 'unit' ? fn({ ...c, text }) : c;
+
+/** Rewrite a FOUNDATION signature (Screyera's and Noctua's grant-platforms). */
+const foundationSig =
+  (text: string, fn: (f: FoundationCard) => FoundationCard) =>
+  (c: Card): Card =>
+    c.type === 'foundation' ? fn({ ...c, text }) : c;
+
+/**
+ * The 13 signature buffs, keyed by leader id — one per leader, mirroring LEADER_UPGRADES.
+ *
+ * Each is built from primitives the engine already supports, so none needs engine work:
+ * an added effect resolves through `applyEffects` like any other, and extra targeted
+ * effects consume their own target (`targets[cursor++]` in effects.ts).
+ *
+ * These are deliberately LARGE. The Signature only arrives once the leader is at or below
+ * half HP, and this buff costs an act 2 boss kill on top of that — it is the comeback
+ * payoff for a run that has already been ground down, not a card the player curves into.
+ */
 export const SIGNATURE_UPGRADES: Record<string, SignatureUpgrade> = {
-  // Intentionally empty until the per-leader buffs are authored.
+  // The bath boils over: DoT runs on BOTH tickers, so the upgrade adds the second one.
+  kedou: {
+    name: 'Boiling Point',
+    icon: '♨',
+    desc: 'Steam Bath inflicts Burn 3 instead of Burn 2, and also Poisons every enemy.',
+    card: spellSig('Signature: inflict Burn 3 and Poison on all enemy units.', (fx) => [
+      ...fx.map((e) => (e.kind === 'applyStatus' && e.status === 'burn' ? { ...e, amount: 3 } : e)),
+      { kind: 'applyStatus', target: 'all-enemy', status: 'poison' },
+    ]),
+  },
+  // The wall stops being something to climb and starts being something that hits back.
+  cleath: {
+    name: 'The Mountain Wakes',
+    icon: '⛰',
+    desc: 'Living Mountain arrives as a 4/6 with Tough 3 and Spike 2.',
+    card: unitSig('Signature: a massive free defender that punishes every attacker.', (u) => ({
+      ...u,
+      attack: 4,
+      hp: 6,
+      keywords: { ...u.keywords, tough: 3, spike: 2 },
+    })),
+  },
+  // The last charge goes THROUGH the wall — Aggro's losing matchup is the one that blocks.
+  orsyric: {
+    name: 'Last Breath',
+    icon: '🔥',
+    desc: 'Overexert grants +2/0 instead of +1/0, and gives every ally Pierce for the swing.',
+    card: spellSig('Signature: all allies gain +2/0, Pierce and a bonus attack.', (fx) =>
+      fx.map((e) => (e.kind === 'buff' ? { ...e, stat: { attack: 2 }, keywords: { ...e.keywords, pierce: true } } : e)),
+    ),
+  },
+  // He does not merely level the board; he forbids it from rising again.
+  aleph: {
+    name: 'Final Judgement',
+    icon: '⚖',
+    desc: 'Reflections of Omniscience reduces enemies by -3/-3 and Poisons them, so they cannot be buffed back.',
+    card: spellSig('Signature: reduce every enemy unit by -3/-3 and Poison them.', (fx) => [
+      ...fx.map((e) => (e.kind === 'debuff' ? { ...e, stat: { attack: 3, hp: 3 } } : e)),
+      { kind: 'applyStatus', target: 'all-enemy', status: 'poison' },
+    ]),
+  },
+  // The mask covers the whole board: everything frozen, everything of his striking twice.
+  phantom: {
+    name: 'Total Eclipse',
+    icon: '🎭',
+    desc: 'Masking gives Pierce and Double Strike to EVERY ally, not just one.',
+    card: spellSig('Signature: freeze all enemy units and give all your units Pierce and Double Strike.', (fx) =>
+      fx.map((e) => (e.kind === 'buff' ? { ...e, target: 'all-ally' as const } : e)),
+    ),
+  },
+  // The keystone finally carries the weight the prophecy promised it would.
+  screyera: {
+    name: 'Destiny Written',
+    icon: '🔮',
+    desc: 'Fortune Foretold is a 4/7 and grants +2/+3 and Spike 3 to the unit above it.',
+    card: foundationSig(
+      'Signature Foundation: grants +2/+3, Taunt, Tough 1 and Spike 3 to the unit above it.',
+      (f) => ({
+        ...f,
+        attack: 4,
+        hp: 7,
+        grants: { ...f.grants, stat: { attack: 2, hp: 3 }, keywords: { ...f.grants.keywords, spike: 3 } },
+      }),
+    ),
+  },
+  // Top billing: the avatar walks out with a guarantee that whatever it touches dies.
+  ringleader: {
+    name: 'Main Event',
+    icon: '🎩',
+    desc: 'Core Component grants Shield 2, Lethal, and Bloodlust +1/+1.',
+    card: spellSig('Signature: your leader-unit gains Shield 2, Lethal, Pierce and Bloodlust +1/+1.', (fx) =>
+      fx.map((e) => {
+        if (e.kind === 'applyStatus' && e.status === 'shield') return { ...e, amount: 2 };
+        if (e.kind === 'buff') {
+          return { ...e, keywords: { ...e.keywords, lethal: true, bloodlust: { buff: { attack: 1, hp: 1 } } } };
+        }
+        return e;
+      }),
+    ),
+  },
+  // Full banks are worthless with an empty hand — the terminal stage supplies both.
+  corpselock: {
+    name: 'Terminal Stage',
+    icon: '🦠',
+    desc: 'Stage 4 also draws 2 cards, so the filled banks have something to be spent on.',
+    card: spellSig('Signature: fill every element bank to its cap and draw 2 cards.', (fx) => [
+      ...fx,
+      { kind: 'draw', amount: 2 },
+    ]),
+  },
+  // Last call empties the room AND the cellar: the board goes back to hand, the deck thins.
+  johnpork: {
+    name: 'Last Call',
+    icon: '🍺',
+    desc: 'Happy Hour also makes the opponent forget 3 cards from their deck.',
+    card: spellSig(
+      "Signature: expel every enemy unit to the opponent's hand (overflowing it) and make them forget 3 cards.",
+      (fx) => [...fx, { kind: 'forget', amount: 3, target: 'enemy' }],
+    ),
+  },
+  // The swarm arrives already running — a board of Techtacles that has to wait a turn is a
+  // board the opponent simply answers.
+  autopus: {
+    name: 'Overclock',
+    icon: '🐙',
+    desc: '8Bits also gives every ally +1/+1 and Battle Ready, so the swarm attacks the turn it lands.',
+    card: spellSig(
+      'Signature: summon a Techtacle in every lane; all allies gain +1/+1 and Battle Ready.',
+      (fx) => [...fx, { kind: 'buff', target: 'all-ally', stat: { attack: 1, hp: 1 }, keywords: { battleReady: true } }],
+    ),
+  },
+  // A sharper blade cuts a longer chain — and nothing it has frozen or walled is safe.
+  eksana: {
+    name: 'Execution Order',
+    icon: '🗡',
+    desc: 'Swift Kill opens at 7 damage instead of 5, and pierces Freeze, Shield and Tough.',
+    card: spellSig('Signature: deal 7 to an enemy, ignoring defences; on a kill, chain 6, 5, 4… onward.', (fx) =>
+      fx.map((e) => (e.kind === 'damage' ? { ...e, amount: 7, pierce: true } : e)),
+    ),
+  },
+  // Ascension completes: the host stops dying at all, and grows faster while it does not.
+  noctua: {
+    name: 'Apotheosis',
+    icon: '💀',
+    desc: "Death Goddess' Will is a 4/6 and grants True Shield and Growth +3/+3.",
+    card: foundationSig(
+      'Signature Foundation: grants Immunity, Zombified, True Shield and Growth +3/+3 to the unit above it.',
+      (f) => ({
+        ...f,
+        attack: 4,
+        hp: 6,
+        grants: {
+          ...f.grants,
+          keywords: { ...f.grants.keywords, trueShield: true, growth: { attack: 3, hp: 3 } },
+        },
+      }),
+    ),
+  },
+  // The ruins answer to him now: the whole line is warded, and there is a second field to
+  // lay down for free while the discount lasts.
+  naife: {
+    name: 'Ruins Reclaimed',
+    icon: '🐢',
+    desc: 'Guardian of Ruins wards EVERY ally and conjures a Tidal Rift alongside the Tundra.',
+    card: spellSig(
+      'Signature: give all your units Immunity and Pierce. All environments cost 0 energy this turn. Conjure a Tundra and a Tidal Rift.',
+      (fx) => [
+        ...fx.map((e) => (e.kind === 'buff' ? { ...e, target: 'all-ally' as const } : e)),
+        { kind: 'conjure', target: 'self', cardId: 'tidal-rift' },
+      ],
+    ),
+  },
 };
 
 export const signatureUpgrade = (leaderId: string): SignatureUpgrade | undefined => SIGNATURE_UPGRADES[leaderId];

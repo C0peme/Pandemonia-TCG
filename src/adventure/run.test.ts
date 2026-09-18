@@ -14,16 +14,35 @@ import { SIGNATURE_UPGRADES } from '@adventure/hero';
 const registry = buildRegistry(starterCards, starterLeaders);
 
 /**
- * Run `fn` with a stub signature upgrade authored for `leaderId`. The real table is
- * empty (the framework shipped ahead of the content), so the unlock path can only be
- * exercised by temporarily populating it.
+ * Run `fn` with a stub signature upgrade authored for `leaderId`, restoring whatever was
+ * there before. Every shipped leader now HAS a real buff, so the stub keeps this test
+ * asserting the unlock gate rather than the content of one particular entry — and the
+ * restore matters: an unconditional `delete` here would strip that leader's real buff for
+ * every test that ran afterwards.
  */
 const withSignatureUpgrade = (leaderId: string, fn: () => void): void => {
+  const prev = SIGNATURE_UPGRADES[leaderId];
   SIGNATURE_UPGRADES[leaderId] = { name: 'Test Buff', icon: '★', desc: 'test', card: (c) => c };
   try {
     fn();
   } finally {
-    delete SIGNATURE_UPGRADES[leaderId];
+    if (prev) SIGNATURE_UPGRADES[leaderId] = prev;
+    else delete SIGNATURE_UPGRADES[leaderId];
+  }
+};
+
+/**
+ * The mirror image: run `fn` with NO signature upgrade authored for `leaderId`. All 13
+ * shipped leaders have one, so this is how the "leader with no authored buff" branch —
+ * still live for a custom or future leader — stays covered.
+ */
+const withoutSignatureUpgrade = (leaderId: string, fn: () => void): void => {
+  const prev = SIGNATURE_UPGRADES[leaderId];
+  delete SIGNATURE_UPGRADES[leaderId];
+  try {
+    fn();
+  } finally {
+    if (prev) SIGNATURE_UPGRADES[leaderId] = prev;
   }
 };
 
@@ -419,16 +438,26 @@ describe('boss unlocks', () => {
     });
   });
 
-  // Regression: SIGNATURE_UPGRADES is currently empty, and offering the unlock anyway
-  // gave the player a reward screen promising an empowered Signature that did nothing
-  // — while ALSO suppressing the bonus relic an unlock-less boss grants.
+  // Regression: offering the unlock for a leader with no authored buff gave the player a
+  // reward screen promising an empowered Signature that did nothing — while ALSO
+  // suppressing the bonus relic an unlock-less boss grants. All 13 shipped leaders are
+  // authored now, so the branch is reached by removing one for the duration of the test.
   it('the act 2 boss offers NO signature unlock when the leader has none authored', () => {
     const act2 = { ...startRun('orsyric', 42, registry), act: 2, heroUpgrades: [{ kind: 'unique' as const }] };
     const run = teleportTo(act2, 'boss');
+    withoutSignatureUpgrade('orsyric', () => {
+      const won = resolveCombat(run, registry, true, 20);
+      expect(won.phase.t === 'reward' && won.phase.unlock).toBeUndefined();
+      // ...and falls back to the bonus relic rather than being reduced to coins.
+      expect(won.phase.t === 'reward' && won.phase.bonusRelic).toBe(true);
+    });
+  });
+
+  it('the act 2 boss offers the signature unlock for a shipped leader, with no stubbing', () => {
+    const act2 = { ...startRun('orsyric', 42, registry), act: 2, heroUpgrades: [{ kind: 'unique' as const }] };
+    const run = teleportTo(act2, 'boss');
     const won = resolveCombat(run, registry, true, 20);
-    expect(won.phase.t === 'reward' && won.phase.unlock).toBeUndefined();
-    // ...and falls back to the bonus relic rather than being reduced to coins.
-    expect(won.phase.t === 'reward' && won.phase.bonusRelic).toBe(true);
+    expect(won.phase.t === 'reward' && won.phase.unlock).toBe('signature');
   });
 
   it('a non-boss combat kill never offers an unlock', () => {
