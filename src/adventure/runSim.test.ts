@@ -48,13 +48,16 @@ describe('simulateRun', () => {
   });
 
   it('carries leader HP between fights rather than resetting it', () => {
-    const r = simulateRun(base, 'cleath', 5, fast);
-    const won = r.fights.filter((f) => f.won);
-    expect(won.length).toBeGreaterThan(1);
+    // Which seed produces a multi-win run shifts with any content change, so search for
+    // one rather than pinning it — same reason the dead-run test above searches.
+    const r = [5, 6, 7, 8, 9]
+      .map((seed) => simulateRun(base, 'cleath', seed, fast))
+      .find((x) => x.fights.filter((f) => f.won).length > 1);
+    expect(r, 'no seed produced a run winning more than one fight').toBeDefined();
     // Every fight opens at the run's carried HP, never above the leader's max.
-    for (const f of r.fights) expect(f.hpBefore).toBeLessThanOrEqual(r.maxHp);
+    for (const f of r!.fights) expect(f.hpBefore).toBeLessThanOrEqual(r!.maxHp);
     // At least one fight starts below max, i.e. damage actually persisted.
-    expect(r.fights.some((f) => f.hpBefore < r.maxHp)).toBe(true);
+    expect(r!.fights.some((f) => f.hpBefore < r!.maxHp)).toBe(true);
   });
 
   it('respects maxActs', () => {

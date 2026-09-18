@@ -22,10 +22,14 @@ describe('rollEncounter', () => {
 
   it('trims early decks toward cheap cards and scales size with depth/act', () => {
     const early = rollEncounter(base, node({ layer: 0 }), 1);
-    const later = rollEncounter(base, node({ layer: 4, seed: 77 }), 1);
+    const later = rollEncounter(base, node({ layer: 3, seed: 77 }), 1);
+    const deepest = rollEncounter(base, node({ layer: 4, seed: 77 }), 1);
     const size = (e: typeof early): number => e.enemyDeck.cards.reduce((s, c) => s + c.count, 0);
-    expect(size(early)).toBe(12);
-    expect(size(later)).toBe(24);
+    // Floor is 18 (see DECK_FLOOR): below that a side decks out mid-fight and Nulls itself.
+    expect(size(early)).toBe(18);
+    expect(size(later)).toBe(27);
+    // ...and it is still capped at the full deck rather than growing past it.
+    expect(size(deepest)).toBe(RULES.DECK_SIZE);
     // Every trimmed card exists in the source archetype.
     const archetype = starterDecks.find((d) => d.leaderId === early.enemyLeaderId)!;
     const pool = new Set(archetype.cards.map((c) => c.cardId));

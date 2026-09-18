@@ -10,6 +10,7 @@ import { rollStoreOffer, buyPrice, combatReward, attuneCost, restHealAmount, kin
 import { rollEnhanceOffer, canApply } from '@adventure/enhance';
 import { eventForNode } from '@adventure/data/events';
 import { SIGNATURE_UPGRADES } from '@adventure/hero';
+import { ADVENTURE_STARTERS } from '@adventure/data/starters';
 
 const registry = buildRegistry(starterCards, starterLeaders);
 
@@ -61,7 +62,7 @@ describe('run reducer', () => {
     const run = startRun('orsyric', 42);
     expect(run.act).toBe(1);
     expect(run.coins).toBe(ECON.STARTING_COINS);
-    expect(run.deck.length).toBe(11);
+    expect(run.deck.length).toBe(ADVENTURE_STARTERS['orsyric']!.length);
     expect(run.relics).toEqual([]);
     expect(run.phase).toEqual({ t: 'map' });
     expect(reachableNodeIds(run)).toEqual(run.map.layers[0]);
@@ -190,7 +191,7 @@ describe('run reducer', () => {
     expect(act2.act).toBe(2);
     expect(act2.currentNodeId).toBeNull();
     expect(act2.phase).toEqual({ t: 'map' });
-    expect(act2.deck.length).toBe(12); // starter 11 + the chosen boss reward card
+    expect(act2.deck.length).toBe(ADVENTURE_STARTERS['orsyric']!.length + 1); // starter + the chosen boss reward card
     expect(act2.relics.length).toBe(1);
     expect(act2.map.layers.length).toBeGreaterThan(won.map.layers.length - 1);
     expect(act2.map).not.toEqual(won.map);

@@ -38,10 +38,24 @@ export interface Encounter {
  * Trimmed enemy deck size by node depth and act. Elites fight a much fuller deck (as if
  * ~4 layers deeper) so they're a genuine spike. Trials fight a normal-sized deck — their
  * difficulty comes from the twist condition, not extra cards.
+ *
+ * DECK_FLOOR is the load-bearing term, and it is not a difficulty dial. A side holding
+ * fewer than ~18 cards (4 opening + 14 draws) empties its deck mid-fight and spends the
+ * rest of it drawing Nulls, each of which bleeds its OWN leader for 4 when it dies
+ * (special.ts). At the old floor of 12 the enemy decked out around turn 11 and took 56%
+ * of all its leader damage from its own Nulls — with only 12-18 HP to begin with, early
+ * enemies were largely killing themselves, so the early game was decided by deck-out
+ * rather than by play. Raising the floor to 18 (measured: the enemy's post-deck-out
+ * share falls to 31%) makes the enemy HP curve (`encounterHp`) the difficulty lever it
+ * was written to be. Keep this in step with the player's starter size in
+ * data/starters.ts — the two are sized against the same fight length, and lowering
+ * either one re-opens the same hole.
  */
+const DECK_FLOOR = 18;
+
 const encounterDeckSize = (kind: MapNode['kind'], layer: number, act: number): number => {
   const depth = kind === 'elite' ? layer + 4 : layer;
-  return Math.min(RULES.DECK_SIZE, 12 + 3 * depth + 6 * (act - 1));
+  return Math.min(RULES.DECK_SIZE, DECK_FLOOR + 3 * depth + 6 * (act - 1));
 };
 
 /**

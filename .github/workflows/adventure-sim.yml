@@ -3,6 +3,12 @@
 # Secondary evidence by construction: the runs are played by `DEFAULT_POLICY`, an
 # ordinary-competent-player stand-in, so a number here is "what that policy achieves"
 # rather than a fact about the game. Read it against the meta pass, not instead of it.
+#
+# Reference point, so a future reading has something to be a regression against:
+# at starter size 11 / DECK_FLOOR 12 this reported 1/130 runs cleared (0.8%) with
+# essentially every death in act 1 — because both sides emptied their decks mid-fight
+# and killed themselves on Nulls. See src/adventure/deckout_sim.test.ts for the
+# measurement that separates self-inflicted damage from enemy pressure.
 name: Adventure Sim
 
 on:
