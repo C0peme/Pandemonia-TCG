@@ -47,12 +47,15 @@ describe('simulateRun', () => {
     expect(dead!.fights[dead!.fights.length - 1]!.won).toBe(false);
   });
 
-  it('carries leader HP between fights rather than resetting it', () => {
-    // Which seed produces a multi-win run shifts with any content change, so search for
-    // one rather than pinning it — same reason the dead-run test above searches.
-    const r = [5, 6, 7, 8, 9]
-      .map((seed) => simulateRun(base, 'cleath', seed, fast))
-      .find((x) => x.fights.filter((f) => f.won).length > 1);
+  // Searched rather than pinned (see the dead-run test above), and searched LAZILY with
+  // room to breathe: a healthier run is a longer run, so simulating every candidate seed
+  // eagerly is what pushed this past the default 5 s budget.
+  it('carries leader HP between fights rather than resetting it', { timeout: 60_000 }, () => {
+    let r: RunSimResult | undefined;
+    for (const seed of [5, 6, 7, 8, 9]) {
+      const x = simulateRun(base, 'cleath', seed, fast);
+      if (x.fights.filter((f) => f.won).length > 1) { r = x; break; }
+    }
     expect(r, 'no seed produced a run winning more than one fight').toBeDefined();
     // Every fight opens at the run's carried HP, never above the leader's max.
     for (const f of r!.fights) expect(f.hpBefore).toBeLessThanOrEqual(r!.maxHp);

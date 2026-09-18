@@ -47,10 +47,19 @@ export const ECON = {
    * Rest Site recovery. Free (the visit itself is the cost) and expressed as a
    * fraction of max HP so it scales with any leader. Even-rounded to keep the
    * Signature threshold readable.
+   *
+   * Sized against the act's actual HP bill, not by feel. A path through act 1 is ~5.3
+   * battles and a win costs ~9.8 HP, so an act asks for ~52 HP. The player brings 30
+   * and max HP only ever grows via two relics, so the rest of it has to come from
+   * camps — and a rest-seeking route meets only ~1.4 of them per act even after the
+   * mapgen change (see the rest-frequency note in mapgen.ts). At 0.3 this paid 9 HP a
+   * visit, roughly 12 HP an act against a 22 HP shortfall, which is why runs still
+   * died after the deck-out bleed was fixed. Raise these two together and keep Kindle
+   * strictly above Rest, or Kindle stops being worth the two cards it burns.
    */
-  REST_HEAL_FRACTION: 0.3,
+  REST_HEAL_FRACTION: 0.5,
   /** Kindle: burns 2 owned cards for a bigger, still-free heal than plain Rest. */
-  KINDLE_HEAL_FRACTION: 0.5,
+  KINDLE_HEAL_FRACTION: 0.65,
   KINDLE_BURN_COUNT: 2,
   /** Rest Site attunement: base + per attune already owned. */
   TRAIN_BASE: 60,

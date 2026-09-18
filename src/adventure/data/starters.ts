@@ -37,8 +37,12 @@ export const ADVENTURE_STARTERS: Record<string, string[]> = {
   screyera: ['pebble-pup', 'pebble-pup', 'pebble-pup', 'quarry-hand', 'quarry-hand', 'launch-ramp', 'launch-ramp', 'reprisal', 'mud-crab', 'mud-crab', 'mud-crab', 'gravel-hound', 'gravel-hound', 'gravel-hound', 'oak-sentry', 'oak-sentry', 'ridge-walker', 'twin-fang-mount'],
   // Guardian — protection for the avatar plus a few sponges.
   ringleader: ['mend', 'mend', 'wind-redirect', 'peel-back', 'peel-back', 'iron-ward', 'iron-ward', 'iron-ward', 'cold-spell', 'field-mouse', 'field-mouse', 'mush-room', 'mush-room', 'mush-room', 'fog-creature', 'tidecaller-adept', 'crag-hawk', 'crag-hawk'],
-  // Ramp — producers and groundwork.
-  corpselock: ['mend', 'mend', 'briar-colt', 'briar-colt', 'mana-geyser', 'mana-geyser', 'mana-geyser', 'sun-priest', 'sun-priest', 'sun-priest', 'surge-sprite', 'surge-sprite', 'oak-sentry', 'oak-sentry', 'bulwark-toad', 'bulwark-toad', 'ward-spirit', 'root-elder'],
+  // Ramp — producers and groundwork. Ramp's archetype is almost entirely 5+ drops, so
+  // this starter deliberately borrows cheap neutral bodies: measured at 4 cards costing
+  // 2 or less out of 18 it was the heaviest starter in the game and the only one whose
+  // runs got WORSE when starters grew (29.0 HP lost per win, dead on fight 1). A ramp
+  // deck still has to survive to turn 5.
+  corpselock: ['mend', 'mend', 'field-mouse', 'field-mouse', 'briar-colt', 'briar-colt', 'gravel-hound', 'gravel-hound', 'sun-priest', 'sun-priest', 'sun-priest', 'oak-sentry', 'oak-sentry', 'mud-crab', 'mana-geyser', 'mana-geyser', 'bulwark-toad', 'surge-sprite'],
   // Deck Out — burden tools plus sleepy walls.
   johnpork: ['river-minnow', 'river-minnow', 'hypnotic-patterns', 'hypnotic-patterns', 'cursed-gift', 'cursed-gift', 'cold-spell', 'cold-spell', 'peel-back', 'peel-back', 'displacement-wave', 'mind-leech', 'mind-leech', 'mind-leech', 'river-turtle', 'river-turtle', 'sleep-walker', 'sleep-walker'],
   // Stall — walls, spikes, and sustain.

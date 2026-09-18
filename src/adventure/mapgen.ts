@@ -27,8 +27,15 @@ export const generateMap = (seed: number, act: number): RunMap => {
   // Layer 0 is always combat; the boss layer is the boss. Elsewhere we roll,
   // keeping at least one combat per layer and biasing the pre-boss layer toward
   // shopping/upgrading (a "rest stop" before the fight).
+  // Rest is deliberately the second-widest band. Adventure is an attrition run whose
+  // ONLY repeatable HP source is a camp: a path through act 1 is ~5.3 battles costing
+  // ~9.8 HP each against a 30 HP pool, and max HP grows only via two rare relics. At
+  // the old 10% a rest-seeking route met just 0.68 camps an act, so the run was asked
+  // for ~52 HP and handed ~36 — it could not be routed around, only lost to. 18% puts
+  // a path at ~1.4 camps an act. If this drops, raise ECON.REST_HEAL_FRACTION to match
+  // or runs go back to dying on arithmetic rather than on play.
   const rollKind = (r: number): NodeKind =>
-    r < 0.4 ? 'combat' : r < 0.55 ? 'trial' : r < 0.7 ? 'store' : r < 0.82 ? 'enhance' : r < 0.92 ? 'rest' : 'event';
+    r < 0.38 ? 'combat' : r < 0.52 ? 'trial' : r < 0.65 ? 'store' : r < 0.76 ? 'enhance' : r < 0.94 ? 'rest' : 'event';
 
   const kinds: NodeKind[][] = widths.map((w, l) => {
     if (l === 0) return Array<NodeKind>(w).fill('combat');
@@ -45,9 +52,11 @@ export const generateMap = (seed: number, act: number): RunMap => {
     return row;
   });
 
-  // Guarantee at least one store and one enhance somewhere in the middle layers:
-  // swap a combat node in a seeded middle layer if a kind is missing entirely.
-  for (const wanted of ['store', 'enhance'] as const) {
+  // Guarantee at least one store, one enhance and one rest somewhere in the middle
+  // layers: swap a combat node in a seeded middle layer if a kind is missing entirely.
+  // Rest is in this list for the same reason it has a wide band above — a map with no
+  // camp on it is a map the attrition math cannot be survived on.
+  for (const wanted of ['store', 'enhance', 'rest'] as const) {
     if (kinds.some((row) => row.includes(wanted))) continue;
     // Convert a middle-layer combat node, preferring layers that keep a spare combat.
     const candidates: { l: number; c: number; spare: boolean }[] = [];
