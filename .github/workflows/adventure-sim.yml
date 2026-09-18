@@ -4,11 +4,16 @@
 # ordinary-competent-player stand-in, so a number here is "what that policy achieves"
 # rather than a fact about the game. Read it against the meta pass, not instead of it.
 #
-# Reference point, so a future reading has something to be a regression against:
-# at starter size 11 / DECK_FLOOR 12 this reported 1/130 runs cleared (0.8%) with
-# essentially every death in act 1 — because both sides emptied their decks mid-fight
-# and killed themselves on Nulls. See src/adventure/deckout_sim.test.ts for the
-# measurement that separates self-inflicted damage from enemy pressure.
+# Reference points, so a future reading has something to be a regression against
+# (13 leaders x 10 runs x 3 acts, planning AI):
+#   starter 11 / DECK_FLOOR 12          -> 1/130 cleared, ~every death in act 1.
+#     Both sides emptied their decks mid-fight and killed themselves on Nulls.
+#   starter 18 / DECK_FLOOR 18          -> 0/130 cleared, but deaths reach acts 2-3
+#     and HP lost per win drops. The deck-out bleed was one binding constraint;
+#     the act's HP bill was the next.
+#   + rest heal 0.5 / rest band 18%     -> this run.
+# See src/adventure/deckout_sim.test.ts for the measurement that separates
+# self-inflicted damage from enemy pressure.
 name: Adventure Sim
 
 on:
