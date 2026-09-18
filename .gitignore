@@ -18,3 +18,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 meta-out/
+
+# generated balance artifacts
+leader-budget.json
+meta-report.json
+meta-report.txt
