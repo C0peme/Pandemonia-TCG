@@ -4,7 +4,7 @@
  */
 import { buildRegistry, expandKeywordEffects, type Registry } from '@cards/registry';
 import { parseCard, parseDeck, parseLeader, type Card, type Deck, type Effect, type Keywords, type OnHit } from '@cards/schema';
-import { LANES, RULES, type Element, type LaneId } from '@engine/constants';
+import { LANES, RULES, type LaneId } from '@engine/constants';
 import { createRng } from '@engine/rng';
 import {
   emptyBank,
@@ -273,7 +273,12 @@ const blankPlayer = (id: PlayerId): PlayerState => ({
   bank: emptyBank(),
   elementCaps: { fire: 2, water: 2, nature: 2, earth: 2 },
   hand: [],
-  deck: [],
+  // NOT empty. An empty deck makes every multi-turn fixture a DECK-OUT fixture: the player
+  // draws a Null each turn, which now costs them the per-turn hold tax, so tests asserting an
+  // "untouched" 30 HP leader silently fail for reasons unrelated to what they are testing.
+  // That caught both the AI board-development tests and the turn-flow tests. Deck-out tests
+  // set `deck = []` themselves, so they are unaffected by a sane default here.
+  deck: Array.from({ length: 20 }, (_, i) => ({ iid: `deck${i}`, cardId: 'v1' })),
   discard: [],
   lanes: emptyLanes(),
   heroPowerUsed: false,
@@ -360,4 +365,3 @@ export const place = (
   state.players[player].lanes[lane][field] = u;
 };
 
-export const ELEMENTS_LIST: Element[] = ['fire', 'water', 'nature', 'earth'];

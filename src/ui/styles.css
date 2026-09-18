@@ -23,6 +23,25 @@
   --danger: #c23b32;      /* wax-seal / blood red */
   --wax: #a5312a;
 
+  /* ---- ADVENTURE semantic tokens ----
+     Adventure was the one screen the visual overhaul never reached: it still painted
+     from a pre-overhaul cool grey (#262935) and eleven unnamed one-off hexes. Those
+     hexes each MEAN something — node kind, run state — so they are named here rather
+     than inlined, which is what lets the map legend, the panels and the HUD agree.
+     Node hues double as the panel accent for that node type (see .advscene--*). */
+  --adv-combat: #9a8b73;   /* a plain fight — deliberately the muted neutral */
+  --adv-elite:  #e0913a;   /* ember: the beefier fight */
+  --adv-trial:  #d06bd0;   /* violet: the twist condition */
+  --adv-boss:   #c23b32;   /* wax red: the act finale */
+  --adv-rest:   #7fd4a1;   /* moss: recovery */
+  --adv-store:  #e8bf6a;   /* gilt: coins */
+  --adv-enhance:#3a86d6;   /* water: the altar */
+  --adv-event:  #948a78;   /* unknown — the muted parchment */
+  --adv-here:   #7fd4a1;   /* your current position */
+  --enh-gilt: #c68ce8;
+  --copper:     #c9803f;   /* the endgame challenge, outside the elements */
+  --temp-hp:    #9fe2ff;   /* HP carried ABOVE max — nothing tops it back up */
+
   /* ---- STONE theme (menus / default) ---- */
   /* Dark carved stone slabs with light engraved text — keeps the whole app dark and
      lets the menus read as rune-carved tablets, distinct from the battle screen's timber. */
@@ -120,16 +139,21 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
   /* Cap to the field's height. `--field-h` is measured live (ResizeObserver) when available;
      the fallback reconstructs the field from the same viewport math the lanes use
      (lanes clamp + the two banners + chrome) so it's correct even before/without the observer. */
-  max-height: var(--field-h, calc(clamp(190px, 100dvh - 574px, 620px) + 178px));
+  max-height: var(--field-h, calc(clamp(280px, 100dvh - 400px, 940px) + 130px));
 }
 .game.theme-gothic .play > .controls { align-self: start; } /* the altar keeps its natural height */
 /* The lanes drive the board's size: they take all the height left after reserving room for
    the masthead, both banners and the hand — so the whole scene fits without scrolling on a
    normal screen, yet the lanes stay the largest element. Below the min they shrink and the
-   page scrolls (never clips). */
-.game.theme-gothic .field__lanes { grid-auto-rows: minmax(0, 1fr); height: clamp(190px, calc(100dvh - 574px), 620px); }
+   page scrolls (never clips). The surrounding chrome (banners, mid-band, hand) was shrunk
+   deliberately so more of that budget reaches the lanes — taller lanes, smaller everything
+   else, same total footprint. */
+.game.theme-gothic .field__lanes { grid-auto-rows: minmax(0, 1fr); height: clamp(280px, calc(100dvh - 400px), 940px); }
 /* Trim the war-table's own padding on the battle screen so more height reaches the lanes. */
 .game.theme-gothic .field { padding: 10px 14px 12px; gap: 7px; }
+/* Narrow just the lane grid (not the leader banners, which need their full width to avoid
+   wrapping) so each lane column reads slim and tall rather than short and wide. */
+.game.theme-gothic .field__lanes { max-width: 88%; margin: 0 auto; width: 100%; }
 .game.theme-gothic .lanecol { height: 100%; }
 /* Leader banners + mid-band stay slim so the lanes own the vertical budget. */
 /* The two half-lanes must SHRINK to share the lane column's height — otherwise their fixed
@@ -140,7 +164,7 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 
 /* Leader banners must never overflow the (narrow) board column — wrap their contents and let
    text truncate instead of spilling into the altar. */
-.game.theme-gothic .leader { min-height: clamp(40px, 6vh, 54px); flex-wrap: wrap; row-gap: 4px; overflow: hidden; }
+.game.theme-gothic .leader { min-height: clamp(34px, 5vh, 44px); padding: 5px 12px 5px 8px; flex-wrap: wrap; row-gap: 3px; height: auto; overflow: visible; }
 .game.theme-gothic .leader__ident { min-width: 0; flex: 1 1 auto; }
 .game.theme-gothic .leader__name, .game.theme-gothic .leader__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game.theme-gothic .leader__res { flex-wrap: wrap; }
@@ -148,7 +172,7 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
    width there rather than stretching across the whole banner. */
 .game.theme-gothic .leader__skill { flex: 0 0 auto; margin-left: auto; min-width: 0; max-width: 100%; }
 .game.theme-gothic .leader__skill-effect { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.game.theme-gothic .lanecol__mid { min-height: clamp(46px, 6vh, 88px); }
+.game.theme-gothic .lanecol__mid { min-height: clamp(34px, 4.5vh, 62px); }
 /* Hand stays a single row (never wraps to steal the lanes' height); overflow scrolls
    horizontally for now — Slice 3 will fan/overlap the cards to fit. */
 /* The hand is a fanned spread of cards arcing across the bottom lip of the table. */
@@ -158,15 +182,15 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 }
 /* Compact in-match cards so the hand never out-sizes the lanes; hover enlarges. */
 .game.theme-gothic .hand .handcard {
-  width: 106px; min-width: 106px; margin: 0 -16px;
+  width: 96px; min-width: 96px; margin: 0 -15px;
   transform-origin: bottom center;
   transform: translateY(var(--lift, 0)) rotate(var(--rot, 0deg));
   transition: transform 0.16s ease, margin 0.16s ease, filter 0.16s ease;
 }
-.game.theme-gothic .hand .card__frame { height: 158px; padding: 6px 7px 6px; gap: 2px; }
-.game.theme-gothic .hand .card__art { height: 40px; }
-.game.theme-gothic .hand .card__sigil.erune { --er-size: 28px; }
-.game.theme-gothic .hand .card__text { -webkit-line-clamp: 2; max-height: 26px; overflow: hidden; }
+.game.theme-gothic .hand .card__frame { height: 112px; padding: 4px 5px 4px; gap: 1px; }
+.game.theme-gothic .hand .card__art { height: 26px; }
+.game.theme-gothic .hand .card__sigil.erune { --er-size: 20px; }
+.game.theme-gothic .hand .card__text { -webkit-line-clamp: 2; max-height: 22px; overflow: hidden; }
 /* Hover: lift the card out of the fan, straighten it, enlarge, and float above neighbours. */
 .game.theme-gothic .hand .handcard:hover {
   transform: translateY(-30px) rotate(0deg) scale(1.28);
@@ -217,19 +241,45 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
   position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
   border-radius: 8px; filter: drop-shadow(0 10px 18px rgba(0,0,0,0.6));
 }
-.fx-reveal__back { transform: rotateY(0deg); }
+/*
+ * These two static rotations pair with the `inner.animate(rotateY(180deg) -> rotateY(0deg))`
+ * calls in combatFx.ts (playRevealFx) — CSS 3D rotations on parent and child COMPOSE
+ * additively, so the face actually shown is (inner's live rotation + this static one) mod
+ * 360. They were both wrong (back at 0deg, face at 180deg): net rotation at the animation's
+ * START (inner=180deg) came out to back=180 (hidden) / face=360=0 (VISIBLE), and at the
+ * animation's END and for the whole long hold after it (inner=0deg) came out to back=0
+ * (VISIBLE) / face=180 (hidden) — so the card showed its FACE for one instant at the very
+ * start, then flipped to show its BACK for the rest of the reveal, the opposite of "starts
+ * hidden, flips to reveal". Swapped so inner=180 (start) nets back=360=0 (back visible, as
+ * a still-hidden card should be) and inner=0 (settled) nets face=0 (face visible).
+ */
+.fx-reveal__back { transform: rotateY(180deg); }
 .fx-reveal__back .handback__frame { height: 100%; border-radius: 8px; }
 .fx-reveal__back .handback__crest { font-size: 40px; }
-.fx-reveal__face { transform: rotateY(180deg); margin: 0; width: 100%; min-width: 0; }
+.fx-reveal__face { transform: rotateY(0deg); margin: 0; width: 100%; min-width: 0; }
 .fx-reveal__face .card__frame { height: 100%; }
 .fx-reveal__face .card__art { height: 44px; }
 .fx-reveal__face .card__sigil.erune, .fx-reveal__face .card__gem.erune { font-size: 26px; line-height: 1; }
 .fx-reveal__face .card__text { display: none; }
+/* A spell reveal is the ONLY reveal that has to explain itself: it leaves no body on the
+   board, so the card face is the whole record of what just happened. Bigger type, and the
+   rules text is shown rather than hidden. */
+.fx-reveal--spell .fx-reveal__back .handback__crest { font-size: 62px; }
+.fx-reveal--spell .fx-reveal__face { box-shadow: 0 0 0 2px rgba(240,208,137,0.5), 0 0 34px rgba(240,208,137,0.28); border-radius: 10px; }
+.fx-reveal--spell .fx-reveal__face .card__art { height: 62px; }
+.fx-reveal--spell .fx-reveal__face .card__sigil.erune { font-size: 40px; }
+.fx-reveal--spell .fx-reveal__face .card__name { font-size: 16px; }
+.fx-reveal--spell .fx-reveal__face .card__type { font-size: 10.5px; }
+.fx-reveal--spell .fx-reveal__face .card__cost { font-size: 16px; }
+.fx-reveal--spell .fx-reveal__face .card__text {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden;
+  font-size: 12px; line-height: 1.32; font-style: normal; color: #e8d9b4;
+}
 
 /* Masthead beam — wraps instead of clipping, and scales its type with the window. */
 .topbar {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 8px clamp(8px, 1.2vw, 16px);
-  padding: 8px clamp(8px, 1vw, 14px); margin-bottom: 12px; border-radius: 8px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px clamp(8px, 1.2vw, 16px);
+  padding: 5px clamp(8px, 1vw, 14px); margin-bottom: 8px; border-radius: 8px;
   background: var(--tex-wood);
   border: 1px solid #1c130a;
   box-shadow: var(--shadow-raise), inset 0 1px 0 rgba(255,255,255,0.06);
@@ -368,7 +418,7 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 }
 .field::before { top: 7px; left: 7px; }
 .field::after  { bottom: 7px; right: 7px; }
-.field__lanes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.field__lanes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
 
 /* Leader → heraldic banner anchoring each end of the war-table */
 .leader {
@@ -389,6 +439,7 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 }
 .leader--active .leader__crest { box-shadow: inset 0 0 0 1px rgba(240,208,137,0.5), 0 0 12px rgba(232,191,106,0.45); }
 .leader__toact { margin-left: 7px; font-size: 10px; color: var(--gilt); vertical-align: middle; }
+<<<<<<< Updated upstream
 /* Energy reads as a struck gilt token rather than loose text */
 .leader__energy {
   display: inline-flex; align-items: center; gap: 2px; padding: 1px 7px; border-radius: 999px;
@@ -396,10 +447,26 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
   background: linear-gradient(180deg, #3a2f18, #221a0d);
   border: 1px solid #0b0806;
   box-shadow: inset 0 1px 0 rgba(255,220,140,0.18), 0 1px 2px rgba(0,0,0,0.5);
+=======
+/* Energy readout: a clear numeral plus cold "spark" pips. The electric palette keeps it visually
+   distinct from the gold cost jewels so energy never reads as a cost. */
+.energygems {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 7px; border-radius: 999px;
+  background: linear-gradient(180deg, #3a2f18, #221a0d);
+  border: 1px solid #0b0806; box-shadow: inset 0 1px 0 rgba(255,220,140,0.18), 0 1px 2px rgba(0,0,0,0.5);
+}
+.energygems__bolt { font-family: var(--font-display); font-weight: 800; font-size: 13px; color: #ffe49a; text-shadow: 0 0 5px rgba(255,210,120,0.6); }
+.energygems__num { font-family: var(--font-display); font-weight: 800; font-size: 15px; color: #ffe49a; line-height: 1; min-width: 9px; text-align: center; text-shadow: 0 1px 1px #000; }
+.energygems__pips { display: inline-flex; align-items: center; gap: 2px; }
+.energygems__pip {
+  width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto;
+  background: radial-gradient(circle at 35% 30%, #fff3cf, #f0cf7a 58%, #a3781f);
+  box-shadow: 0 0 4px rgba(255,210,120,0.7), inset 0 1px 1px rgba(255,255,255,0.6);
+>>>>>>> Stashed changes
 }
 /* Crest — the leader's element sigil on a forged medallion */
 .leader__crest {
-  flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%;
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: radial-gradient(circle at 38% 30%, #3a2c19, #17110b 70%);
   border: 2px solid #0b0806; box-shadow: inset 0 0 0 1px rgba(240,208,137,0.3), 0 2px 5px rgba(0,0,0,0.6);
@@ -411,8 +478,8 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
    drops as HP falls, so damage visibly chips the leader (Inscryption's scale, distilled). */
 .leader__hp {
   position: relative; overflow: hidden; isolation: isolate;
-  font-family: var(--font-display); font-size: 21px; font-weight: 800; color: #ffd9c2; white-space: nowrap;
-  padding: 2px 12px; border-radius: 7px; min-width: 74px; text-align: center;
+  font-family: var(--font-display); font-size: 17px; font-weight: 800; color: #ffd9c2; white-space: nowrap;
+  padding: 1px 10px; border-radius: 7px; min-width: 64px; text-align: center;
   background: #2a0f0a; /* emptied vessel */
   border: 1.5px solid #0b0806; box-shadow: inset 0 1px 1px rgba(255,180,150,0.2), 0 0 10px rgba(194,59,50,0.4), 0 2px 4px rgba(0,0,0,0.5);
   text-shadow: 0 1px 1px #000;
@@ -424,6 +491,9 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
   transition: width 0.5s cubic-bezier(.4,0,.2,1);
 }
 .leader__hp-unit { font-size: 12px; opacity: 0.8; }
+/* Temporary HP above the leader's maximum (Adventure's post-battle overheal). */
+.leader__hp-temp { font-size: 12px; font-weight: 700; color: #9fe2ff; text-shadow: 0 0 7px rgba(159,226,255,0.6); }
+.leader__hp--temp { box-shadow: inset 0 0 0 1px rgba(159,226,255,0.55), 0 0 12px rgba(159,226,255,0.28); }
 /* Signature line — the half-max-HP threshold where the Signature card unlocks (Inscryption's
    scale notch). Marks the comeback point on the vessel as it drains. */
 .leader__hp::after {
@@ -434,7 +504,55 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
   content: "★"; position: absolute; left: 50%; top: -8px; z-index: 1; font-size: 8px; color: var(--gilt);
   transform: translateX(-50%); text-shadow: 0 1px 1px #000; pointer-events: none;
 }
-.leader__sig { color: var(--accent); font-size: 11px; white-space: nowrap; }
+/* Signature plate — deliberately the same shape as the Hero Power plate, because they are the
+   leader's two defining cards and should be read the same way.
+   READABILITY: an earlier version stacked three penalties on the same text — 9.5px type, a
+   low-contrast tan, and a blanket opacity/desaturate on the whole plate while locked. Each was
+   defensible alone; together the effect line was genuinely hard to read. The locked state is
+   now carried by the FRAME (dashed border, dimmer ground) and the emblem, never by fading the
+   words: text stays full contrast in both states. */
+.leader__sig {
+  /* Shrinkable: in a narrow window the banner has little room, and a rigid plate forces the
+     whole bar to wrap onto extra rows. Let it compress and clamp its text instead. */
+  display: inline-flex; align-items: center; gap: 7px;
+  flex: 1 1 190px; min-width: 132px; max-width: 260px;
+  padding: 4px 8px; border-radius: 8px; cursor: help;
+  background: linear-gradient(180deg, rgba(46,37,24,0.92), rgba(24,19,12,0.92));
+  border: 1px dashed rgba(240,208,137,0.45);
+  transition: border-color .25s ease, box-shadow .25s ease;
+}
+.leader__sig--on {
+  border-style: solid; border-color: var(--gilt);
+  background: linear-gradient(180deg, rgba(60,48,28,0.95), rgba(30,24,15,0.95));
+  box-shadow: 0 0 10px rgba(232,191,106,0.45);
+}
+/* The emblem sizes itself in PERCENTAGES (.emblem is 86%/86%), which resolves against nothing
+   inside an auto-sized inline-flex box and lets the SVG balloon to its intrinsic size — it grew
+   to 258px here and crushed the text to zero width. Give it a definite box, and win on
+   specificity so stylesheet order cannot re-break it. */
+.leader__sig-icon {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  /* Locked reads on the artwork, not on the type. */
+  opacity: 0.65; filter: grayscale(0.5);
+  transition: opacity .25s ease, filter .25s ease;
+}
+.leader__sig--on .leader__sig-icon { opacity: 1; filter: none; }
+.leader__sig-icon .emblem { width: 22px; height: 22px; flex: 0 0 auto; }
+.leader__sig-body { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.leader__sig-name {
+  display: flex; align-items: baseline; gap: 4px;
+  font-family: var(--font-display); font-weight: 700; font-size: 12.5px; color: var(--gilt);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15;
+}
+.leader__sig-star { flex: 0 0 auto; font-size: 11px; }
+.leader__sig--on .leader__sig-star { color: #86e89b; }
+/* The effect line is the point of the plate: bigger, brighter and roomier than the old 9.5px
+   tan, and allowed two lines rather than truncating mid-mechanic. */
+.leader__sig-effect {
+  font-size: 11px; line-height: 1.35; color: #e6d8b8; min-width: 0;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
 .leader__handcount { font-size: 12px; opacity: 0.75; letter-spacing: 0.03em; }
 .leader__res { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-left: auto; }
 
@@ -447,7 +565,7 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 }
 /* Terrain floors — grimy, textured, low-key. Heights = broken stone, Ground = trampled
    earth, Water = murky bog. Noise from --tex-noise keeps them from looking flat. */
-.lanecol--heights {
+.lanecol--heights, .lanecol--heights2 {
   background:
     var(--tex-noise),
     repeating-linear-gradient(26deg, rgba(0,0,0,0.16) 0 2px, transparent 2px 11px),
@@ -468,6 +586,25 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
     linear-gradient(180deg, #15303a, #0b1a20);
   box-shadow: inset 0 0 30px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(70,130,150,0.22);
 }
+<<<<<<< Updated upstream
+=======
+/* Water surface shimmer — a slow caustic drift across the bog floor, behind the units. */
+.lanecol--water::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5;
+  background:
+    repeating-linear-gradient(72deg, rgba(120,190,220,0.10) 0 2px, transparent 2px 13px),
+    repeating-linear-gradient(-72deg, rgba(120,190,220,0.07) 0 2px, transparent 2px 17px);
+  animation: waterDrift 7s linear infinite;
+}
+@keyframes waterDrift { from { background-position: 0 0, 0 0; } to { background-position: 26px 0, -26px 0; } }
+/* Heights — thin mist clinging to the cliff floor. */
+.lanecol--heights::before, .lanecol--heights2::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 46%; z-index: 0; pointer-events: none; opacity: 0.55;
+  background: linear-gradient(180deg, rgba(150,165,190,0.22), transparent);
+  animation: mistBreathe 6s ease-in-out infinite;
+}
+@keyframes mistBreathe { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.66; } }
+>>>>>>> Stashed changes
 /* Environment tints the whole column by its element */
 .lanecol--env-fire { background: linear-gradient(180deg, rgba(226, 86, 59, 0.20), rgba(226, 86, 59, 0.05)); border-color: rgba(226, 86, 59, 0.55); }
 .lanecol--env-water { background: linear-gradient(180deg, rgba(59, 130, 226, 0.20), rgba(59, 130, 226, 0.05)); border-color: rgba(59, 130, 226, 0.55); }
@@ -552,8 +689,8 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
   background:
     linear-gradient(180deg, rgba(255,255,255,0.06), transparent 40%),
     linear-gradient(180deg, #37302a, #251f1a);
-  border: 1px solid #14100c; border-radius: 7px; padding: 5px 6px 4px;
-  position: relative; display: flex; flex-direction: column; gap: 2px; min-height: 54px; overflow: visible;
+  border: 1px solid #14100c; border-radius: 7px; padding: 4px 5px 3px;
+  position: relative; display: flex; flex-direction: column; gap: 2px; min-height: 46px; overflow: visible;
   color: #ece2cf;
   box-shadow: 0 2px 0 rgba(0,0,0,0.45), 0 4px 8px rgba(0,0,0,0.4),
               inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -3px 4px rgba(0,0,0,0.35);
@@ -666,6 +803,26 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 .fx-ring { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px;
   border: 3px solid #fff; border-radius: 50%; pointer-events: none; z-index: 8; }
 
+<<<<<<< Updated upstream
+=======
+/* Floating combat numbers (damage / heal / DoT ticks) — struck-metal numerals that rise and fade. */
+.fx-dmgnum {
+  font-family: var(--font-display); font-weight: 800; font-size: 21px; line-height: 1;
+  letter-spacing: 0.01em; pointer-events: none; white-space: nowrap;
+  text-shadow: 0 2px 3px #000, 0 0 8px rgba(0,0,0,0.7);
+}
+.fx-dmgnum--dmg        { color: #ff8a5c; text-shadow: 0 2px 3px #000, 0 0 10px rgba(217,75,43,0.8); }
+.fx-dmgnum--dmg-leader { color: #ff5a44; font-size: 27px; text-shadow: 0 2px 4px #000, 0 0 14px rgba(194,59,50,0.95); }
+.fx-dmgnum--heal       { color: #86e89b; text-shadow: 0 2px 3px #000, 0 0 10px rgba(74,158,87,0.85); }
+.fx-dmgnum--burn       { color: #ffb64a; text-shadow: 0 2px 3px #000, 0 0 10px rgba(255,140,40,0.85); }
+.fx-dmgnum--poison     { color: #b6e24a; text-shadow: 0 2px 3px #000, 0 0 10px rgba(130,200,60,0.8); }
+/* Stat changes: green gains, violet losses — matching the badge colour language (violet = an
+   affliction, something done TO this unit). Slightly smaller than damage: a stat swing is
+   information, not impact. */
+.fx-dmgnum--buff       { color: #86e89b; font-size: 18px; text-shadow: 0 2px 3px #000, 0 0 10px rgba(74,158,87,0.85); }
+.fx-dmgnum--debuff     { color: #d69bff; font-size: 18px; text-shadow: 0 2px 3px #000, 0 0 10px rgba(150,60,190,0.85); }
+
+>>>>>>> Stashed changes
 /* Flying card token for cards leaving play (Expel, Forget) */
 .fx-card-token {
   background: var(--panel2); border: 1px solid var(--accent); border-radius: 6px; padding: 4px;
@@ -681,11 +838,57 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
   box-shadow: 2px 2px 0 #0d0e13, 3px 3px 0 #15161d; font-size: 12px; }
 .deckpile__icon { font-size: 14px; opacity: 0.85; }
 .deckpile__count { font-weight: 800; }
+
+/* Dedicated area (top of the Controls rail, above enemy reserves) for both sides' used
+   spells — a fixed, always-visible location rather than a widget tucked into the leader
+   bar corner, where it was easy to miss and cramped against the bar's other plates. */
+.spellarea {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px 10px;
+  border: 1px solid var(--line); border-radius: 8px; background: #191b24;
+}
+.spellarea__label { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--muted); text-transform: uppercase; }
+.spellarea__row { display: flex; justify-content: space-between; gap: 10px; }
+
+/* Used-spells pile: face shows the most recently cast spell, so the pile is never a
+   mystery even closed; clicking opens every spell that side has cast this game.
+   CardFace is a fixed 128x210 layout (see .card__frame) — thumbnails scale it down with a
+   transform rather than fighting its internal padding/fonts at a tiny size. */
+.spellpile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; min-width: 0; }
+.spellpile__label { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.spellpile__face {
+  position: relative; width: 44px; height: 72px; padding: 0; border: none; background: none;
+  cursor: pointer; border-radius: 6px; overflow: hidden;
+  box-shadow: 2px 2px 0 #0d0e13, 3px 3px 0 #15161d;
+  transition: transform 0.12s ease;
+}
+.spellpile__face:hover { transform: translateY(-2px); }
+.spellpile__face .card__frame { width: 128px; height: 210px; transform: scale(0.344); transform-origin: top left; }
+.spellpile__empty {
+  display: flex; align-items: center; justify-content: center; width: 44px; height: 72px;
+  border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); font-size: 16px;
+}
+.spellpile__count {
+  position: absolute; bottom: -5px; right: -5px; min-width: 15px; padding: 0 3px;
+  border-radius: 8px; background: #1c1620; border: 1px solid var(--gilt);
+  color: var(--gilt); font-size: 10px; font-weight: 800; line-height: 15px; text-align: center;
+}
+/* Anchored by its own RIGHT edge (not centred) so it grows leftward off the narrow
+   Controls rail — this is the rightmost column, so a centred popover would run off the
+   edge of the window for the "You" pile in particular. */
+/* The history pop-up itself is a full-size Card-Info-style modal (SpellHistoryModal in
+   App.tsx, reusing .overlay/.detail) — real MiniCards you can actually read, not a cramped
+   dropdown of postage-stamp thumbnails. See .spellmodal below. */
+.detail.spellmodal { width: min(640px, 92vw); max-height: 82vh; }
+/* The card grid is the part that grows unbounded with history length — it scrolls on its
+   own, while the heading and Close button stay pinned in view (the whole `.detail` panel
+   already caps at 82vh above, so a long list would otherwise run the panel off-screen with
+   Close pushed out of reach). */
+.spellmodal .advpanel__grid { max-height: calc(82vh - 90px); overflow-y: auto; padding-right: 4px; }
+.spellmodal__slot { display: flex; flex-direction: column; gap: 4px; align-items: center; }
 .unit--foundation { background: #1e2a1a; border: 1px dashed #4a6b3a; opacity: 0.9; }
 .unit.targetable { cursor: crosshair; outline: 1px dashed var(--accent); }
 .unit--sac { outline: 2px solid #e2563b; box-shadow: 0 0 8px rgba(226, 86, 59, 0.6); }
 .unit__dagger { position: absolute; top: -8px; right: -6px; font-size: 16px; filter: drop-shadow(0 0 2px #000); z-index: 3; }
-.unit__sick { position: absolute; top: -7px; left: -5px; font-size: 14px; filter: drop-shadow(0 0 2px #000); z-index: 3; }
 .unit__name { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .unit__stats { font-weight: 800; font-size: 15px; }
 .unit__stats .atk { color: #ff9b6a; }
@@ -702,7 +905,6 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 .unit__status { font-size: 12px; display: flex; flex-wrap: wrap; gap: 2px; }
 .statusbadge { cursor: help; background: rgba(0,0,0,0.35); border-radius: 4px; padding: 0 2px; letter-spacing: 0; font-size: 12px; }
 .detail__icon { font-size: 16px; }
-.handcard__elem { font-size: 12px; }
 
 /* Controls sidebar → the Altar: a carved stone/iron ritual slab */
 .controls {
@@ -718,34 +920,7 @@ h1, h2, h3, h4, .topbar strong, .leader__name, .leadercard__name,
 .controls__divider { height: 2px; margin: 3px 0;
   background: linear-gradient(90deg, transparent, var(--gilt-deep), transparent); opacity: 0.5; }
 .controls__ctx { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
-
-/* Element bank comparison view */
-.bankview { display: flex; flex-direction: column; gap: 5px; }
-.bankview__head { }
 .bankview__label { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
-.bankview__cols { display: grid; grid-template-columns: 1fr 22px 1fr; gap: 4px; align-items: center; margin-bottom: 2px; }
-.bankview__player { font-size: 10px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bankview__player--you { color: #7ad65a; text-align: right; }
-.bankview__player--opp { color: var(--muted); }
-.bankview__elem-head { text-align: center; }
-.bankview__row { display: grid; grid-template-columns: 1fr 22px 1fr; gap: 4px; align-items: center; height: 22px; }
-.bankview__icon { text-align: center; font-size: 14px; line-height: 1; }
-.bankview__bar { position: relative; height: 18px; border-radius: 4px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); overflow: hidden; display: flex; align-items: center; }
-.bankview__bar--you { flex-direction: row-reverse; }
-.bankview__fill { position: absolute; top: 0; bottom: 0; background: currentColor; opacity: 0.28; }
-.bankview__bar--you .bankview__fill { right: 0; }
-.bankview__bar--opp .bankview__fill { left: 0; }
-.bankview__amount { position: relative; font-size: 10px; font-weight: 700; padding: 0 4px; z-index: 1; }
-.bankview__bar--you .bankview__amount { text-align: right; }
-/* Element colours for fill bars */
-.bankview__row--fire  .bankview__fill { color: var(--fire); }
-.bankview__row--water .bankview__fill { color: var(--water); }
-.bankview__row--nature .bankview__fill { color: var(--nature); }
-.bankview__row--earth .bankview__fill { color: var(--earth); }
-.bankview__row--fire  .bankview__bar { border-color: rgba(226,86,59,0.3); }
-.bankview__row--water .bankview__bar { border-color: rgba(59,130,226,0.3); }
-.bankview__row--nature .bankview__bar { border-color: rgba(59,178,115,0.3); }
-.bankview__row--earth .bankview__bar { border-color: rgba(201,148,59,0.3); }
 
 /* Banking panel */
 .bankpanel { display: flex; flex-direction: column; gap: 6px; }
@@ -835,7 +1010,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-cancel { background: linear-gradient(180deg, #7a3535, #4d2323); border-color: #8a4141; color: #f6dede; }
 
 /* Sound control — mute toggle + volume slider */
-.audioctl { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.audioctl { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.audioctl__row { display: flex; align-items: center; gap: 8px; }
 .audioctl__toggle {
   flex-shrink: 0; padding: 4px 8px; font-size: 15px; line-height: 1;
   background: #232838; border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
@@ -881,35 +1057,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .leader__skill-effect { font-size: 10px; color: #a2947a; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .leader__skill-cost { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
 .leader__skill-used { font-size: 11px; font-weight: 700; color: #8b909c; }
-
-/* Leader Skill — a richer, two-line button with the leader's element glyph and cost chips */
-.btn-hero {
-  display: flex; align-items: center; gap: 8px; text-align: left; padding: 6px 10px; width: 100%;
-  background: linear-gradient(135deg, #3f3070, #2c2348); border: 1px solid #5b47a0;
-}
-.btn-hero:hover:not(:disabled) { border-color: #8a6fe0; box-shadow: 0 0 10px rgba(138, 111, 224, 0.4); }
-.btn-hero--active { border-color: var(--accent); box-shadow: 0 0 12px rgba(255, 210, 122, 0.55); }
-.btn-hero--used { filter: saturate(0.5); }
-.btn-hero__icon {
-  font-size: 22px; flex: 0 0 auto; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-  background: rgba(0, 0, 0, 0.25); border-radius: 8px;
-}
-.btn-hero__body { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-width: 0; }
-.btn-hero__top { display: flex; align-items: baseline; gap: 6px; }
-.btn-hero__label { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #b9a8f0; }
-.btn-hero__name { font-weight: 800; font-size: 13px; }
-.btn-hero__effect { font-size: 10px; color: #c8c2e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-.btn-hero__cost { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
 .herocost__energy { font-weight: 800; font-size: 13px; color: #ffe49a; }
-.btn-hero__used { font-size: 11px; font-weight: 700; color: #8b909c; }
 .btn-sac { background: #5a2d2d; border-color: #7a3a3a; font-weight: 700; }
 .btn-debug { background: #2a2a1a; border-color: #555520; }
 .btn-debug--on { background: #4a4a10; border-color: #aaaa30; color: #ffff88; font-weight: 700; }
-.btn-hint { background: #1f2a18; border-color: #3a5a28; }
-.btn-hint--on { background: #2d4a1a; border-color: #7ad65a; color: #c8f0a0; font-weight: 700; }
-
-/* AI opponent toggle (per side) */
-.ai-toggle { display: inline-flex; align-items: center; gap: 4px; }
 .btn-ai { background: #1a2230; border-color: #2a4060; font-size: 12px; padding: 3px 8px; }
 .btn-ai--on { background: #16314f; border-color: #4aa3ff; color: #bfe0ff; font-weight: 700; }
 
@@ -929,7 +1080,6 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   0%, 100% { box-shadow: 0 0 0 1px #7ad65a, 0 0 7px rgba(122, 214, 90, 0.4); }
   50% { box-shadow: 0 0 0 1px #9be88a, 0 0 12px rgba(122, 214, 90, 0.75); }
 }
-.btn-hero--hint { box-shadow: 0 0 10px rgba(122, 214, 90, 0.6); border-color: #7ad65a !important; }
 
 .debug-panel { background: #1a1a0e; border: 1px solid #aaaa30; border-radius: 8px; padding: 8px; margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
 .debug-panel__head { font-size: 12px; }
@@ -979,6 +1129,36 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
     inset 0 0 0 1px rgba(240,208,137,0.30),                    /* gilt keyline */
     0 5px 2px rgba(0,0,0,0.4), 0 9px 20px rgba(0,0,0,0.55);
 }
+/* ENHANCED copies.
+   An enhanced card is a clone of the printed one with its upgrades folded into the
+   numbers, so on a shelf of six shop slots or a fanned hand there was nothing to tell it
+   apart but a "+" appended to the name. It gets its own frame: a violet-gilt rim, a
+   warmer ground, and a ✧ seal in the corner — readable at MiniCard size, where the name
+   suffix is not. */
+.card__frame--enhanced {
+  background: linear-gradient(180deg, #33243a, #1b1220);
+  border-color: #1a0f22;
+  /* The ELEMENT rim is kept and the enhanced ring added outside it — element colour is
+     load-bearing (it is how you read a card's cost pips and archetype at a glance), so
+     the upgrade marker must not be painted over the top of it. */
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--elem) 55%, #201a12),   /* element rim, preserved */
+    0 0 0 3px #1a0f22,
+    0 0 0 4.5px color-mix(in srgb, var(--enh-gilt) 75%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--enh-gilt) 45%, transparent),
+    inset 0 0 18px rgba(198,140,232,0.16),
+    0 5px 2px rgba(0,0,0,0.4), 0 9px 20px rgba(0,0,0,0.55);
+}
+.card__frame--enhanced::before, .card__frame--enhanced::after {
+  border-color: color-mix(in srgb, var(--enh-gilt) 80%, transparent);
+}
+/* The seal sits top-right, clear of the cost pip and the element rune on the left. */
+.card__enhmark {
+  position: absolute; top: 3px; right: 5px; z-index: 3; pointer-events: none;
+  font: 700 11px/1 var(--font-body); letter-spacing: 0.02em;
+  color: #f2dcff; text-shadow: 0 0 6px rgba(198,140,232,0.9), 0 1px 2px rgba(0,0,0,0.8);
+}
+
 /* filigree corner ticks */
 .card__frame::before, .card__frame::after {
   content: ""; position: absolute; width: 12px; height: 12px; pointer-events: none;
@@ -999,6 +1179,18 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .handcard--drag { cursor: grab; }
 .handcard--drag:active { cursor: grabbing; }
 .handcard--disabled { filter: grayscale(0.75) brightness(0.6); }
+/* Sealed by a boss rule: distinct from merely unaffordable, because the reason is
+   different and so is what the player should do about it (nothing — wait a turn). */
+.handcard--sealed { position: relative; filter: grayscale(1) brightness(0.45); cursor: not-allowed; }
+.handcard--sealed::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 2px rgba(180, 140, 255, 0.85);
+  background: repeating-linear-gradient(135deg, transparent 0 8px, rgba(180, 140, 255, 0.14) 8px 16px);
+}
+.handcard__seal {
+  position: absolute; top: 4px; right: 4px; z-index: 2; font-size: 14px; line-height: 1;
+  filter: none; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
 .handcard--playable .card__frame { animation: hintPulse 1.8s ease-in-out infinite; }
 
 /* Top row: cost jewel (left), element pips (centre), element gem (right) */
@@ -1217,8 +1409,6 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .collection .grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;
 }
-.collection__leader { display: flex; flex-direction: column; gap: 4px; }
-.collection__leader p { margin: 2px 0; font-size: 13px; }
 
 /* Card detail popup */
 .detail {
@@ -1644,48 +1834,138 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .mp-build { display: flex; flex-direction: column; gap: 8px; }
 
 /* ================= Adventure (single-player roguelike) ================= */
+/* Every colour here comes from the --adv-* tokens declared in :root. The old
+   pre-overhaul cool grey (#262935) that survived only in this section is gone;
+   surfaces are --panel/--panel2 like the rest of the app, and each node kind's
+   hue is set once as --nd and inherited by that node's panel, tabs and banner. */
 
-.adventure { max-width: 980px; margin: 0 auto; padding: 12px 16px 32px; }
+.adventure { max-width: 1180px; margin: 0 auto; padding: 12px 16px 32px; }
 
-/* HUD strip */
-.advhud { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; margin-bottom: 14px; }
-.advhud__leader { font-weight: 700; }
-.advhud__stat { color: var(--muted); }
-/* Run HP at or below the Signature threshold — the player is in comeback range. */
-.advhud__stat--low { color: var(--danger, #e5484d); font-weight: 600; }
-.advhud__spacer { flex: 1; }
-.advhud__deckbtn { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; color: var(--text); cursor: pointer; }
-.advhud__abandon { background: none; border: 1px solid #6b2f2f; border-radius: 8px; padding: 4px 10px; color: #d98a8a; cursor: pointer; }
-.advhud__deck { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+/* ---------------- Run HUD ---------------- */
+/* Three zones: identity | the HP bar (the run's critical state, given the space to
+   match) | coins, relics and deck. Everything that used to be an equal-weight text
+   chip now sits in one of those three. */
+.advhud {
+  display: grid; gap: 8px 18px; align-items: center;
+  /* `minmax(0, auto)`, not bare `auto`: an auto track is sized by its content and will
+     happily exceed the container, which is what let the relic tray widen the whole HUD. */
+  grid-template-columns: minmax(180px, 0.9fr) minmax(230px, 1.3fr) minmax(0, auto);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 16px; margin-bottom: 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+@media (max-width: 860px) { .advhud { grid-template-columns: 1fr; } }
 
-/* Leader picker */
-.advpicker { max-width: 980px; margin: 0 auto; padding: 16px; }
-.advpicker__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin: 14px 0; }
-.advpicker__leader { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); cursor: pointer; text-align: left; }
-.advpicker__leader:hover { border-color: var(--accent); }
-.advpicker__leader--sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.advpicker__name { font-weight: 700; }
-.advpicker__power { color: var(--muted); font-size: 0.85em; }
-.advpicker__preview { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.advhud__id { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.advhud__crest {
+  width: 38px; height: 38px; flex: none; border-radius: 7px; display: grid; place-items: center;
+  font-size: 19px; border: 1px solid var(--line); background: var(--panel2);
+}
+.advhud__crest--fire   { border-color: rgba(217,75,43,0.55);  background: linear-gradient(160deg, rgba(217,75,43,0.32), rgba(217,75,43,0.08)); color: #ffd2c2; }
+.advhud__crest--water  { border-color: rgba(58,134,214,0.55); background: linear-gradient(160deg, rgba(58,134,214,0.32), rgba(58,134,214,0.08)); color: #cfe6ff; }
+.advhud__crest--nature { border-color: rgba(74,158,87,0.55);  background: linear-gradient(160deg, rgba(74,158,87,0.32), rgba(74,158,87,0.08)); color: #ccf0d4; }
+.advhud__crest--earth  { border-color: rgba(192,138,58,0.55); background: linear-gradient(160deg, rgba(192,138,58,0.32), rgba(192,138,58,0.08)); color: #f3ddb4; }
+.advhud__leader { font-family: var(--font-display); font-weight: 600; font-size: 16px; display: block; }
+.advhud__act { display: block; margin-top: 4px; font-size: 11px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--muted); }
+
+/* The HP bar. Two rules that used to live only inside a title tooltip are now drawn:
+   the Signature threshold (half of MAX) as a gilt line, and temporary HP — the
+   overheal the engine never tops back up — as its own segment past the maximum. */
+.advhud__hp { display: block; min-width: 0; }
+.advhud__hprow { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.advhud__hpval { font-family: var(--font-display); font-weight: 600; font-size: 16px; }
+.advhud__hpval small { color: var(--muted); font-family: var(--font-body); font-size: 12px; font-weight: 500; }
+.advhud__hpval b { color: var(--temp-hp); font-weight: 600; text-shadow: 0 0 6px rgba(159,226,255,0.45); }
+.advhud__hpval--low { color: var(--danger); }
+.advhud__mend { font-size: 11px; color: var(--adv-rest); letter-spacing: 0.03em; white-space: nowrap; }
+.advhud__hptrack { position: relative; height: 13px; border-radius: 3px; overflow: hidden; background: #1b1815; border: 1px solid var(--line); }
+.advhud__hpfill { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(180deg, #57a86b, #2f6b40); box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); transition: width .3s ease; }
+.advhud__hpfill--low { background: linear-gradient(180deg, #d05a52, #7d2723); }
+.advhud__hptemp { position: absolute; top: 0; bottom: 0; background: linear-gradient(180deg, var(--temp-hp), #4d93b8); box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 0 8px rgba(159,226,255,0.45); transition: width .3s ease, left .3s ease; }
+.advhud__hpsig { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--accent); box-shadow: 0 0 6px rgba(232,191,106,0.85); }
+.advhud__hplegend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 7px; font-size: 11px; color: var(--muted); }
+.advhud__hplegend span { white-space: nowrap; }
+.advhud__k-sig { color: var(--accent); }
+.advhud__k-temp { color: var(--temp-hp); }
+
+.advhud__right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+.advhud__coins { display: inline-flex; align-items: baseline; gap: 5px; font-family: var(--font-display); font-weight: 600; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.advhud__stat { color: var(--muted); font-size: 13px; }
+.advhud__stat--won { color: var(--copper); font-weight: 700; }
+
+/* Relic tray: rarity is already in RelicDef and was never drawn. Common is a plain
+   slot, rare takes a water rim, boss a gilt rim + glow — so a boss relic never again
+   looks like a coin pouch. */
+/* The tray grows all run — a late run carries a dozen relics — so it must WRAP and be
+   bounded. As a non-wrapping inline-flex in an `auto` grid column it simply grew the
+   column, pushing the rest of the HUD (and the board below it) off screen. */
+.advhud__relics {
+  display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+  min-width: 0; max-width: 100%; max-height: 78px; overflow-y: auto;
+}
+.advhud__relic {
+  width: 32px; height: 32px; border-radius: 6px; display: grid; place-items: center;
+  font-size: 16px; line-height: 1; background: var(--panel2); border: 1px solid var(--line);
+  cursor: help; padding: 0;
+}
+.advhud__relic--rare { border-color: rgba(58,134,214,0.7); box-shadow: inset 0 0 9px rgba(58,134,214,0.30); }
+.advhud__relic--boss { border-color: rgba(232,191,106,0.85); box-shadow: inset 0 0 9px rgba(232,191,106,0.32), 0 0 8px rgba(232,191,106,0.22); }
+/* A one-shot relic that has been used stays in the tray, drained of colour and struck
+   through. It is still information — "you already spent your rescue" is something the
+   player has to be able to see before deciding which route to take. */
+.advhud__relic--spent {
+  filter: grayscale(1); opacity: 0.42; box-shadow: none; position: relative;
+}
+.advhud__relic--spent::after {
+  content: ''; position: absolute; left: 4px; right: 4px; top: 50%;
+  border-top: 1px solid currentColor; transform: rotate(-24deg); opacity: 0.8;
+}
+
+.advhud__deckbtn {
+  display: inline-flex; align-items: center; gap: 7px; background: var(--panel2);
+  border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px; color: var(--text);
+  font: 500 13px/1 var(--font-body); cursor: pointer; box-shadow: var(--emboss);
+}
+.advhud__deckbtn:hover { border-color: var(--accent); }
+.advhud__deckbtn b { font-variant-numeric: tabular-nums; }
+.advhud__deckenh { color: var(--accent); font-size: 11px; }
+.advhud__abandon { background: none; border: 1px solid #6b2f2f; border-radius: 7px; padding: 6px 10px; color: #d98a8a; cursor: pointer; font-size: 12px; }
+.advhud__abandon:hover { border-color: var(--danger); color: #eaa; }
+.advhud__deck { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.advhud__deckcard { position: relative; display: inline-flex; }
+.advhud__deckcard--enh::after {
+  content: "✧"; position: absolute; top: -4px; right: -4px; z-index: 2;
+  font-size: 11px; color: var(--accent); text-shadow: 0 0 4px rgba(0,0,0,0.9);
+}
+
+/* ---------------- Leader picker ---------------- */
+.advpicker { max-width: 1180px; margin: 0 auto; padding: 16px; }
+.advpicker__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 14px 0; }
+.advpicker__pick { display: block; padding: 0; border: none; background: none; cursor: pointer; text-align: left; border-radius: 12px; }
+.advpicker__pick .leadercard { transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+.advpicker__pick:hover .leadercard, .advpicker__pick:focus-visible .leadercard {
+  border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 16px rgba(232,191,106,0.22); transform: translateY(-2px);
+}
+.advpicker__pick:focus-visible { outline: none; }
+
+/* Selecting a leader used to append a preview panel below the grid, invisible without
+   scrolling; it now REPLACES the grid with a dedicated screen, so the click's effect is
+   immediately visible instead of requiring a scroll to notice anything happened. */
+.advpicker__back {
+  background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--muted);
+  padding: 7px 13px; cursor: pointer; font-size: 13px; margin-bottom: 16px;
+}
+.advpicker__back:hover { border-color: var(--accent); color: var(--text); }
+.advpicker__previewgrid { display: grid; grid-template-columns: minmax(260px, 320px) 1fr; gap: 20px; align-items: start; }
+@media (max-width: 760px) { .advpicker__previewgrid { grid-template-columns: 1fr; } }
+.advpicker__preview { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
 .advpicker__starter { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
 .advpicker__start { padding: 8px 18px; }
 
-/* Map */
-.advmap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
-.advmap__svg { width: 100%; height: auto; display: block; }
-.advmap__edge { stroke: var(--line); stroke-width: 2; }
-.advmap__edge--lit { stroke: var(--accent); stroke-width: 2.5; }
-.advmap__node circle { fill: #262935; stroke: var(--line); stroke-width: 2; }
-.advmap__node--go { cursor: pointer; }
-.advmap__node--go circle { stroke: var(--accent); }
-.advmap__node--go:hover circle { fill: #333747; }
-.advmap__node--done { opacity: 0.45; }
-.advmap__node--here circle { stroke: #7fd4a1; stroke-width: 3; }
-.advmap__node--boss circle { stroke: #b03a3a; }
-.advmap__icon { font-size: 20px; user-select: none; }
-.advmap__label { fill: var(--muted); font-size: 11px; user-select: none; }
-.advmap__hint { text-align: center; margin: 8px 0 2px; }
+/* ---------------- Map ---------------- */
+.advmap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0; overflow: hidden; }
 
+<<<<<<< Updated upstream
 /* Store / enhancement / reward panels */
 .advpanel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
 .advpanel--center { text-align: center; padding: 40px 18px; }
@@ -1708,53 +1988,483 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .advreward__card { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 0 0 14px; }
 
 /* --- Expansion: relics, elites, rest, events --- */
+=======
+/* Pinned act header: the boss is DECLARED from the first node, so a route can be
+   planned around it, instead of hiding in a native <title> tooltip. */
+.advmap__act {
+  display: flex; align-items: center; gap: 13px; padding: 12px 16px;
+  border-bottom: 2px solid var(--adv-boss);
+  background: linear-gradient(180deg, rgba(194,59,50,0.13), rgba(194,59,50,0.02));
+}
+.advmap__acticon {
+  width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  font-size: 17px; background: #1b1815; border: 2px solid var(--adv-boss); color: #e88a83;
+}
+.advmap__acttext { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.advmap__actname { font-family: var(--font-display); font-weight: 600; font-size: 15px; }
+.advmap__actgimmick { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.advmap__actprog { font-size: 12px; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
 
-/* Relic tray in the HUD */
-.advhud__relics { display: inline-flex; gap: 4px; align-items: center; }
-.advhud__relic { font-size: 18px; cursor: help; line-height: 1; }
+/* The scroll frame. The map used to scale a fixed 700-wide viewBox to the container,
+   so widening the window made the map TALLER (1239px in a 900px viewport) and pushed
+   the Copper Mech permanently below the fold. Now the SVG keeps a fixed node size in
+   real pixels and this frame scrolls — the map fits the viewport by construction. */
+.advmap__frame {
+  overflow: auto; padding: 14px 10px;
+  /* Sized against the viewport MINUS the run's fixed chrome (topbar, HUD, act header,
+     hint, the Copper Mech rail and page padding), so the rail below the map stays on
+     screen at any window height instead of being pushed off by a map that grows. */
+  max-height: max(260px, calc(100vh - 430px));
+}
+/* The HUD stacks to three rows below this width, so the map gets correspondingly less. */
+@media (max-width: 860px) { .advmap__frame { max-height: max(240px, calc(100vh - 530px)); } }
+.advmap__canvas { position: relative; margin: 0 auto; }
+.advmap__svg { display: block; }
+>>>>>>> Stashed changes
 
-/* Map: elite node accent */
-.advmap__node--trial circle { stroke: #d06bd0; }
-.advmap__node--elite circle { stroke: #e0913a; stroke-width: 3; }
+.advmap__edge { stroke: var(--line); stroke-width: 2; fill: none; }
+.advmap__edge--lit { stroke: var(--accent); stroke-width: 2.5; }
+.advmap__edge--past { stroke: var(--line); stroke-width: 2; stroke-dasharray: 3 4; opacity: 0.5; }
+.advmap__edge--far { opacity: 0.28; }
 
-/* Rest site */
-.advrest__tabs { display: flex; gap: 8px; margin: 6px 0 10px; }
-.advrest__tab { border: 1px solid var(--line); border-radius: 8px; background: #262935; color: var(--text); padding: 6px 14px; cursor: pointer; }
-.advrest__tab--on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+/* Node kind sets --nd once; the shape, glyph and label all read it. Shape carries kind
+   as well as colour, so the map still reads without colour vision. */
+.advmap__node { --nd: var(--adv-combat); }
+.advmap__node--combat  { --nd: var(--adv-combat); }
+.advmap__node--elite   { --nd: var(--adv-elite); }
+.advmap__node--trial   { --nd: var(--adv-trial); }
+.advmap__node--boss    { --nd: var(--adv-boss); }
+.advmap__node--rest    { --nd: var(--adv-rest); }
+.advmap__node--store   { --nd: var(--adv-store); }
+.advmap__node--enhance { --nd: var(--adv-enhance); }
+.advmap__node--event   { --nd: var(--adv-event); }
 
-/* Events */
-.advevent__body { font-style: italic; color: var(--muted); margin: 4px 0 14px; line-height: 1.5; }
-.advevent__choices { display: flex; flex-direction: column; gap: 8px; }
-.advevent__choice { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: #262935; color: var(--text); cursor: pointer; }
-.advevent__choice:not(:disabled):hover { border-color: var(--accent); }
-.advevent__note { font-size: 11px; color: var(--muted); }
+.advmap__shape { fill: var(--panel2); stroke: var(--nd); stroke-width: 2; transition: fill .12s ease; }
+.advmap__icon { font-size: 17px; user-select: none; pointer-events: none; fill: var(--nd); }
+.advmap__label { fill: var(--muted); font-size: 10.5px; user-select: none; pointer-events: none; letter-spacing: 0.03em; }
 
-/* Relic picker (reward screen) */
-.advrelicpick { width: 100%; }
-.advrelicpick__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
-.advrelic { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 12px; border: 1px solid var(--line); border-radius: 12px; background: #262935; color: var(--text); cursor: pointer; text-align: center; }
-.advrelic:hover { border-color: var(--accent); box-shadow: 0 0 10px rgba(255,210,122,0.3); }
-.advrelic__icon { font-size: 30px; line-height: 1; }
-.advrelic__name { font-weight: 700; }
-.advrelic__blurb { font-size: 12px; color: var(--muted); }
+/* Three path states, not two. Unreachable nodes recede, reachable ones invite. */
+.advmap__node--far { opacity: 0.34; }
+.advmap__node--done { opacity: 0.42; }
+.advmap__node--go { cursor: pointer; }
+.advmap__node--go .advmap__shape { stroke-width: 2.5; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--nd) 45%, transparent)); }
+.advmap__node--go:hover .advmap__shape, .advmap__node--go:focus-visible .advmap__shape { fill: var(--panel); stroke-width: 3.5; }
+.advmap__node--go:focus-visible { outline: none; }
+.advmap__node--go:focus-visible .advmap__shape { filter: drop-shadow(0 0 7px var(--nd)); }
+.advmap__node--here .advmap__shape { stroke: var(--adv-here); stroke-width: 3; }
+.advmap__node--here .advmap__ring { fill: none; stroke: var(--adv-here); stroke-width: 1; opacity: 0.45; }
+.advmap__node--boss .advmap__shape { stroke-width: 3; }
 
-/* --- Slice 2: card-reward choice, Train service, boss --- */
+/* Hover card — replaces the native <title>, which had a ~1s delay and could not show
+   a twist blurb legibly. Positioned in the scrolling canvas, so it travels with the map. */
+.advmap__hovercard {
+  position: absolute; z-index: 5; width: 220px; transform: translate(-50%, -100%);
+  margin-top: -14px; pointer-events: none;
+  background: var(--panel); background-image: var(--tex-stone);
+  border: 1px solid var(--nd, var(--line)); border-radius: 9px; padding: 10px 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+}
+.advmap__hovercard--flip { transform: translate(-50%, 0); margin-top: 14px; }
+.advmap__hovertitle { display: flex; align-items: center; gap: 7px; font-family: var(--font-display); font-weight: 600; font-size: 13.5px; color: var(--nd); }
+.advmap__hoverbody { margin-top: 6px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.advmap__hoverreward { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--text); }
 
-/* Reward card-choice grid */
-.advcardpick { width: 100%; }
-.advcardpick__grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 8px 0 10px; }
+.advmap__hint { text-align: center; margin: 0; padding: 6px 14px 9px; font-size: 12.5px; }
 
-/* Rest Site — Train service */
-.advrest__power { background: #262935; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 4px 0 10px; }
+/* ---------------- Panels: one scene per node type ---------------- */
+/* Store, Rest, Enhance and Event used to render as the same bordered rectangle with an
+   <h2>. Each now takes its map colour through a banner, its border and its controls, so
+   an altar and a campfire are no longer pixel-identical. */
+.advpanel {
+  --nd: var(--accent);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 16px 18px; max-width: 1000px; margin: 0 auto;
+}
+.advpanel--center { text-align: center; padding: 40px 18px; display: flex; flex-direction: column; align-items: center; }
+.advpanel__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin: 12px 0; }
+.advpanel__actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
+
+.advscene { padding: 0; overflow: hidden; }
+.advscene--rest    { --nd: var(--adv-rest); }
+.advscene--store   { --nd: var(--adv-store); }
+.advscene--enhance { --nd: var(--adv-enhance); }
+.advscene--event   { --nd: var(--adv-event); }
+.advscene--trial   { --nd: var(--adv-trial); }
+.advscene__banner {
+  display: flex; align-items: center; gap: 14px; padding: 15px 20px;
+  border-bottom: 2px solid var(--nd);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--nd) 13%, transparent), transparent);
+}
+.advscene__icon { font-size: 30px; line-height: 1; color: var(--nd); flex: none; }
+.advscene__head { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.advscene__title { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0; }
+.advscene__flavour { font-family: var(--font-flavour); font-style: italic; font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+.advscene__body { padding: 16px 20px 18px; }
+
+/* Shop / offer slots */
+.advshop__slot { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.advshop__slot--sold { opacity: 0.45; }
+.advshop__slot--selected { outline: 2px solid var(--nd); outline-offset: 2px; border-radius: 8px; }
+/* A real CTA, not a flat panel-coloured button — the node's own hue reads as "this is
+   the action to take here", and bumped size/weight/contrast fix the readability
+   complaint against the previous 12.5px flat-grey button. */
+.advshop__buy {
+  border: 1px solid color-mix(in srgb, var(--nd) 55%, var(--line)); border-radius: 8px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--nd) 24%, var(--panel2)), var(--panel2));
+  color: #fff; padding: 8px 10px; cursor: pointer; font: 600 13.5px/1.3 var(--font-body);
+  width: 100%; box-shadow: var(--emboss);
+}
+.advshop__buy:disabled { opacity: 0.5; cursor: default; box-shadow: none; color: var(--muted); background: var(--panel2); }
+.advshop__buy:not(:disabled):hover { border-color: var(--nd); box-shadow: var(--emboss), 0 0 9px color-mix(in srgb, var(--nd) 50%, transparent); }
+/* Why an action is refused, not just that it is: the price the player is short by. */
+.advshop__why { display: block; font: 600 11px/1.3 var(--font-body); color: #e2867d; margin-top: 3px; }
+
+/* Per-visit slot markers. A shop slot now has properties the card art can't show —
+   a price cut, or an enhancement already worked into the copy — so each gets a corner
+   sticker rather than being buried in the price the player would have to compute. */
+.advshop__slot { position: relative; }
+.advshop__tag {
+  position: absolute; top: -7px; z-index: 2; padding: 1px 7px; border-radius: 999px;
+  font: 700 10px/1.7 var(--font-body); letter-spacing: 0.04em; white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+}
+.advshop__tag--sale { left: -4px; background: linear-gradient(180deg, #8fd08a, #4e9d55); color: #10210f; }
+.advshop__tag--enh { right: -4px; background: linear-gradient(180deg, #e6b6f7, #b478d4); color: #1b1220; }
+
+/* Restock: a coin sink that buys a different shop, priced beside Sell and Leave. */
+.advshop__reroll {
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--text);
+  padding: 8px 14px; cursor: pointer; font: 600 13px/1 var(--font-body); box-shadow: var(--emboss);
+}
+.advshop__reroll:not(:disabled):hover { border-color: var(--adv-store); color: #fff; }
+.advshop__reroll:disabled { opacity: 0.5; cursor: default; color: var(--muted); box-shadow: none; }
+
+/* Sell: a deliberately distinct action from Buy (loses a card from the deck), so it
+   gets its own colour rather than sharing the node hue — and a visible entry point
+   instead of a small plain-text toggle easy to miss beside "Leave store". */
+.advshop__selltoggle {
+  border: 1px solid rgba(224, 145, 58, 0.55); border-radius: 8px;
+  background: linear-gradient(180deg, rgba(224,145,58,0.16), var(--panel2));
+  color: #f0c896; padding: 8px 14px; font: 600 13px/1 var(--font-body); cursor: pointer;
+}
+.advshop__selltoggle:hover:not(:disabled) { border-color: var(--adv-elite); box-shadow: 0 0 9px rgba(224,145,58,0.35); }
+.advshop__selltoggle:disabled { opacity: 0.55; cursor: default; color: var(--muted); background: var(--panel2); border-color: var(--line); }
+.advshop__sell {
+  border: 1px solid rgba(224, 145, 58, 0.55); border-radius: 8px;
+  background: linear-gradient(180deg, rgba(224,145,58,0.22), var(--panel2));
+  color: #fff; padding: 8px 10px; cursor: pointer; font: 600 13.5px/1.3 var(--font-body);
+  width: 100%; box-shadow: var(--emboss);
+}
+.advshop__sell:disabled { opacity: 0.5; cursor: default; box-shadow: none; color: var(--muted); background: var(--panel2); }
+.advshop__sell:not(:disabled):hover { border-color: var(--adv-elite); box-shadow: var(--emboss), 0 0 9px rgba(224,145,58,0.4); }
+
+/* Tabs — each panel's tabs take that node's hue instead of a shared grey. */
+.advrest__tabs { display: flex; gap: 8px; margin: 0 0 12px; flex-wrap: wrap; }
+.advrest__tab {
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--text);
+  padding: 8px 14px; cursor: pointer; font: 500 13px/1 var(--font-body);
+  display: inline-flex; align-items: center; gap: 7px; box-shadow: var(--emboss);
+}
+.advrest__tab em { font-style: normal; color: var(--muted); font-size: 12px; }
+.advrest__tab:hover { border-color: var(--nd); }
+.advrest__tab--on {
+  border-color: var(--nd); color: #fff;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--nd) 20%, var(--panel2)), var(--panel2));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 0 0 1px color-mix(in srgb, var(--nd) 45%, transparent);
+}
+.advrest__tab--on em { color: var(--nd); }
+.advrest__kindle {
+  display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; padding: 9px 11px;
+  border: 1px dashed var(--line); border-radius: 8px; cursor: pointer; font-size: 13px;
+}
+.advrest__kindle:hover { border-color: var(--nd); }
+.advrest__kindle--disabled { opacity: 0.55; cursor: not-allowed; }
+.advrest__kindle--disabled:hover { border-color: var(--line); }
+.advrest__kindle input { cursor: inherit; }
+
+.advenh__label { font-size: 1.15em; font-weight: 700; }
+
+/* Three offers, chosen from — the node's headline, so they get card-sized targets
+   rather than the inline tab strip a single offer used to live in. */
+/* Trial: pick the condition you fight under. */
+.advmap__twistlist { margin: 5px 0 0; padding-left: 15px; display: flex; flex-direction: column; gap: 3px; }
+.advmap__twistlist li { line-height: 1.35; }
+
+.advtrial__choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; width: 100%; margin-bottom: 12px; }
+.advtrial__twist {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  padding: 15px 13px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); background-image: var(--tex-stone); color: var(--text);
+  cursor: pointer; font: inherit;
+}
+.advtrial__twist:hover { border-color: var(--adv-trial); transform: translateY(-2px); }
+.advtrial__twist--sel { border-color: var(--adv-trial); box-shadow: 0 0 0 1px var(--adv-trial), 0 0 16px color-mix(in srgb, var(--adv-trial) 40%, transparent); }
+.advtrial__twist .muted { font-size: 11.5px; line-height: 1.4; }
+/* Severity is the wager, so it has to read before the rule does: a colour and a word at
+   the top of the card, and the payout it buys spelled out at the bottom. */
+.advtrial__head { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.advtrial__sev {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 3px; border: 1px solid currentColor; line-height: 1.2;
+}
+.advtrial__sev--1 { color: #7fb37a; }
+.advtrial__sev--2 { color: #d8a94e; }
+.advtrial__sev--3 { color: #d9736a; }
+.advtrial__pays {
+  margin-top: auto; padding-top: 7px; font-size: 10.5px; letter-spacing: 0.03em;
+  color: var(--muted); text-transform: capitalize;
+}
+.advtrial__twist--sev1 { border-left: 3px solid rgba(127,179,122,0.55); }
+.advtrial__twist--sev2 { border-left: 3px solid rgba(216,169,78,0.55); }
+.advtrial__twist--sev3 { border-left: 3px solid rgba(217,115,106,0.6); }
+
+/* Saved runs — explicit checkpoints, listed above the leader grid. */
+.advpicker__saves { width: 100%; margin-bottom: 16px; }
+.advpicker__savelist { display: flex; flex-direction: column; gap: 8px; }
+.advpicker__save {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel2);
+}
+.advpicker__saveicon { font-size: 20px; line-height: 1; flex: none; }
+.advpicker__savemeta { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.advpicker__savemeta .muted { font-size: 12px; }
+.advpicker__savedel {
+  background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--muted);
+  padding: 6px 9px; cursor: pointer; flex: none;
+}
+.advpicker__savedel:hover { border-color: var(--danger); color: #f0a89f; }
+
+/* Import a run from file. Styled as a button; the real <input type=file> is invisible
+   and fills the label so the whole label click-target opens the file picker. */
+.advpicker__import { width: 100%; margin-bottom: 14px; }
+.advpicker__importlabel {
+  position: relative; display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border: 1px dashed var(--line); border-radius: 8px;
+  background: var(--panel2); color: var(--text); cursor: pointer;
+  font: 600 13px/1 var(--font-body);
+}
+.advpicker__importlabel:hover { border-color: var(--accent); border-style: solid; }
+.advpicker__importinput {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.advpicker__importerror { margin: 6px 0 0; font-size: 12px; color: #f0a89f; }
+
+/* Export-to-file button, beside Save/Abandon in the HUD. */
+.advhud__export {
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--text);
+  padding: 7px 12px; cursor: pointer; font: 600 12.5px/1 var(--font-body);
+}
+.advhud__export:hover { border-color: var(--accent); color: #fff; }
+
+/* Save-run checkpoint button, beside Abandon in the HUD. */
+.advhud__save {
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--text);
+  padding: 7px 12px; cursor: pointer; font: 600 12.5px/1 var(--font-body);
+}
+.advhud__save:hover { border-color: var(--accent); color: #fff; }
+
+/* Opening boons — the run's first decision, on the leader preview screen. */
+.advpicker__boonhead { margin: 14px 0 6px; font-size: 15px; }
+.advpicker__boons { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.advpicker__boon {
+  display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center;
+  padding: 13px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); background-image: var(--tex-stone); color: var(--text);
+  cursor: pointer; font: inherit;
+}
+.advpicker__boon:hover { border-color: var(--accent); transform: translateY(-2px); }
+.advpicker__boon--sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 16px rgba(232,191,106,0.30); }
+.advpicker__boon .muted { font-size: 11.5px; line-height: 1.35; }
+.advpicker__boonicon { font-size: 22px; line-height: 1; }
+
+.advenh__offers { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; width: 100%; margin-bottom: 10px; }
+.advenh__offer {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 14px 12px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); background-image: var(--tex-stone); color: var(--text);
+  cursor: pointer; text-align: center; font: inherit;
+}
+.advenh__offer:hover { border-color: var(--nd); transform: translateY(-2px); }
+.advenh__offer--sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 16px rgba(232,191,106,0.30); }
+.advenh__blurb { font-size: 11.5px; line-height: 1.35; }
+/* Rare offers are the payoff for spending on rerolls, so they have to read as different
+   in kind at a glance — not merely as a bigger number on the same tile. */
+.advenh__offer--rare { border-color: color-mix(in srgb, var(--adv-boss) 55%, var(--line)); }
+.advenh__offer--rare .advenh__label { color: #d9a7f0; }
+.advenh__rare {
+  position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
+  padding: 1px 8px; border-radius: 999px; font: 700 9.5px/1.6 var(--font-body);
+  letter-spacing: 0.09em; text-transform: uppercase; color: #1b1220;
+  background: linear-gradient(180deg, #e6b6f7, #b478d4);
+}
+
+.advenh__rerollrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12.5px; }
+.advenh__reroll {
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--text);
+  padding: 7px 13px; cursor: pointer; font: 600 13px/1 var(--font-body); box-shadow: var(--emboss);
+}
+.advenh__reroll:not(:disabled):hover { border-color: var(--nd); color: #fff; }
+.advenh__reroll:disabled { opacity: 0.5; cursor: default; color: var(--muted); box-shadow: none; }
+
+/* Attune options */
 .advtrain__opt { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px; text-align: center; }
 .advtrain__icon { font-size: 26px; line-height: 1; }
 .advtrain__label { font-weight: 700; }
 .advtrain__desc { font-size: 12px; }
 
-/* Boss reward: leader unique / signature buff unlock */
-.advunlock { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-.advunlock__card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 20px; border: 1px solid var(--accent); border-radius: 12px; background: #262935; text-align: center; }
-.advunlock__card strong { font-size: 15px; }
+/* ---------------- Events ---------------- */
+.advevent__body { font-family: var(--font-flavour); font-style: italic; color: var(--text); margin: 0 0 16px; line-height: 1.6; font-size: 15px; }
+.advevent__choices { display: flex; flex-direction: column; gap: 9px; }
+.advevent__choice {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left;
+  padding: 11px 15px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2);
+  color: var(--text); cursor: pointer; font: 500 14px/1.4 var(--font-body); box-shadow: var(--emboss);
+}
+.advevent__choice:not(:disabled):hover { border-color: var(--nd); }
+.advevent__choice:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+.advevent__note { font-size: 11px; color: var(--danger); font-weight: 400; }
+/* The derived effect line. Deliberately quieter than the flavour label above it and
+   louder than nothing at all: it is the part the player actually decides on, but the
+   prose is still meant to be what they read first. */
+.advevent__effect {
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted, #9aa3b2);
+  font-variant-numeric: tabular-nums;
+}
+/* An HP price reads in blood, not in gold — it is a different currency and should not be
+   mistaken for one at a glance. */
+.advevent__blood { color: #e08b84; font-weight: 600; }
+/* Coins held by the Ossuary Bank. The only payout in the run that lives nowhere the
+   player can see, so it gets its own line whenever it is non-zero. */
+.advevent__banked {
+  margin: 0 0 10px; font-size: 12px; color: var(--adv-store, var(--muted));
+  font-weight: 600; letter-spacing: 0.02em;
+}
+/* ---------------- Reward moments ---------------- */
+.advreward { font-family: var(--font-display); font-size: 1.6em; font-weight: 700; margin: 12px 0; }
+.advreward__heal { color: var(--adv-rest); }
+
+.advcardpick { width: 100%; }
+.advcardpick__grid { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 10px 0 12px; }
+.advcardpick__opt { background: none; border: none; padding: 4px; border-radius: 12px; transition: transform .14s ease, filter .14s ease, box-shadow .14s ease; }
+.advcardpick__opt:hover, .advcardpick__opt:has(:focus-visible) { transform: translateY(-6px); filter: drop-shadow(0 8px 16px rgba(0,0,0,0.55)); }
+/* Clicking selects rather than commits — the highlight is what shows a pick is armed,
+   pending the explicit Confirm. */
+.advcardpick__opt--sel { box-shadow: 0 0 0 2px var(--accent), 0 0 18px rgba(232,191,106,0.45); }
+.advcardpick__actions { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 6px; }
+.advcardpick__skip { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; color: var(--text); cursor: pointer; font: 500 13px/1 var(--font-body); }
+.advcardpick__skip:hover { border-color: var(--danger); color: #f0a89f; }
+
+.advrelicpick { width: 100%; }
+.advrelicpick__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 10px; }
+.advrelic {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 18px 13px 14px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); background-image: var(--tex-stone); color: var(--text);
+  cursor: pointer; text-align: center;
+}
+.advrelic:hover { transform: translateY(-3px); }
+.advrelic--common:hover { border-color: var(--muted); }
+.advrelic--rare { border-color: rgba(58,134,214,0.6); box-shadow: inset 0 0 20px rgba(58,134,214,0.12); }
+.advrelic--rare:hover { border-color: var(--adv-enhance); box-shadow: inset 0 0 20px rgba(58,134,214,0.18), 0 0 14px rgba(58,134,214,0.25); }
+.advrelic--boss { border-color: rgba(232,191,106,0.75); box-shadow: inset 0 0 22px rgba(232,191,106,0.14), 0 0 14px rgba(232,191,106,0.13); }
+.advrelic--boss:hover { border-color: var(--accent); box-shadow: inset 0 0 22px rgba(232,191,106,0.2), 0 0 20px rgba(232,191,106,0.3); }
+.advrelic__band {
+  position: absolute; top: 9px; right: 9px; font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; font-weight: 600; padding: 3px 5px; border-radius: 3px;
+  color: var(--muted); background: rgba(0,0,0,0.32);
+}
+.advrelic--rare .advrelic__band { color: #a8cdf2; background: rgba(58,134,214,0.18); }
+.advrelic--boss .advrelic__band { color: var(--accent); background: rgba(232,191,106,0.16); }
+.advrelic__icon { font-size: 30px; line-height: 1; }
+.advrelic__name { font-family: var(--font-display); font-weight: 600; font-size: 14px; }
+.advrelic__blurb { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+/* Boss unlock — the run's biggest beat, previously the same centred box as an
+   ordinary victory. Now a gilt plate with the power's before/after spelled out. */
+.advunlock { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+.advunlock__card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 26px;
+  border: 1px solid var(--accent); border-radius: 12px; text-align: center; max-width: 460px;
+  background: linear-gradient(180deg, rgba(232,191,106,0.13), rgba(232,191,106,0.02));
+  box-shadow: 0 0 26px rgba(232,191,106,0.16);
+}
+.advunlock__icon { font-size: 40px; line-height: 1; color: var(--accent); }
+.advunlock__card strong { font-family: var(--font-display); font-size: 19px; color: var(--accent); }
+.advunlock__desc { font-size: 13.5px; color: var(--text); line-height: 1.5; }
+.advunlock__diff { display: flex; flex-direction: column; gap: 5px; width: 100%; margin-top: 4px; font-size: 12.5px; }
+.advunlock__was, .advunlock__now { display: flex; gap: 9px; align-items: baseline; text-align: left; }
+.advunlock__was { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(148,138,120,0.5); }
+.advunlock__now { color: var(--text); }
+.advunlock__tag { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; flex: none; width: 34px; color: var(--muted); text-decoration: none; }
+.advunlock__now .advunlock__tag { color: var(--accent); }
+
+/* Run summary on death — RunState already held all of this and showed three fields. */
+.advsummary { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; width: 100%; max-width: 620px; margin: 16px 0 6px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--line); }
+.advsummary__cell { background: var(--panel); padding: 13px 14px; text-align: center; }
+.advsummary__k { display: block; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+.advsummary__v { font-family: var(--font-display); font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.advsummary__relics { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin: 4px 0 8px; }
+
+/* ---------------- Combat wrapper bar ---------------- */
+/* Carries the run's own HUD into the fight — same HP bar, same relic tray — so a
+   battle reads as a step in the run rather than a different screen. */
+.advcombat__bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+  /* Same reason as the HUD tray: the relic list in here grows without limit. */
+  max-width: 100%; min-width: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px 16px; margin: 6px 12px;
+}
+.advcombat__foe { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.advcombat__foeicon { font-size: 22px; line-height: 1; flex: none; }
+.advcombat__foename { font-family: var(--font-display); font-weight: 600; font-size: 15px; display: block; }
+.advcombat__foekind { display: block; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+.advcombat__bar--boss { border-color: rgba(194,59,50,0.6); }
+.advcombat__bar--elite { border-color: rgba(224,145,58,0.55); }
+.advcombat__bar--trial { border-color: rgba(208,107,208,0.5); }
+.advcombat__twist { color: var(--accent); font-size: 12.5px; max-width: 420px; line-height: 1.4; }
+.advcombat__hp { min-width: 170px; flex: 1 1 170px; max-width: 260px; }
+.advcombat__spacer { flex: 1; }
+
+/* ---------------- Copper Mech: the endgame challenge ---------------- */
+/* A corner tab on the act header rather than a permanent full-width rail — the rail
+   cost a fixed slice of screen at every window size just to advertise the challenge
+   exists. The tab opens the same pitch in a modal (`.overlay`) instead. */
+.advmap__coppertab {
+  flex: none; display: inline-flex; align-items: center; gap: 5px;
+  background: var(--panel2); border: 1px solid rgba(201, 128, 63, 0.55); border-radius: 8px;
+  padding: 6px 9px; color: var(--copper); font-size: 15px; cursor: pointer; line-height: 1;
+}
+.advmap__coppertab:hover { border-color: var(--copper); background: rgba(201, 128, 63, 0.12); }
+.advmap__coppertab--won { border-color: var(--copper); box-shadow: 0 0 10px rgba(201,128,63,0.35); }
+.advmap__copperpct { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.advcopper {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; max-width: 440px;
+  border: 1px solid rgba(201, 128, 63, 0.55);
+}
+.advcopper--won { border-color: rgba(201, 128, 63, 0.95); box-shadow: 0 0 18px rgba(201, 128, 63, 0.25); }
+.advcopper__head { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 260px; }
+.advcopper__icon { font-size: 28px; line-height: 1; color: var(--copper); flex: none; }
+.advcopper__title { display: flex; flex-direction: column; gap: 3px; min-width: 0; text-align: left; }
+.advcopper__title strong { color: var(--copper); font-family: var(--font-display); font-size: 15px; letter-spacing: 0.02em; }
+.advcopper__title .muted { font-size: 12px; line-height: 1.4; }
+.advcopper__foot { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.advcopper__best { display: inline-flex; align-items: center; gap: 8px; color: var(--copper); font-weight: 600; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.advcopper__bar { display: inline-block; width: 120px; height: 6px; background: rgba(255, 255, 255, 0.10); border-radius: 3px; overflow: hidden; }
+.advcopper__fill { display: block; height: 100%; background: var(--copper); }
+.advcopper__go { border-color: var(--copper) !important; color: var(--copper) !important; white-space: nowrap; }
+.advcopper__record { color: var(--copper); font-weight: 700; }
+.advcopper__close { align-self: stretch; margin-top: 4px; }
+.advcombat__bar--copper { border-color: rgba(201, 128, 63, 0.6); }
+
+@media (prefers-reduced-motion: reduce) {
+  .advhud__hpfill, .advhud__hptemp, .advcardpick__opt, .advrelic { transition: none; }
+  .advcardpick__opt:hover, .advrelic:hover { transform: none; }
+}
 
 /* ===================================================================
    STONE MENUS  —  carved slabs, chiselled bevels, rune-engraved light text.
@@ -1901,6 +2611,16 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   background: rgba(245, 158, 11, 0.12);
   box-shadow: inset 0 0 0 2px rgba(245,158,11,0.8), inset 0 0 18px rgba(245,158,11,0.3);
 }
+/* Generic lane-destination targeting (Leader Skill lane, Move spell, pending move) — gilt to
+   match the game's own "this is a valid, clickable choice" vocabulary. */
+.lane--lane-target {
+  outline: none; border-radius: 8px; cursor: pointer;
+  background: rgba(232, 191, 106, 0.14);
+  box-shadow: inset 0 0 0 2px rgba(232,191,106,0.85), inset 0 0 18px rgba(232,191,106,0.3);
+}
+.lane--lane-target:hover {
+  background: rgba(232, 191, 106, 0.24);
+}
 
 /* ===================================================================
    PHASE 3 — STATE ON THE BODY: persistent keyword edges + lane weather.
@@ -2010,3 +2730,421 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   .lanecol--env::after, .lanecol--declare, .lanecol--declare::after, .controls::after, .handback { animation: none !important; }
   .game.theme-gothic .hand .handcard { transition: none !important; }
 }
+<<<<<<< Updated upstream
+=======
+
+/* ── Energy economy readouts ──────────────────────────────────────────────────
+   The cost model changed: element pips draw from the bank first and charge any
+   shortfall to generic energy, so a card's printed `cost.energy` is not what it
+   costs you. These styles carry the difference. */
+
+/* A cost the player's bank is partly paying — the number shown is lower than face. */
+.card__cost--discounted {
+  color: #9ff2c4;
+  text-shadow: 0 0 6px rgba(90, 230, 160, .55), 0 1px 1px #000;
+}
+
+/* Each pip says whether the bank covers it. Covered = paid from reserves (bright,
+   slight glow); short = falls back to generic energy (dimmed and desaturated). */
+.card__pip { display: inline-flex; line-height: 1; transition: opacity .12s ease; }
+/* Round the element badges so they match the circular generic-cost jewel beside them and the
+   run reads as a single row of cost symbols. */
+.card__pip .erune { border-radius: 50%; }
+.card__pip--covered { filter: drop-shadow(0 0 3px rgba(120, 240, 180, .75)); }
+.card__pip--short { opacity: .38; filter: grayscale(.85); }
+
+/* Energy queued for NEXT turn (Producers, Cancerous Growth). Deliberately reads as a
+   promise rather than a resource: outlined, cooler, set apart from the live numeral. */
+.energygems__next {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border: 1px dashed rgba(150, 220, 255, .55);
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 11px;
+  color: #bfe6ff;
+  line-height: 1.25;
+}
+.energygems__next-tag { font-size: 8.5px; font-weight: 600; opacity: .75; letter-spacing: .04em; }
+
+/* What a bank actually buys, on the banking tile. */
+.banktile__discounts {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: #9ff2c4;
+  opacity: .9;
+  line-height: 1;
+}
+
+/* Hero powers that hand energy back (Cancerous Growth) must not read as pure cost. */
+.herocost__return {
+  margin-left: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #bfe6ff;
+  opacity: .85;
+}
+
+/* Ending the turn on unbanked energy destroys it, and banking is pure upside — so this
+   is a strictly dominated move worth flagging. */
+.btn-end--waste { box-shadow: 0 0 0 1px rgba(255, 190, 90, .55), 0 0 12px rgba(255, 170, 60, .28); }
+.btn-end__waste {
+  display: block;
+  margin-top: 4px;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #ffcf87;
+  letter-spacing: .01em;
+}
+
+/* ===================================================================
+   SYMBOL-FIRST BATTLEFIELD
+   The board should be readable as PICTURES, not prose. Three moves, all always-on:
+     1. Keyword badges are colour-coded by what they MEAN (threat / protection / utility), so a
+        player registers a unit's danger from colour before decoding any glyph.
+     2. Afflictions get their own sickly tone, distinct from both, so "this unit is suffering"
+        reads instantly.
+     3. Every event-log line carries a leading icon, so the log can be scanned by symbol.
+   No new taxonomy: the tones reuse OFFENSIVE_KEYS / DEFENSIVE_KEYS, and `unit.status` only ever
+   holds afflictions (protection lives in keywords), so the classification is already correct.
+   =================================================================== */
+
+/* ---- Keyword badges: bigger, chip-shaped, semantically coloured --------------------------- */
+.kwbadge {
+  cursor: help; border-radius: 6px; padding: 0 3px; gap: 2px;
+  display: inline-flex; align-items: center; line-height: 1;
+  border: 1px solid; /* colour supplied per tone below */
+}
+/* Glyph is deliberately the largest thing in the chip — it is what gets read. */
+.kwbadge__icon { font-size: 14px; line-height: 1; }
+.kwbadge__val { font-size: 11px; font-weight: 800; line-height: 1; }
+/* Marks an OUTGOING effect (on-hit) so it is never read as a status the unit is suffering. */
+.kwbadge__arrow { font-size: 10px; opacity: 0.85; line-height: 1; }
+
+/* Threat — this unit hits harder or nastier than its number suggests. */
+.kwbadge--atk {
+  background: linear-gradient(180deg, rgba(217, 75, 43, 0.34), rgba(122, 36, 24, 0.30));
+  border-color: rgba(255, 138, 92, 0.65);
+  color: #ffcdb8;
+  box-shadow: 0 0 6px rgba(217, 75, 43, 0.30), inset 0 1px 0 rgba(255, 190, 160, 0.22);
+}
+/* Protection — this unit is harder to remove than its number suggests. */
+.kwbadge--def {
+  background: linear-gradient(180deg, rgba(58, 134, 214, 0.34), rgba(18, 58, 99, 0.30));
+  border-color: rgba(140, 200, 255, 0.65);
+  color: #cfe6ff;
+  box-shadow: 0 0 6px rgba(58, 134, 214, 0.30), inset 0 1px 0 rgba(190, 225, 255, 0.22);
+}
+/* Utility — movers, producers, healers: relevant but not a combat threat read. */
+.kwbadge--util {
+  background: linear-gradient(180deg, rgba(232, 191, 106, 0.26), rgba(120, 92, 36, 0.24));
+  border-color: rgba(240, 208, 137, 0.55);
+  color: #f4e2b4;
+}
+.kwbadge--atk .kwbadge__val, .kwbadge--def .kwbadge__val, .kwbadge--util .kwbadge__val { color: inherit; }
+
+/* ---- Afflictions: one unmistakable "this unit is suffering" tone -------------------------- */
+.unit__status { font-size: 13px; gap: 3px; }
+.statusbadge {
+  cursor: help; border-radius: 6px; padding: 0 3px; font-size: 14px; line-height: 1.15;
+  background: linear-gradient(180deg, rgba(150, 60, 190, 0.34), rgba(70, 22, 92, 0.34));
+  border: 1px solid rgba(214, 150, 255, 0.6);
+  color: #f0d6ff;
+  box-shadow: 0 0 6px rgba(150, 60, 190, 0.30);
+}
+
+/* ---- Event log: a symbol per line so it can be scanned, not read ------------------------- */
+.logline { display: flex; align-items: baseline; gap: 5px; }
+.logline::before {
+  content: "·"; flex: 0 0 auto; width: 1.1em; text-align: center;
+  font-size: 12px; line-height: inherit; opacity: 0.95;
+}
+/* Damage + removal */
+.logline--damageUnit::before      { content: "⚔"; color: #ff8a5c; }
+.logline--damageLeader::before    { content: "✸"; color: #ff5a44; }
+.logline--unitDestroyed::before   { content: "☠"; color: #d88; }
+.logline--lethal::before          { content: "☠"; color: #ff5a44; }
+.logline--attack::before          { content: "⚔"; color: #ffb38f; }
+.logline--retaliate::before       { content: "↩"; color: #7ab8ff; }
+.logline--spike::before           { content: "✳"; color: #ffb38f; }
+.logline--brittle::before         { content: "✘"; color: #d88; }
+.logline--sacrifice::before       { content: "†"; color: #d88; }
+/* Blocks + protection */
+.logline--blocked::before         { content: "⊘"; color: #9fd0ff; }
+.logline--shieldBlock::before     { content: "▣"; color: #9fd0ff; }
+.logline--mitigated::before       { content: "⬢"; color: #9fd0ff; }
+.logline--intercept::before       { content: "⚓"; color: #e59bff; }
+/* Afflictions + ticks */
+.logline--burnTick::before        { content: "♨"; color: #ffb64a; }
+.logline--poisonTick::before      { content: "☣"; color: #b6e24a; }
+.logline--drownTick::before       { content: "⇊"; color: #6fb7e8; }
+.logline--drowning::before        { content: "⇊"; color: #6fb7e8; }
+.logline--statusApplied::before   { content: "✦"; color: #e59bff; }
+.logline--statusExpired::before   { content: "✧"; color: #9a8b73; }
+.logline--cleanse::before         { content: "✧"; color: #86e89b; }
+.logline--wake::before            { content: "☀"; color: #ffd27a; }
+/* Growth + healing */
+.logline--heal::before            { content: "✚"; color: #86e89b; }
+.logline--growth::before          { content: "↥"; color: #86e89b; }
+.logline--buff::before            { content: "▲"; color: #86e89b; }
+.logline--zombieRevive::before    { content: "↺"; color: #9be89b; }
+/* Plays + cards */
+.logline--playUnit::before        { content: "✧"; color: var(--gilt); }
+.logline--playEnvironment::before { content: "⬡"; color: var(--gilt); }
+.logline--foundationPlaced::before{ content: "⌂"; color: var(--gilt); }
+.logline--foundationBonded::before{ content: "⌂"; color: #86e89b; }
+.logline--foundationDestroyed::before { content: "⌂"; color: #d88; }
+.logline--castSpell::before       { content: "✺"; color: #c9a0ff; }
+.logline--heroPower::before       { content: "★"; color: #ffd27a; }
+.logline--summon::before          { content: "✧"; color: var(--gilt); }
+.logline--conjure::before         { content: "✧"; color: #c9a0ff; }
+.logline--transform::before       { content: "⧖"; color: #c9a0ff; }
+.logline--moved::before           { content: "⇄"; color: #9fd0ff; }
+.logline--expel::before           { content: "↩"; color: #d8c; }
+.logline--forget::before          { content: "✕"; color: #9a8b73; }
+/* Economy + flow */
+.logline--draw::before            { content: "▤"; color: #b8a888; }
+.logline--drawNull::before        { content: "▤"; color: #8b7f6a; }
+.logline--bank::before            { content: "◈"; color: var(--gilt); }
+.logline--produce::before         { content: "⌁"; color: var(--gilt); }
+.logline--turnStart::before       { content: "❧"; color: var(--gilt); }
+.logline--endTurn::before         { content: "❧"; color: #9a8b73; }
+.logline--signatureUnlocked::before, .logline--signatureGranted::before { content: "★"; color: var(--gilt); }
+.logline--gameOver::before        { content: "⚑"; color: #ff5a44; }
+.logline--error::before           { content: "!"; color: #ff5a44; }
+/* Sub-events sit quieter so the headline symbols carry the scan. */
+.logline--detail::before { opacity: 0.6; }
+
+/* ---- Drop-time rule affordances ----------------------------------------------------------
+   The lane shows the OUTCOME of the drop you are about to make, so two rules teach themselves
+   at the moment they apply instead of after the consequence:
+     • Water pins a non-Aquatic/Airborne unit's attack to 0 and ticks damage  → blue ⇊ warning
+     • A lane with no free slot cannot take the unit                          → grey ✕, no glow
+   Water stays droppable: blocking in Water is a legitimate, costly choice, not an error. */
+.lane--drown {
+  background: rgba(58, 134, 214, 0.16);
+  box-shadow: inset 0 0 0 2px rgba(110, 180, 240, 0.75), inset 0 -14px 20px rgba(20, 70, 120, 0.45);
+  border-radius: 8px;
+}
+.lane--drown .lane__empty { color: #8fd0ff; text-shadow: 0 0 10px rgba(58, 134, 214, 0.9); }
+.lane__warn {
+  position: absolute; top: 3px; right: 4px; z-index: 7; pointer-events: none;
+  font-size: 17px; color: #8fd0ff; text-shadow: 0 1px 3px #000, 0 0 9px rgba(58, 134, 214, 0.95);
+  animation: warnPulse 1.2s ease-in-out infinite;
+}
+@keyframes warnPulse { 0%, 100% { opacity: 0.75; transform: translateY(0); } 50% { opacity: 1; transform: translateY(1px); } }
+
+.lane--full { filter: grayscale(0.5) brightness(0.62); }
+.lane__blocked {
+  position: absolute; inset: 0; z-index: 7; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; color: rgba(220, 210, 195, 0.55); text-shadow: 0 1px 3px #000;
+}
+@media (prefers-reduced-motion: reduce) { .lane__warn { animation: none !important; } }
+
+
+/* ---- Legend: the symbol vocabulary, one page ---------------------------------------------- */
+.legend { display: flex; flex-direction: column; gap: 18px; padding: 4px 2px 24px; }
+.legend__lede { margin: 0; color: var(--muted); font-size: 13px; max-width: 70ch; line-height: 1.5; }
+.legend__lede em { color: var(--gilt); font-style: normal; font-weight: 700; }
+.legend__section { display: flex; flex-direction: column; gap: 6px; }
+.legend__title {
+  margin: 0; font-family: var(--font-display); font-size: 15px; color: var(--gilt);
+  letter-spacing: 0.03em; border-bottom: 1px solid var(--line); padding-bottom: 4px;
+}
+.legend__hint { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.legend__grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 4px 18px;
+}
+.legend__row {
+  display: grid; grid-template-columns: auto 118px 1fr; align-items: baseline; gap: 8px;
+  padding: 3px 4px; border-radius: 6px;
+}
+.legend__row:hover { background: rgba(232, 191, 106, 0.07); }
+.legend__name { font-weight: 700; font-size: 12.5px; color: var(--text); }
+.legend__desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
+@media (max-width: 720px) { .legend__row { grid-template-columns: auto 1fr; } .legend__desc { grid-column: 2; } }
+
+/* ---- Front rank / back rank ---------------------------------------------------------------
+   A lane holding two units hides a rule: only the FRONT one is in contact — it takes the hit,
+   and the back one is shielded by it until the front dies. The back unit was already drawn
+   recessed, which reads as "behind" but not as "protected by the one in front".
+   So when (and only when) a lane actually holds a pair, the front unit gets a bright contact
+   edge on the side facing the enemy. One unit alone needs no marker — it is obviously the one
+   fighting — and marking every unit would just add noise. */
+.lane:has(.unit--back) .unit--front::before {
+  content: ""; position: absolute; left: 6px; right: 6px; height: 2px; z-index: 6;
+  pointer-events: none; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--gilt) 22%, var(--gilt) 78%, transparent);
+  box-shadow: 0 0 7px rgba(232, 191, 106, 0.8);
+}
+/* The contact edge sits on whichever side faces the middle of the board (the enemy). */
+.lane--me:has(.unit--back) .unit--front::before  { top: -1px; }
+.lane--foe:has(.unit--back) .unit--front::before { bottom: -1px; }
+/* Reinforce the pairing: the sheltered unit reads as tucked behind, not merely small. */
+.lane:has(.unit--back) .unit--back { filter: brightness(0.7) saturate(0.8); }
+
+
+/* What a standalone Foundation will hand to the unit that bonds with it. Reads as a promise
+   ("⌂→ +2⚔") rather than a stat the Foundation itself has, so it is never confused with the
+   body's own numbers below it. */
+.unit__grant {
+  display: inline-flex; align-items: center; gap: 3px; align-self: flex-start;
+  margin: 1px 0 0; padding: 0 4px; border-radius: 5px;
+  font-family: var(--font-display); font-size: 10.5px; font-weight: 800; line-height: 1.35;
+  color: #cfe6ff;
+  background: linear-gradient(180deg, rgba(58,134,214,0.30), rgba(18,58,99,0.28));
+  border: 1px dashed rgba(140,200,255,0.6);
+}
+.unit__grant-icon { opacity: 0.85; font-size: 10px; }
+.unit__grant-stat { letter-spacing: 0.01em; }
+.unit__grant-kw { font-size: 12px; line-height: 1; }
+
+/* Hero power effect chips — the power stated as symbols + magnitudes, derived from its actual
+   effects (not its prose, which every leader overrides). Sits above the sentence so the shape
+   of the power reads first and the words are there to confirm, not to carry it. */
+.leader__skill-chips { display: flex; flex-wrap: wrap; gap: 3px; margin: 1px 0; }
+.herochip {
+  display: inline-flex; align-items: center; gap: 2px; padding: 0 4px;
+  border-radius: 5px; line-height: 1.25; cursor: help;
+  background: linear-gradient(180deg, rgba(201,160,255,0.26), rgba(74,42,110,0.26));
+  border: 1px solid rgba(201,160,255,0.5); color: #e8d6ff;
+}
+.herochip__icon { font-size: 13px; line-height: 1; }
+.herochip__val { font-family: var(--font-display); font-size: 11px; font-weight: 800; }
+
+/* Bank at cap: the reservoir is lidded. Previously the "+" button just went dead with no
+   reason on screen, so a leader's per-element cap — a real deckbuilding constraint — was only
+   discoverable by noticing a number stop changing. */
+.banktile--atcap { border-color: rgba(240,208,137,0.75); }
+.banktile__lid {
+  position: absolute; top: 2px; left: 50%; transform: translateX(-50%); z-index: 2;
+  font-size: 13px; line-height: 1; color: var(--gilt); cursor: help;
+  text-shadow: 0 0 6px rgba(232,191,106,0.85), 0 1px 2px #000;
+}
+.banktile--atcap .banktile__fraction { color: var(--gilt); }
+/* Both leader banners advertise that they can be opened. */
+.leader { cursor: help; }
+
+/* A Hero Power plate you cannot use right now — the opponent's, or your own off-turn. It stays
+   on screen because a power is public information and was previously unreadable, but it must
+   not look actionable — it is reference only, and casting stays gated to its owner's turn. */
+.leader__skill--readonly {
+  opacity: 0.72; filter: saturate(0.75); cursor: help;
+  border-style: dashed;
+}
+.leader__skill--readonly:hover { opacity: 0.95; filter: none; }
+
+
+/* --- Cursed relics -----------------------------------------------------------------
+   A fourth band, and the only one that is never awarded — a cursed relic is bought, so
+   the tray has to make one legible at a glance among relics that cost nothing. Violet
+   rather than a redder warning colour: it is a bargain the player chose, not damage. */
+.advhud__relic--cursed {
+  border-color: rgba(166,106,224,0.85);
+  box-shadow: inset 0 0 9px rgba(166,106,224,0.34), 0 0 8px rgba(140,80,200,0.28);
+}
+
+/* --- Store: the relic shelf --------------------------------------------------------- */
+.advshop__shelf {
+  margin: 22px 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted, #9aa3b2);
+}
+.advshop__relics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+.advshop__relic {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+}
+.advshop__relic--common { border-color: rgba(255,255,255,0.18); }
+.advshop__relic--rare { border-color: rgba(58,134,214,0.6); }
+/* The cursed slot is the cheapest and strongest thing in the shop; it should read as a
+   different KIND of offer from the two beside it, not as a better-priced one. */
+.advshop__relic--cursed {
+  border-color: rgba(166,106,224,0.7);
+  background: linear-gradient(180deg, rgba(120,60,180,0.16), rgba(255,255,255,0.02));
+}
+.advshop__relichead { display: flex; align-items: center; gap: 8px; }
+.advshop__relicicon { font-size: 22px; line-height: 1; }
+.advshop__relicname { font-weight: 600; flex: 1; }
+.advshop__relicband {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.advshop__relic--cursed .advshop__relicband { color: #d0a6f0; opacity: 1; }
+.advshop__relicblurb { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--muted, #9aa3b2); }
+
+/* --- Autopilot: the commander's rounds ---------------------------------------------- */
+.advcombat__autopilot {
+  padding: 7px 14px;
+  font-size: 13px;
+  text-align: center;
+  color: #d0a6f0;
+  background: rgba(120,60,180,0.14);
+  border-bottom: 1px solid rgba(166,106,224,0.35);
+}
+/* Live, the banner has to be impossible to miss: the board is about to move on its own
+   and the player needs to read that as the rule firing rather than as lost input. */
+.advcombat__autopilot--live {
+  color: #f4e6ff;
+  background: rgba(150,70,220,0.34);
+  border-bottom-color: rgba(200,140,255,0.7);
+  animation: advAutopilotPulse 1.4s ease-in-out infinite;
+}
+@keyframes advAutopilotPulse {
+  0%, 100% { background: rgba(150,70,220,0.30); }
+  50% { background: rgba(170,90,240,0.46); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .advcombat__autopilot--live { animation: none; }
+}
+
+/* --- Broken relics: a debt with a visible end ---------------------------------------
+   A broken relic is charging its drawback and paying nothing back yet, so the tray has
+   to distinguish it from a working one AND show the countdown. Without the number it
+   reads as a relic that is simply bad, rather than as a loan with a known term — which
+   is the entire reason the shape is worth taking. Amber rather than the cursed violet:
+   this is a temporary state, not a band. */
+.advhud__relic--broken {
+  position: relative;
+  border-color: rgba(224,166,80,0.85);
+  box-shadow: inset 0 0 9px rgba(224,166,80,0.30);
+}
+.advhud__repair {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  min-width: 13px;
+  padding: 0 2px;
+  border-radius: 7px;
+  background: rgba(224,166,80,0.95);
+  color: #241a08;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+}
+
+/* The unbind shelf's explanation: this transaction runs the opposite way to the sell
+   buttons above it (you pay, rather than being paid), so it needs a sentence. */
+.advshop__unbindnote { margin: 0 0 10px; font-size: 12px; line-height: 1.5; }
+>>>>>>> Stashed changes

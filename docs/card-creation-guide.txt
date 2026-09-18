@@ -205,6 +205,16 @@ Keywords are fields on the `keywords` object. Omit (do not set false) to leave i
   doubleStrike: true      Attacks twice per combat step; both hits trigger on-hit effects.
   airborne: true          Fights in Heights. Can attack into any non-Heights lane.
                           Cancels Aquatic's Water bonus.
+                          HARD CAP: a unit/foundation with `airborne` or `aquatic` cannot
+                          exceed EVASIVE_HP_CAP (5) HP — enforced at parse time, not a
+                          suggestion. Reasoning: a unit sitting in Water/Heights with no
+                          same-domain answer in the opposing lane can only be traded with by
+                          another airborne/aquatic unit or a removal spell, so stacking high
+                          HP on top of that evasion is disproportionate. Exempt only via
+                          `leaderUnit: true` on the one card that IS a leader's own avatar.
+                          Does NOT catch evasion granted at runtime by a Foundation
+                          (Fred's Boat, Tidal Dock) or an Environment's `grantKeywords` onto
+                          an already-tall grounded body — respect the cap by hand there.
   battleReady: true       Ignores summoning sickness; may act the turn it enters play.
 
 --- Defensive ---
@@ -450,6 +460,88 @@ premium on top of the ×0.8 ability factor (base × 1.5 × 0.8):
   3 same-element pips   — restricted to leaders with a high cap; contains the strongest cards
   4 same-element pips   — core payoff for a specific archetype
 
+<<<<<<< Updated upstream
+=======
+--- HOW MANY PIPS? (ONE PER ABILITY) ---
+
+Do NOT hand-pick a cost. Both halves come from src/cards/budget.ts:
+
+  pips   = abilityCount, capped at 4 and at the card own rounded value
+  energy = round(value) - pips
+
+Each ability converts ONE point of cost out of generic energy and into an element pip.
+Nominally that is the same total cost, but it is cheaper in practice: a pip is paid from
+end-of-turn overflow that would otherwise evaporate, while generic energy competes with
+everything else you want to do this turn.
+
+That conversion is the whole reason ability cards can compete with vanilla stat-sticks.
+It replaced an older fudge where printed stats were taxed (STAT_BASE 0.38) and abilities
+discounted (ABILITY_FACTOR 0.8) so the two errors would cancel. Both are now honest
+(0.28 and 1.0) and the advantage is structural instead.
+
+It also gives elements a job. A vanilla body is pure energy and always castable; an ability
+card commits you to an element, so a leader elementCaps decide which ability cards their
+deck can support, and banking has a reason to exist.
+
+WHAT COUNTS AS AN ABILITY: anything that ADDS value - each value-positive keyword, each
+on-hit status, each trigger effect, each environment effect, and a foundation grants.
+A pure downside does NOT count (Brittle earns no pip). Stats are not abilities. Aquatic
+earns its Water pip like any other keyword, `true` included — drowning immunity is real
+value (a body-block on tap in a lane every other unit fears), so it is priced and pipped
+the same as `aquatic` with an in-water stat bonus.
+
+EVERY type is included, spells among them. There is NO floor on the generic half either: an
+ability-dense card can convert its cost away entirely and print as 0 energy + N pips. That is
+safe because pips FALL BACK to generic energy - a 0-energy/2-pip card still costs 2 to a
+player who never banked the element, so it is free only to one who committed to it. Note that
+a 0-energy card cannot receive an Adventure cost-reduction enhancement (nothing left to cut).
+
+PAYING AN ELEMENT COST: pips draw from that element bank FIRST, and any shortfall is charged
+to generic energy at 1:1. So a pip is a DISCOUNT, never a gate - an ability card is cheaper
+when you have committed to its element and costs full face value when you have not. No card
+in hand is ever uncastable for want of the right bank.
+
+VALUE_SCALE (1.145) pins the pool absolute price level so removing the old fudges did not
+make every card cheaper. It is not a balance knob - scaling every card together changes no
+card cost relative to any other. Retune it only to move the game overall pace.
+
+--- THE CHEAP-END REPRICE (raise the floor, lower the ceiling) ---
+
+No new stage was added to the formula; the existing constants were retuned. Five dials moved,
+all of them numbers that were already there:
+
+  STAT_BASE      0.29 -> 0.34   first point of stat costs more
+  STAT_R_ATK/HP  1.26/1.35 -> 1.21/1.28   each further point costs less
+  ability table  compressed toward its middle (2.2) at 0.7, floored at 0.9
+  AOE_MULT       3.5 -> 2.9
+  COMPOUND_TICKS 3 -> 2   (Growth / Bloodlust / Polish premium, factor 6 -> 3)
+  VALUE_SCALE    1.09 -> 1.0669   holds the pool mean; see below
+
+Why:
+  - FIVE cards cost literally nothing (0 energy AND 0 pips) because a single 0.20-0.25 ability
+    rounds to zero. A free card has no opportunity cost, so the only question it asks is
+    "do I own it" - it cannot be priced at all. The 0.9 floor is the fix.
+  - The cheapest bodies were the most efficient in the game. Magma Brute was a 3/2 for ONE
+    energy, and round 1 gives exactly 1 energy, so turn one was decided by who held the best
+    1-drop. It is now a 2-drop; the honest 1/2 and 2/1 bodies stayed at 1.
+  - The top ran to 17, past any turn a ~15-round game reaches, so those cards were authored
+    and never cast. The ceiling is now 14. Its two biggest drivers were compound keywords
+    (COMPOUND_TICKS) and AOE, not big stat lines.
+
+The ability table's compression PRESERVES ORDER - Lethal is still the dearest keyword, Taunt
+still the cheapest - so the field measurements recorded in budget.ts still hold. What changed
+is the spread, which ran 22x and was broken at both ends.
+
+VALUE_SCALE moved only to hold the pool's mean total cost at its previous 4.442. Lifting the
+floor adds value everywhere, so without that correction the whole pool would have drifted more
+expensive - a pace change smuggled in alongside a change to relative pricing. One dial
+redistributes, the other holds the level.
+
+NOTE: the per-keyword and per-stat numbers listed in the sections above this one are stale -
+they describe an older formula (an x0.8 ability fudge, a x2.5 AOE multiplier, VALUE_SCALE
+1.20). budget.ts is the source of truth; run the cost_diff test to see real values.
+
+>>>>>>> Stashed changes
 --- WORKED EXAMPLE ---
 
 Magma Brute: cost { energy: 2, elements: [{ type: 'fire', amount: 1 }] }

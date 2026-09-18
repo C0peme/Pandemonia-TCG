@@ -113,7 +113,21 @@ export class Match {
     if (this.phase !== 'playing' || !this.state || !this.registry) return fail('No game in progress');
     if (isDebugAction(action)) return fail('Debug actions are host-sandbox only and not allowed in a match');
     if (this.state.active !== seat) return fail('It is not your turn');
-    const res = applyAction(this.registry, this.state, action);
+    // `parseMsg` (protocol.ts) is a JSON.parse plus a type ASSERTION — it validates nothing,
+    // so an `Action` arriving here is only as well-formed as the client sent it. `applyAction`
+    // handles an unrecognized `action.type` gracefully (its own `default` case), but a KNOWN
+    // type with a garbage field (`lane: 'not-a-real-lane'`) can still reach a bare property
+    // read on `undefined` a few calls deep (`player.lanes[lane].front`, say) and throw — this
+    // is the one call in the whole match that takes network input the type system cannot
+    // actually vouch for, so it is the one call that must not be allowed to take the process
+    // (and both players' match) down with it. `applyAction` clones state before it ever
+    // mutates anything, so a throw here never leaves `this.state` touched.
+    let res: ReturnType<typeof applyAction>;
+    try {
+      res = applyAction(this.registry, this.state, action);
+    } catch {
+      return fail('That move could not be processed');
+    }
     const error = res.events.find((e) => e.t === 'error');
     if (error && error.t === 'error') return fail(error.message);
     this.state = res.state;

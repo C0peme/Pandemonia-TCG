@@ -1,16 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { initGame } from '@engine/setup';
-import { applyAction } from '@engine/engine';
+import { affordableCard, applyAction } from '@engine/engine';
 import { chooseAction } from '@engine/ai';
 import { resolveCombatByLane, type LaneCombatStep } from '@engine/combat';
 import { resolveEndOfTurn } from '@engine/endOfTurn';
+<<<<<<< Updated upstream
 import type { Action, LanePosition, TargetRef } from '@engine/actions';
 import { LANES, type Element, type LaneId } from '@engine/constants';
 import { canAfford } from '@engine/energy';
+=======
+import type { Action, DebugKeyword, LanePosition, TargetRef } from '@engine/actions';
+import { LANES, isHeights, type Element, type LaneId } from '@engine/constants';
+>>>>>>> Stashed changes
 import type { GameEvent } from '@engine/events';
-import { opponentOf, type GameState, type PlayerId, type UnitInstance } from '@engine/types';
+import { autopilotActive, opponentOf, type GameState, type PlayerId, type UnitInstance } from '@engine/types';
 import type { Card, Effect } from '@cards/schema';
 import type { Registry } from '@cards/registry';
+import { targetRefsNeeded, TARGETED, SELF_RESOLVING_SCOPES } from '@engine/effects';
 import { getSnapshot } from '@cards/store';
 import { useContent } from '@ui/useContent';
 import type { Transport } from '@ui/net/NetClient';
@@ -48,12 +54,32 @@ export type Selection =
   | { kind: 'card'; iid: string; card: Card }
   | { kind: 'sacrifice'; iid: string; card: Card; sacNeed: number; sac: string[]; confirmed: boolean }
   | { kind: 'hero' }
+  /** Waiting for the player to pick a destination lane for a hero power that summons/moves
+   *  into a lane the caster chooses (e.g. Autopus's Fallback Code). `target` is set when the
+   *  power also needed a unit/leader click first (e.g. Naife's Misdirect). */
+  | { kind: 'heroLane'; target?: TargetRef }
   /** Waiting for the player to pick a destination lane for a move spell. */
   | { kind: 'spellMove'; iid: string; card: Card; target: TargetRef }
+  /**
+   * Collecting targets for a spell that needs MORE THAN ONE. The first is supplied by the
+   * drag-drop; the rest are clicked. Without this the UI always sent exactly one ref, so a
+   * card with two targeted effects (Eksana's upgraded Swift Kill) failed on a full board.
+   */
+  | { kind: 'spellTargets'; iid: string; card: Card; refs: TargetRef[]; need: number }
+  // The hero-power twin of `spellTargets`. Every power in the pool needed 0 or 1 target refs,
+  // so the single-ref dispatch below was never wrong — until Noctua's Cocoon, which applies two
+  // statuses and so consumes two. Without this the second effect reads `undefined`, the whole
+  // activation is abandoned and even the first status is rolled back: the exact silent failure
+  // multi-target spells were already fixed for (see CLAUDE.md, "Multi-target spells").
+  | { kind: 'heroTargets'; refs: TargetRef[]; need: number }
   /** Waiting for the player to assign target lanes to each sniper before combat resolves. */
   | { kind: 'sniperPhase'; pending: Array<{ iid: string; lane: LaneId; name: string }>; choices: Partial<Record<string, LaneId>>; bank?: Partial<Record<Element, number>> }
   /** Resolving a queued interactive move/expel effect (`game.pending`). For a move, pick a unit then a lane. */
-  | { kind: 'pending'; pickedUnit?: string };
+  | { kind: 'pending'; pickedUnit?: string }
+  /** Waiting for the player to pick a lane for a Sniper's bonus attack (`game.extraActions`,
+   *  from Adrenaline Rush, a signature like Overexert, etc.) — the same aim step as the
+   *  End Turn sniper phase, just triggered mid-turn instead of at Declare Attack. */
+  | { kind: 'extraActionAim'; iid: string; name: string };
 
 export interface DragPayload {
   iid: string;
@@ -95,6 +121,16 @@ const COMBAT_DECLARE_MS = 480;
 const EOT_FX_MS = 700;
 /** Pause between an AI player's actions so a human can watch the turn unfold. */
 const AI_STEP_MS = 650;
+/**
+ * How long an enemy spell is held on screen BEFORE its effects land, so the card is read
+ * first and the board change has a visible cause. It was 850ms — enough to notice a card had
+ * appeared, not enough to READ one, and the card was gone before you could look for what it
+ * had done. Timed to land partway through the reveal's centre-stage hold (see SPELL_MS in
+ * combatFx): the card is still fully up when the board updates underneath it, so cause and
+ * effect read together, and it then finishes its hold and fades — it no longer needs to
+ * double as a persistent record, since the Spells Cast area (App.tsx) is that now.
+ */
+const SPELL_BEAT_MS = 2000;
 /** End-of-turn event types worth pausing to animate before the turn hands off. */
 const EOT_FLOURISH_EVENTS = new Set(['growth', 'burnTick', 'poisonTick', 'buff', 'heal', 'damageUnit', 'transform', 'unitDestroyed', 'moved']);
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -204,26 +240,36 @@ const newGame = (): GameState => {
 };
 
 
-/** Collect sniper units that can act and will need to pick a target lane. */
+/** Collect sniper units that can act and will need to pick a target lane. A standalone
+ *  Foundation fights as a full unit (see `foundations-are-full-units`) and can itself carry
+ *  Sniper (e.g. via an Adventure enhancement), so it's scanned alongside front/back units —
+ *  omitting it let an unbonded Sniper Foundation auto-fire with no aim prompt. */
 const findActiveSnipers = (game: GameState, registry: ReturnType<typeof getSnapshot>['registry']): Array<{ iid: string; lane: LaneId; name: string }> => {
   const p = game.players[game.active];
   const result: Array<{ iid: string; lane: LaneId; name: string }> = [];
-  for (const lane of LANES) {
-    for (const slot of ['front', 'back'] as const) {
-      const u = p.lanes[lane][slot];
-      if (!u) continue;
-      if ((u.justPlaced && !u.keywords.battleReady) || (u.status.sleep ?? 0) > 0 || (u.status.freeze ?? 0) > 0) continue;
-      if (u.keywords.sniper && (lane === 'heights' || u.keywords.airborne)) {
-        const name = registry.cards.get(u.cardId)?.name ?? u.cardId;
-        result.push({ iid: u.iid, lane, name });
-      }
+  const consider = (u: UnitInstance | undefined, lane: LaneId): void => {
+    if (!u) return;
+    if ((u.justPlaced && !u.keywords.battleReady) || (u.status.sleep ?? 0) > 0 || (u.status.freeze ?? 0) > 0) return;
+    if (u.keywords.sniper && (isHeights(lane) || u.keywords.airborne)) {
+      const name = registry.cards.get(u.cardId)?.name ?? u.cardId;
+      result.push({ iid: u.iid, lane, name });
     }
+  };
+  for (const lane of LANES) {
+    consider(p.lanes[lane].front, lane);
+    consider(p.lanes[lane].back, lane);
+    consider(p.lanes[lane].standaloneFoundation, lane);
   }
   return result;
 };
 
 /** Returns true if the spell's effects include at least one `move`. */
 const hasMoveEffect = (effects: Effect[]): boolean => effects.some((e) => e.kind === 'move');
+
+/** Mirrors engine.ts `usesLane`: does this effect list let the caster pick a lane? A `summon`
+ *  that hard-codes its own `lane` is excluded — the card's lane wins. */
+const usesLaneEffect = (effects: Effect[]): boolean =>
+  effects.some((e) => e.kind === 'move' || (e.kind === 'summon' && !e.lane));
 
 export interface UseGameOptions {
   /** When present, the game is authoritative on a server; state arrives over this transport. */
@@ -263,6 +309,16 @@ export const useGame = (opts: UseGameOptions = {}) => {
   const pov: PlayerId = net ? net.seat : (opts.fixedPov ?? soloHumanSeat ?? game.active);
   /** True when it's this client's turn to act (always true in free local play). */
   const myTurn = net ? game.active === net.seat : game.active === pov;
+  /**
+   * The AI has seized this turn (Adventure's autopilot: a cursed relic or a Trial twist).
+   *
+   * It is the human's seat and the human's turn — the board stays their board, the hand
+   * stays face-up — but the commander is playing it. That is the whole point of the
+   * mechanic: you watch your own carefully-arranged hand get spent by somebody else, so
+   * the plannable cost is arranging a hand that survives it. Input is locked for the
+   * duration (see `dispatch`) and the AI driver below takes the seat.
+   */
+  const autopilot = !net && autopilotActive(game) && !aiSides[game.active];
   const [log, setLog] = useState<GameEvent[]>([]);
   const [sel, setSel] = useState<Selection>({ kind: 'none' });
   const [drag, setDrag] = useState<DragPayload | null>(null);
@@ -278,6 +334,9 @@ export const useGame = (opts: UseGameOptions = {}) => {
   const [sandbox, setSandboxState] = useState<SandboxState>({ target: 'me', lane: 'ground1', pos: 'front', placeMode: false, brush: null });
   /** Non-null while the combat-phase animation is playing (input is locked). */
   const [combatAnim, setCombatAnim] = useState<CombatAnim | null>(null);
+  /** True while an enemy spell is being shown, before its effects are applied to the board. */
+  const [casting, setCasting] = useState(false);
+  const castTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Lanes lit together during the pre-combat "declare" beat (before the left→right sweep). */
   const [declareLanes, setDeclareLanes] = useState<LaneId[] | null>(null);
   /** Set when an animation should abort (e.g. New game pressed mid-combat). */
@@ -314,6 +373,9 @@ export const useGame = (opts: UseGameOptions = {}) => {
       if (hintTimer.current) { clearTimeout(hintTimer.current); hintTimer.current = null; }
     };
   }, []);
+
+  // Drop any pending enemy-cast beat if this hook goes away mid-animation.
+  useEffect(() => () => { if (castTimer.current) clearTimeout(castTimer.current); }, []);
 
   const cardOf = (iid: string): Card | undefined => {
     const inst = game.players[game.active].hand.find((c) => c.iid === iid);
@@ -359,7 +421,17 @@ export const useGame = (opts: UseGameOptions = {}) => {
       ? { atk: (def as { attack: number }).attack, hp: (def as { hp: number }).hp }
       : undefined;
     playRevealFx(
-      { name: def.name, element: def.element, typeLabel: `${ELEMENT_NAME[def.element]} · ${def.type}`, energy: def.cost.energy, pips, body },
+      {
+        name: def.name,
+        element: def.element,
+        typeLabel: `${ELEMENT_NAME[def.element]} · ${def.type}`,
+        energy: def.cost.energy,
+        pips,
+        body,
+        // Only the spell reveal renders this (see combatFx). A spell leaves nothing behind
+        // to inspect, so its own rules text is the only account of what it just did.
+        text: def.text,
+      },
       from,
       to,
     );
@@ -414,34 +486,89 @@ export const useGame = (opts: UseGameOptions = {}) => {
     res: { state: GameState; events: GameEvent[] },
     preState: GameState,
   ): void => {
-    if (action && action.type !== 'endTurn') preRevealFx(res.events, preState);
-    setGame(res.state);
-    setLog((prev) => [...prev, ...res.events]);
-    // Enter pending-resolution only when the queued move/expel choice is ours to make.
-    const pend = res.state.pending;
-    const mineToPick = !net || (pend?.[0] ? pend[0].player === net.seat : false);
-    setSel(pend?.length && mineToPick ? { kind: 'pending' } : { kind: 'none' });
-    setDrag(null);
-    setMessage('');
-    if (!action || action.type !== 'endTurn') {
-      const events = res.events;
-      // When the OPPONENT (non-pov actor) plays in a fixed-side mode, replay it with the
-      // flip-and-travel reveal so their move reads on our screen. Skipped when we are the actor
-      // (our own plays already fly from our hand) and in hotseat (actor always is the pov).
-      if (action && preState.active !== pov) requestAnimationFrame(() => fireOpponentReveal(action, events));
-      // Play any bonus attacks (Frenzy / extraAction). Build fx from the pre-action state so
-      // attacker keywords are correct; play after the DOM updates so positions are current.
-      const bonusFx = buildAttackFx(events, preState);
-      requestAnimationFrame(() => {
-        if (bonusFx.length > 0) void (async () => { for (const fx of bonusFx) { playSound(soundForAttack(fx)); await playAttackFx(fx); } })();
-        postRevealFx(events, preState);
-        playEventSounds(events);
-      });
+    const events = res.events;
+
+    /** Swap in the authoritative board and play everything that reads off it. */
+    const commit = (): void => {
+      if (action && action.type !== 'endTurn') preRevealFx(events, preState);
+      setGame(res.state);
+      setLog((prev) => [...prev, ...events]);
+      // Enter pending-resolution only when the queued move/expel choice is ours to make.
+      const pend = res.state.pending;
+      const mineToPick = !net || (pend?.[0] ? pend[0].player === net.seat : false);
+      // Same gate for a queued Sniper bonus attack awaiting its aim (`extraActionAim`) — checked
+      // only once no move/expel choice is outstanding, matching the engine's own precedence.
+      const extraIid = res.state.extraActions?.[0];
+      const extraOwner = extraIid ? ownerPlayerOf(res.state, extraIid) : undefined;
+      const extraMine = !net || (extraOwner !== undefined ? extraOwner === net.seat : false);
+      if (pend?.length && mineToPick) {
+        setSel({ kind: 'pending' });
+      } else if (extraIid && extraMine) {
+        const unit = unitInState(res.state, extraIid);
+        const name = unit ? (registry.cards.get(unit.cardId)?.name ?? unit.cardId) : extraIid;
+        setSel({ kind: 'extraActionAim', iid: extraIid, name });
+      } else {
+        setSel({ kind: 'none' });
+      }
+      setDrag(null);
+      setMessage('');
+      if (!action || action.type !== 'endTurn') {
+        // Play any bonus attacks (Frenzy / extraAction). Build fx from the pre-action state so
+        // attacker keywords are correct; play after the DOM updates so positions are current.
+        const bonusFx = buildAttackFx(events, preState);
+        requestAnimationFrame(() => {
+          if (bonusFx.length > 0) void (async () => { for (const fx of bonusFx) { playSound(soundForAttack(fx)); await playAttackFx(fx); } })();
+          postRevealFx(events, preState);
+          playEventSounds(events);
+        });
+      }
+    };
+
+    // When the OPPONENT (non-pov actor) plays in a fixed-side mode, replay it with the
+    // flip-and-travel reveal so their move reads on our screen. Skipped when we are the actor
+    // (our own plays already fly from our hand) and in hotseat (actor always is the pov).
+    const opponentActed = Boolean(action) && action!.type !== 'endTurn' && preState.active !== pov;
+
+    /**
+     * An enemy SPELL used to land in the same frame it was revealed: units died and stats
+     * changed while the card was still flipping, so the board simply looked different with no
+     * visible cause — the only way to learn what happened was to read the log. Hold the old
+     * board for a beat so the card is READ FIRST, then let its effects land against the board
+     * they were cast at.
+     *
+     * Only enemy spells wait. Your own casts need no explanation, and delaying them would just
+     * make the game feel unresponsive. The AI's next move is scheduled off `game` changing, so
+     * deferring the commit defers the AI too — it cannot act during the beat.
+     */
+    if (opponentActed && action!.type === 'playSpell') {
+      // Show the card NOW, synchronously. The board is deliberately not being touched yet, so
+      // there is no layout to wait for — deferring to the next frame would only delay the card
+      // and make it hostage to a frame actually being rendered.
+      fireOpponentReveal(action!, events);
+      setCasting(true);
+      if (castTimer.current) clearTimeout(castTimer.current);
+      castTimer.current = setTimeout(() => {
+        castTimer.current = null;
+        setCasting(false);
+        commit();
+      }, SPELL_BEAT_MS);
+      return;
     }
+    // Everything else reveals AFTER the board updates: a played unit's card flies to the lane
+    // it landed in, so it needs the new layout.
+    if (opponentActed) requestAnimationFrame(() => fireOpponentReveal(action!, events));
+    commit();
   };
 
-  const dispatch = (action: Action): boolean => {
-    if (combatAnim) return false; // input locked while the combat animation plays
+  /**
+   * `fromAi` is the AUTOPILOT BYPASS and nothing else: while the AI holds the seat, human
+   * input is refused here, and the AI driver is the one caller allowed through. Without
+   * the bypass the same lock that stops the player would stop the AI playing the turn for
+   * them, and the fight would deadlock on the round it was supposed to be taken over.
+   */
+  const dispatch = (action: Action, fromAi = false): boolean => {
+    if (combatAnim || casting) return false; // input locked while combat or an enemy cast plays
+    if (autopilot && !fromAi) { setMessage('The commander has the field this round.'); return false; }
     // Net play: the server is authoritative — send the action and wait for the redacted result.
     if (net) {
       if (game.active !== net.seat) { setMessage('It is not your turn.'); return false; }
@@ -495,7 +622,7 @@ export const useGame = (opts: UseGameOptions = {}) => {
   const debugInject = (cardId: string): void => {
     if (sandbox.placeMode) {
       const def = registry.cards.get(cardId);
-      if (def?.type !== 'unit') { setMessage('Only unit cards can be placed on the board.'); return; }
+      if (def?.type !== 'unit' && def?.type !== 'foundation') { setMessage('Only unit and foundation cards can be placed on the board.'); return; }
       dispatch({ type: 'debugPlaceUnit', cardId, player: sandboxPlayer(), lane: sandbox.lane, position: sandbox.pos });
     } else {
       dispatch({ type: 'debugAddCard', cardId });
@@ -528,7 +655,7 @@ export const useGame = (opts: UseGameOptions = {}) => {
     if (!inst) return false;
     const def = registry.cards.get(inst.cardId);
     if (!def) return false;
-    return canAfford(game.players[game.active], def.cost).ok;
+    return affordableCard(game.players[game.active], def, inst);
   };
 
   // --- Click ritual (sacrifice arming + hero targeting) ---
@@ -553,6 +680,11 @@ export const useGame = (opts: UseGameOptions = {}) => {
     }
   };
 
+  /** The active player's hero power effects, if any (used to decide whether casting it needs
+   *  a lane pick before/after its target). */
+  const activeHeroPowerEffects = (): Effect[] | undefined =>
+    registry.leaders.get(game.players[game.active].leaderId)?.heroPower.effects;
+
   const clickUnit = (iid: string, owner: PlayerId): void => {
     // Sandbox brush takes priority: clicking any unit applies the armed status / removes it.
     if (debugMode && sandbox.brush) { applyBrush(iid); return; }
@@ -567,8 +699,31 @@ export const useGame = (opts: UseGameOptions = {}) => {
       setSel({ ...sel, sac });
       return;
     }
+    if (sel.kind === 'spellTargets') {
+      addSpellTarget({ kind: 'unit', iid });
+      return;
+    }
+    if (sel.kind === 'heroTargets') {
+      addHeroTarget({ kind: 'unit', iid });
+      return;
+    }
     if (sel.kind === 'hero') {
-      dispatch({ type: 'heroPower', targets: [{ kind: 'unit', iid }] });
+      const target: TargetRef = { kind: 'unit', iid };
+      // Lane-picking hero powers (e.g. Naife's Misdirect) need a destination lane after the
+      // target, same as a move spell — enter heroLane mode instead of dispatching immediately.
+      if (usesLaneEffect(activeHeroPowerEffects() ?? [])) {
+        setSel({ kind: 'heroLane', target });
+        return;
+      }
+      // A power that consumes more than one ref collects the rest by clicking, exactly as a
+      // multi-target spell does. Repeats are allowed: Cocoon's two statuses are meant for the
+      // same body, so the player clicks it twice.
+      const need = targetRefsNeeded(activeHeroPowerEffects() ?? []);
+      if (need > 1) {
+        setSel({ kind: 'heroTargets', refs: [target], need });
+        return;
+      }
+      dispatch({ type: 'heroPower', targets: [target] });
       return;
     }
     if (sel.kind === 'pending') {
@@ -594,7 +749,34 @@ export const useGame = (opts: UseGameOptions = {}) => {
   };
 
   const clickLeader = (player: PlayerId): void => {
-    if (sel.kind === 'hero') dispatch({ type: 'heroPower', targets: [{ kind: 'leader', player }] });
+    // A leader is a legal target for a multi-target spell too.
+    if (sel.kind === 'spellTargets') {
+      addSpellTarget({ kind: 'leader', player });
+      return;
+    }
+    if (sel.kind === 'heroTargets') {
+      addHeroTarget({ kind: 'leader', player });
+      return;
+    }
+    if (sel.kind !== 'hero') return;
+    const target: TargetRef = { kind: 'leader', player };
+    if (usesLaneEffect(activeHeroPowerEffects() ?? [])) {
+      setSel({ kind: 'heroLane', target });
+      return;
+    }
+    const need = targetRefsNeeded(activeHeroPowerEffects() ?? []);
+    if (need > 1) {
+      setSel({ kind: 'heroTargets', refs: [target], need });
+      return;
+    }
+    dispatch({ type: 'heroPower', targets: [target] });
+  };
+
+  /** Called when the player picks a destination lane for a lane-picking hero power. */
+  const pickHeroLane = (lane: LaneId): void => {
+    if (sel.kind !== 'heroLane') return;
+    dispatch({ type: 'heroPower', targets: sel.target ? [sel.target] : undefined, lane });
+    setSel({ kind: 'none' });
   };
 
   const confirmSacrifice = (): void => {
@@ -607,8 +789,15 @@ export const useGame = (opts: UseGameOptions = {}) => {
   /** Selection phases that own a multi-step flow — starting another action mid-flow drops
    *  their state (bank/choices) and soft-locks the turn, so they block new selections. */
   const BLOCKING_PHASES = new Set<Selection['kind']>([
-    'sacrifice', 'spellMove', 'sniperPhase', 'pending',
+    'sacrifice', 'spellMove', 'sniperPhase', 'pending', 'heroLane', 'extraActionAim', 'heroTargets',
   ]);
+
+  /** Does this power need a unit/leader CLICK before it can resolve?
+   *  Reads the engine's own target tables (`TARGETED` / `SELF_RESOLVING_SCOPES`) rather than
+   *  a copy of them — the copy that used to live here is how a kind added to the engine
+   *  could silently stop prompting for its target in the UI. */
+  const heroNeedsClick = (effects: Effect[]): boolean =>
+    effects.some((e) => TARGETED.has(e.kind) && !SELF_RESOLVING_SCOPES.has(e.target));
 
   const selectHero = (): void => {
     if (BLOCKING_PHASES.has(sel.kind)) {
@@ -616,6 +805,13 @@ export const useGame = (opts: UseGameOptions = {}) => {
       return;
     }
     setMessage('');
+    const effects = activeHeroPowerEffects() ?? [];
+    // A lane-picking power with no unit/leader target to click (e.g. Autopus's Fallback Code)
+    // goes straight to the lane picker instead of stalling on a click that will never come.
+    if (usesLaneEffect(effects) && !heroNeedsClick(effects)) {
+      setSel({ kind: 'heroLane' });
+      return;
+    }
     setSel({ kind: 'hero' });
   };
 
@@ -670,9 +866,45 @@ export const useGame = (opts: UseGameOptions = {}) => {
         setDrag(null);
         return;
       }
+      const need = targetRefsNeeded(drag.card.effects);
+      if (need > 1) {
+        // One ref down, the rest by clicking.
+        setSel({ kind: 'spellTargets', iid: drag.iid, card: drag.card, refs: [ref], need });
+        setDrag(null);
+        return;
+      }
       dispatch({ type: 'playSpell', iid: drag.iid, targets: [ref] });
     }
     setDrag(null);
+  };
+
+  /**
+   * Add the next target for a multi-target spell, casting once enough are collected.
+   *
+   * Repeats are allowed: "deal 5 to an enemy, twice" may legitimately be aimed at the same
+   * body for 10, and refusing that would be inventing a rule the card does not state.
+   */
+  /** Accumulate refs for a hero power that consumes more than one, then activate. */
+  const addHeroTarget = (ref: TargetRef): void => {
+    if (sel.kind !== 'heroTargets') return;
+    const refs = [...sel.refs, ref];
+    if (refs.length < sel.need) {
+      setSel({ ...sel, refs });
+      return;
+    }
+    dispatch({ type: 'heroPower', targets: refs });
+    setSel({ kind: 'none' });
+  };
+
+  const addSpellTarget = (ref: TargetRef): void => {
+    if (sel.kind !== 'spellTargets') return;
+    const refs = [...sel.refs, ref];
+    if (refs.length < sel.need) {
+      setSel({ ...sel, refs });
+      return;
+    }
+    dispatch({ type: 'playSpell', iid: sel.iid, targets: refs });
+    setSel({ kind: 'none' });
   };
 
   /** Called when the player picks a destination lane for the unit chosen for a pending move. */
@@ -779,9 +1011,16 @@ export const useGame = (opts: UseGameOptions = {}) => {
     })();
   };
 
+  /**
+   * `fromAi` carries the autopilot bypass down to the `dispatch` at the end of the
+   * combat animation. Without it the AI could play cards on a seized turn but never END
+   * it: its own endTurn hit the human-input lock, the turn stayed open, and the driver
+   * replayed the combat animation forever.
+   */
   const commitEndTurn = (
     bank: Partial<Record<Element, number>> | undefined,
     sniperChoices: Partial<Record<string, LaneId>> | undefined,
+    fromAi = false,
   ): void => {
     const endAction: Action = { type: 'endTurn', bank, sniperChoices };
     playSound('end_turn'); // turn is being committed (banking/combat/handoff about to run)
@@ -789,9 +1028,7 @@ export const useGame = (opts: UseGameOptions = {}) => {
     // Net play: send the endTurn; the combat animation plays when the server echoes the result
     // back (see the net message handler), keeping both clients' animations identical.
     if (net) { net.send(endAction); return; }
-    const skipCombat = game.active === game.first && game.round === 1;
-    if (skipCombat) { dispatch(endAction); return; }
-    animateCombat(game, sniperChoices, () => dispatch(endAction));
+    animateCombat(game, sniperChoices, () => dispatch(endAction, fromAi));
   };
 
   // --- Net message handler -----------------------------------------------------------
@@ -804,8 +1041,7 @@ export const useGame = (opts: UseGameOptions = {}) => {
     if (msg.t === 'state') {
       const preState = gameRef.current;
       const res = { state: msg.state, events: msg.events };
-      const skipCombat = preState.active === preState.first && preState.round === 1;
-      if (msg.action?.type === 'endTurn' && !skipCombat) {
+      if (msg.action?.type === 'endTurn') {
         animateCombat(preState, msg.action.sniperChoices, () => applyResult(msg.action, res, preState));
       } else {
         applyResult(msg.action, res, preState);
@@ -827,13 +1063,24 @@ export const useGame = (opts: UseGameOptions = {}) => {
   /** Begin ending the turn: pick sniper targets if any can fire, else run combat + endTurn. */
   const endTurn = (bank?: Partial<Record<Element, number>>): void => {
     if (combatAnim) return; // combat already resolving
-    const skipCombat = game.active === game.first && game.round === 1;
-    if (!skipCombat) {
-      const snipers = findActiveSnipers(game, registry);
-      if (snipers.length > 0) {
-        setSel({ kind: 'sniperPhase', pending: snipers, choices: {}, bank });
-        return;
-      }
+    if (autopilot) { setMessage('The commander has the field this round.'); return; }
+    // A queued move/expel choice or an un-aimed Sniper bonus attack must be resolved first —
+    // the engine's own `endTurn` doesn't check these, so without this guard the End Turn button
+    // could silently skip a still-pending choice instead of erroring.
+    if (game.pending?.length || game.extraActions?.length) {
+      setMessage('Finish the current action first.');
+      return;
+    }
+    // No round-1 exception here: the engine always resolves combat on End Turn (summoning
+    // sickness already keeps a freshly-played board from swinging) — a Battle Ready Sniper
+    // played turn one ignores that sickness and can fire immediately, so it needs the same
+    // aim prompt as any other turn. `commitEndTurn` separately skips the ANIMATION on round 1
+    // (nothing to show when the board truly is empty); that's a presentation choice, not a
+    // reason to skip collecting the player's aim.
+    const snipers = findActiveSnipers(game, registry);
+    if (snipers.length > 0) {
+      setSel({ kind: 'sniperPhase', pending: snipers, choices: {}, bank });
+      return;
     }
     commitEndTurn(bank, undefined);
   };
@@ -853,6 +1100,13 @@ export const useGame = (opts: UseGameOptions = {}) => {
     }
   };
 
+  /** Called when the player clicks an enemy lane to aim a queued Sniper bonus attack
+   *  (`sel.kind === 'extraActionAim'`, from `game.extraActions`). */
+  const pickExtraActionLane = (lane: LaneId): void => {
+    if (sel.kind !== 'extraActionAim') return;
+    dispatch({ type: 'resolveExtraAction', lane });
+  };
+
   // --- AI driver ---------------------------------------------------------------------
   //
   // When it's an AI side's turn and the board is idle (no animation, no pass overlay),
@@ -862,8 +1116,9 @@ export const useGame = (opts: UseGameOptions = {}) => {
   // for free: each handoff lands on another AI side and the effect drives it too.
   useEffect(() => {
     if (net) return; // no local AI in net play — the server is authoritative
-    if (game.phase === 'ended' || !aiSides[game.active]) return;
-    if (combatAnim || passing) return; // wait out the combat animation / a pending pass gate
+    // Either the seat BELONGS to the AI, or it has been seized for this round (autopilot).
+    if (game.phase === 'ended' || !(aiSides[game.active] || autopilot)) return;
+    if (combatAnim || passing || casting) return; // wait out combat / a pass gate / an enemy cast
 
     aiTimer.current = setTimeout(() => {
       const action = chooseAction(registry, game);
@@ -872,8 +1127,8 @@ export const useGame = (opts: UseGameOptions = {}) => {
         // turn un-ended and the driver would re-loop combat forever. Fall back to a bare
         // endTurn (no banking/sniper choices), which cannot fail.
         const fails = applyAction(registry, game, action).events.some((e) => e.t === 'error');
-        commitEndTurn(fails ? undefined : action.bank, fails ? undefined : action.sniperChoices);
-      } else dispatch(action);
+        commitEndTurn(fails ? undefined : action.bank, fails ? undefined : action.sniperChoices, true);
+      } else dispatch(action, true);
     }, AI_STEP_MS);
 
     return () => {
@@ -882,11 +1137,14 @@ export const useGame = (opts: UseGameOptions = {}) => {
     };
     // dispatch/commitEndTurn close over `game`, which is already a dep — re-created each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game, aiSides, combatAnim, passing, registry, net]);
+  }, [game, aiSides, autopilot, combatAnim, passing, casting, registry, net]);
 
   const reset = (): void => {
     cancelAnim.current = true;
     if (aiTimer.current) { clearTimeout(aiTimer.current); aiTimer.current = null; }
+    // A queued enemy-cast beat would otherwise fire after the reset and commit the OLD board.
+    if (castTimer.current) { clearTimeout(castTimer.current); castTimer.current = null; }
+    setCasting(false);
     setCombatAnim(null);
     setDeclareLanes(null);
     setGame(newGame());
@@ -907,13 +1165,14 @@ export const useGame = (opts: UseGameOptions = {}) => {
     passing,
     combatAnim,
     declareLanes,
-    animating: combatAnim !== null,
+    animating: combatAnim !== null || casting,
     // Point of view: local play follows the active player (hotseat); net play is fixed to
     // this client's seat. All "your side" rendering keys off `pov`/`opponent`.
     pov,
     opponent: opponentOf(pov),
     /** Whether it's this client's turn to act (always true in local play). */
     myTurn,
+    autopilot,
     /** This client's role — 'host' can edit content; 'player' is play-only. */
     role: (net?.role ?? 'host') as Role,
     /** True when driven by a network transport (vs local hotseat / AI). */
@@ -925,16 +1184,19 @@ export const useGame = (opts: UseGameOptions = {}) => {
     confirmSacrifice,
     selectHero,
     pickHeroElement,
+    pickHeroLane,
     startDrag,
     endDrag,
     dropOnLane,
     dropEnvironment,
     dropOnTarget,
+    addSpellTarget,
     pickMoveLane,
     pickPendingLane,
     skipPending,
     endTurn,
     pickSniperTarget,
+    pickExtraActionLane,
     confirmPass: () => setPassing(false),
     cancelSelection: () => setSel({ kind: 'none' }),
     reset,

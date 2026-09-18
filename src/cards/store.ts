@@ -192,7 +192,6 @@ export const snapshotContent = (): WireSnapshot => ({
 export const isBaseCard = (id: string): boolean => BASE_CARD_IDS.has(id);
 export const isOverridden = (id: string): boolean => BASE_CARD_IDS.has(id) && persist.cards.some((c) => c.id === id);
 export const isCustomCard = (id: string): boolean => !BASE_CARD_IDS.has(id) && persist.cards.some((c) => c.id === id);
-export const isHidden = (id: string): boolean => persist.hiddenBaseCardIds.includes(id);
 export const isBaseDeck = (name: string): boolean => BASE_DECK_NAMES.has(name);
 export const isCustomDeck = (name: string): boolean => persist.decks.some((d) => d.name === name);
 
@@ -286,12 +285,8 @@ export const revertAllOverrides = (): void => {
   commit({ ...persist, cards, hiddenBaseCardIds });
 };
 
-/** Wipe all custom content (cards, decks, selections). */
-export const resetAll = (): void => commit(emptyPersist());
-
 // --- Leader queries & mutations -----------------------------------------------
 
-export const isBaseLeader = (id: string): boolean => BASE_LEADER_IDS.has(id);
 export const isOverriddenLeader = (id: string): boolean =>
   BASE_LEADER_IDS.has(id) && persist.leaders.some((l) => l.id === id);
 

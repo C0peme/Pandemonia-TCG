@@ -153,10 +153,10 @@ describe('endTurn', () => {
     expect(state.turn).toBe(1);
   });
 
-  it('does not let the first player attack on round 1', () => {
+  it('lets the first player attack on round 1 — summoning sickness is the only gate now', () => {
     const s = blankState(); // active 0, first 0, round 1
     s.players[1].leaderHp = 30;
-    // A would-be attacker in an empty lane; combat is skipped this turn.
+    // A unit placed on an EARLIER turn (not summoning-sick) may swing immediately.
     s.players[0].lanes.ground1.front = {
       iid: 'x',
       cardId: 'v0',
@@ -170,7 +170,26 @@ describe('endTurn', () => {
       justPlaced: false,
     };
     const { state } = applyAction(testRegistry, s, { type: 'endTurn' });
-    expect(state.players[1].leaderHp).toBe(30); // untouched
+    expect(state.players[1].leaderHp).toBe(25);
+  });
+
+  it('still stops a unit played THIS turn from attacking (summoning sickness)', () => {
+    const s = blankState();
+    s.players[1].leaderHp = 30;
+    s.players[0].lanes.ground1.front = {
+      iid: 'x',
+      cardId: 'v0',
+      owner: 0,
+      attack: 5,
+      hp: 5,
+      maxHp: 5,
+      keywords: {},
+      status: {},
+      turnsInPlay: 0,
+      justPlaced: true, // summoning-sick
+    };
+    const { state } = applyAction(testRegistry, s, { type: 'endTurn' });
+    expect(state.players[1].leaderHp).toBe(30);
   });
 
   it('increments the round when the turn returns to the first player', () => {
@@ -182,7 +201,7 @@ describe('endTurn', () => {
   });
 
   it('banks leftover energy on end of turn', () => {
-    const s = blankState(); // first player, round 1 -> no combat
+    const s = blankState();
     s.players[0].energy = 3;
     const { state } = applyAction(testRegistry, s, { type: 'endTurn', bank: { fire: 2 } });
     expect(state.players[0].bank.fire).toBe(2);

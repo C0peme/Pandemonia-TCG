@@ -5,23 +5,40 @@
  * Wave 1 fully implements playUnit + endTurn (which declares the attack); spells,
  * foundations, environments, and hero powers are stubbed for later waves.
  */
-import { ELEMENTS, LANES, type LaneId } from '@engine/constants';
+import { ELEMENTS, LANES, laneAllowed, type Element, type LaneId, isWater } from '@engine/constants';
 import type { Registry } from '@cards/registry';
 import type { Card, Cost, Effect, SpellCard, UnitCard } from '@cards/schema';
 import type { Action, LanePosition, TargetRef } from '@engine/actions';
 import { buffUnit, createUnitInstance, makeFoundationUnit, locateUnit, relocateUnit, vacateSlot } from '@engine/board';
 import { refreshLaneEnvironment } from '@engine/environment';
+<<<<<<< Updated upstream
 import { resolveCombat, resolveExtraAction } from '@engine/combat';
 import { applyEffects, applyOnPlayEffects, processDeaths } from '@engine/effects';
 import { damageLeader, reconcileLeaderUnit } from '@engine/damage';
 import { applyBanking, canAfford } from '@engine/energy';
+=======
+import { resolveCombat, resolveExtraAction, extraActionNeedsAim } from '@engine/combat';
+import { applyEffects, applyOnPlayEffects, processDeaths, TARGETED } from '@engine/effects';
+import { damageLeader, reconcileLeaderUnit, signatureThreshold } from '@engine/damage';
+import { applyBanking, canAfford, settleCost } from '@engine/energy';
+>>>>>>> Stashed changes
 import { addCardToHand, forgetCard } from '@engine/hand';
+import { nextInt } from '@engine/rng';
 import { resolveEndOfTurn } from '@engine/endOfTurn';
 import type { ApplyResult, GameEvent } from '@engine/events';
+<<<<<<< Updated upstream
 import { applyFoundation } from '@engine/foundation';
+=======
+import { applyFoundation, foundationLiveState } from '@engine/foundation';
+import { applyStatus, clearCleansableStatuses } from '@engine/status';
+import { grantSignatureIfRoom, unlockSignature } from '@engine/signature';
+import { addAttack, reconcileDrowning } from '@engine/drowning';
+>>>>>>> Stashed changes
 import { beginTurn } from '@engine/turn';
+import { resolveDampen, resolveExecute, resolveFeedOnPlay, resolveMirror } from '@engine/bossRules';
 import {
   opponentOf,
+  type CardInstance,
   type GameState,
   type Lane,
   type PlayerId,
@@ -80,6 +97,61 @@ const resolvePosition = (
 
 const makeUnit = createUnitInstance;
 
+/**
+ * The opening every `play*` path shares: clone the state, find the card in the active
+ * player's hand, resolve its definition, and confirm it is the type this path handles.
+ *
+ * Returned as a discriminated result rather than throwing, so each caller keeps its own
+ * error ORDER — `playFoundation` reports a blocked lane before affordability, while
+ * `playUnit` reports affordability first, and those messages are player-facing.
+ */
+type HandCard<K extends Card['type']> = {
+  draft: GameState;
+  player: PlayerState;
+  idx: number;
+  inst: CardInstance;
+  def: Extract<Card, { type: K }>;
+};
+
+const takeFromHand = <K extends Card['type']>(
+  registry: Registry,
+  state: GameState,
+  iid: string,
+  type: K,
+  typeLabel: string,
+): { ok: true; got: HandCard<K> } | { ok: false; err: ApplyResult } => {
+  const draft: GameState = structuredClone(state);
+  const player = draft.players[draft.active];
+  const idx = player.hand.findIndex((c) => c.iid === iid);
+  if (idx < 0) return { ok: false, err: err(state, `Card ${iid} is not in hand`) };
+  const inst = player.hand[idx]!;
+  // Sealed by a boss rule (Screyera's Foresight) — refused here rather than at each play
+  // path, so every route into a card (play, sacrifice payment, hero power) sees one rule.
+  if (player.sealedIid === iid) {
+    return { ok: false, err: err(state, 'That card is sealed this turn') };
+  }
+  const def = registry.cards.get(inst.cardId);
+  if (!def) return { ok: false, err: err(state, `Unknown card: ${inst.cardId}`) };
+  if (def.type !== type) return { ok: false, err: err(state, `${def.name} is not ${typeLabel}`) };
+  return { ok: true, got: { draft, player, idx, inst, def: def as Extract<Card, { type: K }> } };
+};
+
+/** A card's printed cost adjusted by this player's cost modifiers. Never below 0 energy. */
+const effectiveCost = (player: PlayerState, def: Card, inst: CardInstance): Cost => ({
+  ...def.cost,
+  energy: Math.max(0, def.cost.energy + costModFor(player, def.type, inst)),
+});
+
+/**
+ * Commit a play: pay for it, count it toward the hero-power discount, and remove the card
+ * from hand. Callers must have checked affordability (and any placement rules) first.
+ */
+const commitPlay = (player: PlayerState, cost: Cost, idx: number): void => {
+  payInline(player, cost);
+  notePlayed(player);
+  player.hand.splice(idx, 1);
+};
+
 const playUnit = (
   registry: Registry,
   state: GameState,
@@ -88,17 +160,11 @@ const playUnit = (
   position: LanePosition | undefined,
   sacrifice: string[] | undefined,
 ): ApplyResult => {
-  const draft: GameState = structuredClone(state);
-  const player = draft.players[draft.active];
-  const idx = player.hand.findIndex((c) => c.iid === iid);
-  if (idx < 0) return err(state, `Card ${iid} is not in hand`);
-  const inst = player.hand[idx]!;
+  const taken = takeFromHand(registry, state, iid, 'unit', 'a unit');
+  if (!taken.ok) return taken.err;
+  const { draft, player, idx, inst, def } = taken.got;
 
-  const def = registry.cards.get(inst.cardId);
-  if (!def) return err(state, `Unknown card: ${inst.cardId}`);
-  if (def.type !== 'unit') return err(state, `${def.name} is not a unit`);
-
-  const effUnitCost: Cost = { ...def.cost, energy: Math.max(0, def.cost.energy + costModFor(player, 'unit')) };
+  const effUnitCost = effectiveCost(player, def, inst);
   const afford = canAfford(player, effUnitCost);
   if (!afford.ok) return err(state, afford.reason ?? 'Cannot afford');
 
@@ -120,10 +186,9 @@ const playUnit = (
 
   // Water lane: units without water-compatibility drown.
   const waterCompatible = Boolean(def.keywords.aquatic) || Boolean(def.keywords.airborne);
-  const drowning = lane === 'water' && !waterCompatible;
+  const drowning = isWater(lane, state.laneTypes) && !waterCompatible;
 
-  payInline(player, effUnitCost);
-  player.hand.splice(idx, 1);
+  commitPlay(player, effUnitCost, idx);
   const unit = makeUnit(def, inst, draft.active, drowning);
   // Placing in front when a unit is already there (Double Team swap): push existing front to back.
   if (slot === 'front' && laneObj.front) {
@@ -139,10 +204,17 @@ const playUnit = (
   ];
   if (unit.status.drowning) events.push({ t: 'drowning', player: draft.active, cardId: def.id });
 
+  // Boss rules that read a play (Adventure). Dampen writes the body before anything else
+  // sees it; Mirror copies the DEF, so an enhanced card is copied at its enhanced size —
+  // build a God Unit under Integer Overflow and you hand the boss one too.
+  resolveDampen(draft, draft.active, unit);
+  resolveMirror(registry, draft, draft.active, def, lane, events);
+  resolveFeedOnPlay(draft, draft.active);
+
   // Aquatic water-entry effects: fire when the unit enters the water lane.
   // Airborne units act as if in the Heights, so they forfeit Aquatic's bonus.
   const aquaticEffects = Array.isArray(def.keywords.aquatic) ? def.keywords.aquatic : null;
-  if (lane === 'water' && !drowning && aquaticEffects && !def.keywords.airborne) {
+  if (isWater(lane, draft.laneTypes) && !drowning && aquaticEffects && !def.keywords.airborne) {
     applyOnPlayEffects(draft, unit, aquaticEffects, events, undefined, registry);
   }
 
@@ -151,7 +223,9 @@ const playUnit = (
     const sfData = laneObj.standaloneFoundation;
     const foundDef = registry.cards.get(sfData.cardId);
     if (foundDef && foundDef.type === 'foundation') {
-      unit.foundation = applyFoundation(unit, foundDef, sfData.iid, lane);
+      // Bond against the standalone Foundation's LIVE body, so anything that buffed or damaged
+      // the ground while it stood alone carries up into the grant.
+      unit.foundation = applyFoundation(unit, foundDef, sfData.iid, lane, foundationLiveState(sfData));
       unit.foundation.hp = sfData.hp; // preserve HP after any standalone damage
       laneObj.standaloneFoundation = undefined;
       // A foundation is a prepared position: a unit bonding onto ground already in play (placed a
@@ -173,7 +247,7 @@ const playUnit = (
       }
     }
     processDeaths(draft, events, undefined, registry);
-    for (let i = 0; i < sacrifice.length; i++) buffUnit(unit, sac.buff, events);
+    for (let i = 0; i < sacrifice.length; i++) buffUnit(unit, sac.buff, events, draft.bossRules?.disciplined === unit.owner);
   }
 
   // Generic on-play effects (Frost King, Ra Lax, Spinning Top Bruiser, etc.). On-play
@@ -185,6 +259,7 @@ const playUnit = (
   // all units in the lane at the end of each combat phase (see combat.ts resolveCombatStatuses),
   // so hazards like Molten Floor keep biting rather than firing once on entry.
 
+  fireConjureOnPlay(draft, draft.active, events);
   return { state: draft, events };
 };
 
@@ -195,15 +270,9 @@ const playFoundation = (
   lane: LaneId,
   _position: LanePosition | undefined, // reserved; placement order is now always Foundation-first
 ): ApplyResult => {
-  const draft: GameState = structuredClone(state);
-  const player = draft.players[draft.active];
-  const idx = player.hand.findIndex((c) => c.iid === iid);
-  if (idx < 0) return err(state, `Card ${iid} is not in hand`);
-  const inst = player.hand[idx]!;
-
-  const def = registry.cards.get(inst.cardId);
-  if (!def) return err(state, `Unknown card: ${inst.cardId}`);
-  if (def.type !== 'foundation') return err(state, `${def.name} is not a foundation`);
+  const taken = takeFromHand(registry, state, iid, 'foundation', 'a foundation');
+  if (!taken.ok) return taken.err;
+  const { draft, player, idx, inst, def } = taken.got;
 
   const laneObj = player.lanes[lane];
 
@@ -211,22 +280,37 @@ const playFoundation = (
   if (laneObj.front || laneObj.back) {
     return err(state, `A unit already occupies ${lane} — place the Foundation first, then a unit on top`);
   }
-  if (laneObj.standaloneFoundation) {
-    return err(state, `A Foundation is already waiting in ${lane}`);
-  }
 
-  const effFoundCost: Cost = { ...def.cost, energy: Math.max(0, def.cost.energy + costModFor(player, 'foundation')) };
+  const effFoundCost = effectiveCost(player, def, inst);
   const afford = canAfford(player, effFoundCost);
   if (!afford.ok) return err(state, afford.reason ?? 'Cannot afford');
 
-  payInline(player, effFoundCost);
-  player.hand.splice(idx, 1);
-  laneObj.standaloneFoundation = makeFoundationUnit(def, inst, draft.active);
+  commitPlay(player, effFoundCost, idx);
+  const newFound = makeFoundationUnit(def, inst, draft.active);
 
-  return {
-    state: draft,
-    events: [{ t: 'foundationPlaced', player: draft.active, cardId: def.id, hostIid: '' }],
-  };
+  const events: GameEvent[] = [{ t: 'foundationPlaced', player: draft.active, cardId: def.id, hostIid: '' }];
+
+  // Foundation stacking: a Foundation already waiting in this lane bonds onto the new one
+  // exactly like a unit would — the new Foundation is the top of the stack and inherits the
+  // old one's LIVE body (see foundationLiveState), while remaining a full Foundation itself:
+  // it still fights standalone, still occupies `standaloneFoundation`, and can have a further
+  // unit OR Foundation bond onto IT later, compounding the same way.
+  if (laneObj.standaloneFoundation) {
+    const sfData = laneObj.standaloneFoundation;
+    const belowDef = registry.cards.get(sfData.cardId);
+    if (belowDef && belowDef.type === 'foundation') {
+      newFound.foundation = applyFoundation(newFound, belowDef, sfData.iid, lane, foundationLiveState(sfData));
+      newFound.foundation.hp = sfData.hp;
+      // Same prepared-position rule as a unit bonding onto standing ground: a Foundation
+      // stacked on one that was ALREADY in play (not dropped this same turn) deploys ready.
+      if (!sfData.justPlaced) newFound.justPlaced = false;
+      events.push({ t: 'foundationBonded', player: draft.active, foundationCardId: belowDef.id, hostIid: newFound.iid });
+    }
+  }
+
+  laneObj.standaloneFoundation = newFound;
+  fireConjureOnPlay(draft, draft.active, events);
+  return { state: draft, events };
 };
 
 /** Pay a cost in-place on a draft player (caller must have checked affordability). */
@@ -236,17 +320,12 @@ const payInline = (player: PlayerState, cost: Cost): void => {
 };
 
 /**
- * The single source of truth for where an Environment may be placed. Exported so
- * every placement path (hand plays, the AI's legal actions, Adventure's pre-placed
- * boss/trial hazards, and their tests) enforces the same rule — never re-implement it.
+ * Re-exported from `constants.ts`, where the rule now lives — it depends only on lane
+ * types, and keeping it here made `bossRules.ts` (which needs it to place a re-laid
+ * board's Environments) import `engine.ts`, which imports `bossRules.ts` back. Every
+ * existing caller still imports it from here.
  */
-export const laneAllowed = (restrictions: string[], lane: LaneId): boolean => {
-  // Water and Heights are special: an environment may only be placed there if it
-  // explicitly opts in (as a deliberate drawback). Empty restrictions default to
-  // ground-only rather than "any lane".
-  if (restrictions.length === 0) return lane === 'ground1' || lane === 'ground2';
-  return restrictions.some((r) => r === 'ground' ? lane === 'ground1' || lane === 'ground2' : r === lane);
-};
+export { laneAllowed };
 
 const playSpell = (
   registry: Registry,
@@ -255,26 +334,21 @@ const playSpell = (
   targets: TargetRef[] | undefined,
   lane: LaneId | undefined,
 ): ApplyResult => {
-  const draft: GameState = structuredClone(state);
-  const player = draft.players[draft.active];
-  const idx = player.hand.findIndex((c) => c.iid === iid);
-  if (idx < 0) return err(state, `Card ${iid} is not in hand`);
-  const inst = player.hand[idx]!;
-  const def = registry.cards.get(inst.cardId);
-  if (!def) return err(state, `Unknown card: ${inst.cardId}`);
-  if (def.type !== 'spell') return err(state, `${def.name} is not a spell`);
+  const taken = takeFromHand(registry, state, iid, 'spell', 'a spell');
+  if (!taken.ok) return taken.err;
+  const { draft, player, idx, inst, def } = taken.got;
 
-  const effCost: Cost = { ...def.cost, energy: Math.max(0, def.cost.energy + costModFor(player, 'spell')) };
+  const effCost = effectiveCost(player, def, inst);
   const afford = canAfford(player, effCost);
   if (!afford.ok) return err(state, afford.reason ?? 'Cannot afford');
 
-  payInline(player, effCost);
-  player.hand.splice(idx, 1);
+  commitPlay(player, effCost, idx);
   player.discard.push(inst);
 
   const events: GameEvent[] = [{ t: 'castSpell', player: draft.active, cardId: def.id }];
   const error = applyEffects(draft, draft.active, def.effects, targets ?? [], lane, events, registry);
   if (error) return err(state, error); // reject; original state untouched
+  fireConjureOnPlay(draft, draft.active, events);
   checkGameOver(draft, events);
   return { state: draft, events };
 };
@@ -285,22 +359,16 @@ const playEnvironment = (
   iid: string,
   lane: LaneId,
 ): ApplyResult => {
-  const draft: GameState = structuredClone(state);
-  const player = draft.players[draft.active];
-  const idx = player.hand.findIndex((c) => c.iid === iid);
-  if (idx < 0) return err(state, `Card ${iid} is not in hand`);
-  const inst = player.hand[idx]!;
-  const def = registry.cards.get(inst.cardId);
-  if (!def) return err(state, `Unknown card: ${inst.cardId}`);
-  if (def.type !== 'environment') return err(state, `${def.name} is not an environment`);
-  if (!laneAllowed(def.lanes, lane)) return err(state, `${def.name} cannot be placed in ${lane}`);
+  const taken = takeFromHand(registry, state, iid, 'environment', 'an environment');
+  if (!taken.ok) return taken.err;
+  const { draft, player, idx, inst, def } = taken.got;
+  if (!laneAllowed(def.lanes, lane, draft.laneTypes)) return err(state, `${def.name} cannot be placed in ${lane}`);
 
-  const effEnvCost: Cost = { ...def.cost, energy: Math.max(0, def.cost.energy + costModFor(player, 'environment')) };
+  const effEnvCost = effectiveCost(player, def, inst);
   const afford = canAfford(player, effEnvCost);
   if (!afford.ok) return err(state, afford.reason ?? 'Cannot afford');
 
-  payInline(player, effEnvCost);
-  player.hand.splice(idx, 1);
+  commitPlay(player, effEnvCost, idx);
   // Persistent lane effect is applied in a later wave; for now the environment is placed,
   // replacing any prior environment in that lane.
   // Environments are shared per lane column — one at a time. Placing a new one replaces
@@ -308,10 +376,9 @@ const playEnvironment = (
   // effect at combat time (see environment.ts / combat.ts); it just occupies the lane now.
   draft.environments[lane] = { iid: inst.iid, cardId: def.id, owner: draft.active };
 
-  return {
-    state: draft,
-    events: [{ t: 'playEnvironment', player: draft.active, cardId: def.id, lane }],
-  };
+  const events: GameEvent[] = [{ t: 'playEnvironment', player: draft.active, cardId: def.id, lane }];
+  fireConjureOnPlay(draft, draft.active, events);
+  return { state: draft, events };
 };
 
 const heroPower = (
@@ -326,16 +393,30 @@ const heroPower = (
   const leader = registry.leaders.get(player.leaderId);
   if (!leader) return err(state, `Unknown leader: ${player.leaderId}`);
 
-  const afford = canAfford(player, leader.heroPower.cost);
+  // `costStep` discounts the ENERGY cost by the cards played since this power last fired, so
+  // a power printed above the reachable energy ceiling is unlocked by playing cards rather
+  // than by waiting for the round number. Floors at 0; pips are untouched.
+  const effPowerCost: Cost = heroPowerCostFor(player, leader);
+  const afford = canAfford(player, effPowerCost);
   if (!afford.ok) return err(state, afford.reason ?? 'Cannot afford');
 
   // Optional HP cost is paid from the caster's own leader. It cannot be self-lethal:
   // the leader must have strictly more HP than the cost.
-  const hpCost = leader.heroPower.hpCost ?? 0;
+  // A power with `hpCostStep` gets DEARER each time it is used this game, so a cumulative
+  // effect pays a cumulative price. `AD_HPSTEP` overrides the step for balance sweeps only.
+  const uses = player.heroPowerUses ?? 0;
+  // Same scoping rule as above: only a power that authors `hpCostStep` may be swept.
+  const hpStepOverride = typeof process !== 'undefined' ? process.env?.AD_HPSTEP : undefined;
+  const hpStep = (leader.heroPower.hpCostStep ?? 0) > 0 ? Number(hpStepOverride ?? leader.heroPower.hpCostStep) : 0;
+  const hpCost = (leader.heroPower.hpCost ?? 0) + (leader.heroPower.hpCost ? hpStep * uses : 0);
   if (hpCost > 0 && player.leaderHp <= hpCost) return err(state, 'Not enough HP to pay the hero power');
 
-  payInline(player, leader.heroPower.cost);
+  payInline(player, effPowerCost);
   player.heroPowerUsed = true;
+  player.heroPowerUses = uses + 1;
+  // Spend the accumulated progress: the discount must be rebuilt from scratch, which is what
+  // makes this a rechargeable ultimate instead of a one-way unlock that ends at free-forever.
+  player.cardsSincePower = 0;
 
   const events: GameEvent[] = [{ t: 'heroPower', player: draft.active }];
   // Route the HP cost through damageLeader so it can unlock the caster's own Signature.
@@ -407,16 +488,16 @@ const resolvePending = (registry: Registry, state: GameState, targetIid: string 
 const endTurn = (
   registry: Registry,
   state: GameState,
-  bankChoice: Partial<Record<'fire' | 'water' | 'nature' | 'earth', number>> | undefined,
+  bankChoice: Partial<Record<Element, number>> | undefined,
   sniperChoices?: Partial<Record<string, LaneId>>,
 ): ApplyResult => {
   const events: GameEvent[] = [];
   let working = state;
 
-  // Declare Attack: the active player's units resolve combat, unless this is the
-  // first player's round-1 turn.
-  const skipCombat = working.active === working.first && working.round === 1;
-  if (!skipCombat) {
+  // Declare Attack: the active player's units resolve combat. There is no round-1 exception —
+  // summoning sickness already stops anything played this turn from swinging, which is what the
+  // old first-player rule existed to do before that keyword existed.
+  {
     const combat = resolveCombat(working, sniperChoices, registry);
     working = combat.state;
     events.push(...combat.events);
@@ -428,6 +509,13 @@ const endTurn = (
   // unit's own attack: the duration ticks down here, at the end of the unit-owner's turn.
   if (working === state) working = structuredClone(working); // ensure a private draft (skip-combat path)
   resolveEndOfTurn(working, working.active, events, registry);
+
+  // EXECUTION (Ring Leader): the ending player's biggest unit is destroyed. Fired after
+  // their attack step — the unit gets its swing, then pays for being the biggest — and
+  // resolved through `processDeaths` so death triggers, Zombified and back-row promotion
+  // all behave exactly as they would for any other kill.
+  resolveExecute(registry, working, working.active, events);
+  processDeaths(working, events, undefined, registry);
   if (checkGameOver(working, events)) return { state: working, events };
 
   // Banking: overflow leftover energy into chosen elements (clamped to caps/energy; never fails).
@@ -455,20 +543,38 @@ const endTurn = (
 };
 
 /**
- * Resolve any bonus attacks queued by `extraAction` effects during this action. Mutates
- * `result.state` in place (it is already a fresh draft) and appends combat events.
+ * Resolve any bonus attacks queued by `extraAction` effects during this action, in order.
+ * Mutates `result.state` in place (it is already a fresh draft) and appends combat events.
+ * Stops — leaving the queue non-empty — the moment the FRONT entry needs the player to aim
+ * it (`extraActionNeedsAim`); only a `resolveExtraAction` action can supply that lane and
+ * let draining continue, exactly like `state.pending` gates on `resolvePending`.
  */
 const drainExtraActions = (registry: Registry, result: ApplyResult): ApplyResult => {
   const draft = result.state;
   if (!draft.extraActions?.length) return result;
   const events = result.events;
   while (draft.extraActions?.length) {
-    const iid = draft.extraActions.shift()!;
+    const iid = draft.extraActions[0]!;
+    if (extraActionNeedsAim(draft, iid)) break;
+    draft.extraActions.shift();
     resolveExtraAction(draft, iid, registry, events);
     if (checkGameOver(draft, events)) break;
   }
-  delete draft.extraActions;
+  if (draft.extraActions?.length === 0) delete draft.extraActions;
   return result;
+};
+
+/** Resolve the front queued extra action against the lane the player aimed it at. */
+const resolveExtraActionAim = (registry: Registry, state: GameState, lane: LaneId): ApplyResult => {
+  const iid = state.extraActions?.[0];
+  if (!iid) return err(state, 'No extra action to resolve');
+  const draft: GameState = structuredClone(state);
+  draft.extraActions = draft.extraActions!.slice(1);
+  if (draft.extraActions.length === 0) delete draft.extraActions;
+  const events: GameEvent[] = [];
+  resolveExtraAction(draft, iid, registry, events, lane);
+  checkGameOver(draft, events);
+  return { state: draft, events };
 };
 
 export const applyAction = (
@@ -496,11 +602,18 @@ export const applyAction = (
         return moveUnit(registry, state, action.targetIid, action.toLane);
       case 'resolvePending':
         return resolvePending(registry, state, action.targetIid, action.toLane);
+      case 'resolveExtraAction':
+        return resolveExtraActionAim(registry, state, action.lane);
       case 'debugAddCard': {
         if (!registry.cards.has(action.cardId)) return err(state, `Unknown card: ${action.cardId}`);
         const draft: GameState = structuredClone(state);
-        draft.players[draft.active].hand.push({ iid: `dbg${draft.iidSeq++}`, cardId: action.cardId });
-        return { state: draft, events: [] };
+        // The hand cap is a RULE, not a UI nicety — the injector used to push straight onto the
+        // hand array and was the one path in the engine that could carry a player past HAND_CAP.
+        // Go through addCardToHand like every other source (draw, conjure, expel, raid), so an
+        // over-cap injection is discarded to the pile instead of held.
+        const events: GameEvent[] = [];
+        addCardToHand(draft, draft.active, { iid: `dbg${draft.iidSeq++}`, cardId: action.cardId }, events);
+        return { state: draft, events };
       }
       case 'debugMaxEnergy': {
         const draft: GameState = structuredClone(state);
@@ -511,10 +624,22 @@ export const applyAction = (
       }
       case 'debugPlaceUnit': {
         const def = registry.cards.get(action.cardId);
-        if (!def || def.type !== 'unit') return err(state, 'Pick a unit card to place.');
+        // Foundations are placeable too: standalone is a real board state (it fights alone and
+        // advertises its grant), and the sandbox could not reproduce it at all before.
+        if (def && def.type === 'foundation') {
+          const draft: GameState = structuredClone(state);
+          const laneObj = draft.players[action.player].lanes[action.lane];
+          if (laneObj.standaloneFoundation) return err(state, 'That lane already has a standalone Foundation.');
+          const f = makeFoundationUnit(def, { iid: `dbg${draft.iidSeq++}`, cardId: def.id }, action.player);
+          f.justPlaced = false; // sandbox pieces are ready to act immediately
+          laneObj.standaloneFoundation = f;
+          refreshLaneEnvironment(registry, draft, action.lane);
+          return { state: draft, events: [] };
+        }
+        if (!def || def.type !== 'unit') return err(state, 'Pick a unit or foundation card to place.');
         const draft: GameState = structuredClone(state);
         const lane = draft.players[action.player].lanes[action.lane];
-        const drowning = action.lane === 'water' && !def.keywords.aquatic && !def.keywords.airborne;
+        const drowning = isWater(action.lane, state.laneTypes) && !def.keywords.aquatic && !def.keywords.airborne;
         const unit = createUnitInstance(def, { iid: `dbg${draft.iidSeq++}`, cardId: def.id }, action.player, drowning);
         unit.justPlaced = false; // sandbox units are ready to act immediately
         const pos = action.position ?? (lane.front ? 'back' : 'front');
@@ -533,24 +658,82 @@ export const applyAction = (
         const loc = locateUnit(draft, action.iid);
         if (!loc) return err(state, 'Unit not found.');
         const u = loc.unit;
+<<<<<<< Updated upstream
         if (action.status === 'clear') {
           if (u.status.drowning) u.attack = u.predrownAttack ?? u.attack;
           u.status = {};
+=======
+        // Route every status through the shared owners rather than hand-rolling the two
+        // backing stores here (status.ts) and the Water rule (drowning.ts). Hand-rolled,
+        // the sandbox produced statuses the real game cannot: durations of 1 instead of
+        // RULES.SLEEP_DURATION/FREEZE_DURATION, afflictions stacked in combinations
+        // `applyStatus` treats as mutually exclusive, and a `status = {}` clear that
+        // dropped positional `drowning` while leaving the unit standing in Water.
+        if (action.status === 'clear') {
+          const keep = draft.bossRules?.cauldron === u.owner ? (['burn', 'poison'] as const) : [];
+          clearCleansableStatuses(u, keep);
+          reconcileDrowning(u, loc.lane, draft.laneTypes); // positional, so re-derived from the lane, not cleared
+>>>>>>> Stashed changes
         } else if (action.status === 'drowning') {
-          u.status.drowning = true;
-          u.predrownAttack = u.predrownAttack ?? u.attack;
-          u.attack = 0;
-        } else if (action.status === 'sleep') {
-          u.status.sleep = 1;
-        } else if (action.status === 'freeze') {
-          u.status.freeze = 1;
-        } else if (action.status === 'burn') {
-          u.status.burn = (u.status.burn ?? 0) + 1;
-        } else if (action.status === 'poison') {
-          u.status.poisoned = (u.status.poisoned ?? 0) + 1;
+          // Drowning is positional: the only honest way to toggle it is to ask the lane.
+          reconcileDrowning(u, loc.lane, draft.laneTypes);
+        } else {
+          applyStatus(u, action.status, { shield: 1, burn: 1, poison: 1 }, []);
         }
         return { state: draft, events: [] };
       }
+<<<<<<< Updated upstream
+=======
+      case 'debugToggleKeyword': {
+        const draft: GameState = structuredClone(state);
+        const loc = locateUnit(draft, action.iid);
+        if (!loc) return err(state, 'Unit not found.');
+        const kw = loc.unit.keywords as Record<string, unknown>;
+        const k = action.keyword;
+        // Numeric keywords toggle unset ⇄ 1; the rest are plain boolean flags.
+        if (k === 'tough' || k === 'spike') {
+          if (kw[k]) delete kw[k];
+          else kw[k] = 1;
+        } else if (kw[k]) {
+          delete kw[k];
+        } else {
+          kw[k] = true;
+        }
+        // Airborne/Aquatic change Water compatibility, so the drowning state must be re-derived
+        // for the unit's lane (never left stale — see drowning.ts).
+        if (k === 'airborne' || k === 'aquatic') reconcileDrowning(loc.unit, loc.lane, draft.laneTypes);
+        return { state: draft, events: [] };
+      }
+      case 'debugAdjustStat': {
+        const draft: GameState = structuredClone(state);
+        const loc = locateUnit(draft, action.iid);
+        if (!loc) return err(state, 'Unit not found.');
+        const u = loc.unit;
+        if (action.stat === 'attack') {
+          // Never assign `attack` directly — addAttack writes to whichever store is live
+          // (predrownAttack while drowning), preserving the Water invariant.
+          addAttack(u, action.delta);
+        } else {
+          u.hp = Math.max(1, u.hp + action.delta);
+          if (u.hp > u.maxHp) u.maxHp = u.hp;
+        }
+        return { state: draft, events: [] };
+      }
+      case 'debugSetLeaderHp': {
+        const draft: GameState = structuredClone(state);
+        const p = draft.players[action.player];
+        p.leaderHp = Math.max(0, Math.min(action.hp, p.leaderMaxHp ?? 30));
+        // Setting HP must behave like taking the damage: crossing the Signature threshold
+        // unlocks and delivers the Signature. Without this the sandbox could put a leader at
+        // the threshold but never reach the state being tested.
+        const events: GameEvent[] = [];
+        if (!p.signatureUnlocked && p.leaderHp <= signatureThreshold(p)) {
+          unlockSignature(draft, action.player, events);
+          grantSignatureIfRoom(draft, action.player, events);
+        }
+        return { state: draft, events };
+      }
+>>>>>>> Stashed changes
       case 'debugRemoveUnit': {
         const draft: GameState = structuredClone(state);
         const loc = locateUnit(draft, action.iid);
@@ -600,19 +783,68 @@ const BENEFICIAL_KINDS: ReadonlySet<Effect['kind']> = new Set([
 ]);
 
 /**
- * This player's total cost modifier for a card type: the temporary per-turn `costMods`
- * plus the persistent `costBase` (which survives turn-end). The single source of truth
- * for effective cost — every play/afford path routes through it.
+ * Count a CARD play toward the hero-power discount (`costStep`). Called from the four card
+ * paths only — never from `heroPower` itself, or a power would part-recharge by being used.
  */
-export const costModFor = (player: PlayerState, type: Card['type']): number =>
-  player.costMods[type] + (player.costBase?.[type] ?? 0);
+const notePlayed = (player: PlayerState): void => {
+  player.cardsSincePower = (player.cardsSincePower ?? 0) + 1;
+};
+
+/**
+ * Fire the `conjureOnPlay` trigger for a card that was just played (Corpselock's
+ * Signature): conjure one random card from the armed pool into the same player's hand.
+ *
+ * Separate from `notePlayed` because it needs the state (for `rng` — every random choice
+ * must advance the serializable RNG, exactly as `raid.ts` does) and the event list, while
+ * `notePlayed` is a pure counter bump on the player.
+ *
+ * The per-turn budget is the loop bound: with the companion cost discount, each conjured
+ * card is itself playable, so an unbounded trigger never terminates.
+ */
+const fireConjureOnPlay = (s: GameState, who: PlayerId, events: GameEvent[]): void => {
+  const trigger = s.players[who].conjureOnPlay;
+  if (!trigger || trigger.usedThisTurn >= trigger.perTurn || trigger.cardIds.length === 0) return;
+  trigger.usedThisTurn += 1;
+  const pick = nextInt(s.rng, trigger.cardIds.length);
+  s.rng = pick.rng;
+  const cardId = trigger.cardIds[pick.value]!;
+  events.push({ t: 'conjure', player: who, cardId });
+  addCardToHand(s, who, { iid: `c${++s.iidSeq}`, cardId }, events);
+};
+
+/**
+ * Effective hero-power cost after the `costStep` discount. SINGLE SOURCE OF TRUTH — both the
+ * reducer (`heroPower`) and the legal-action generator (`heroPowerPlays`) must use it. When
+ * only the reducer applied the discount, the AI never saw a discounted power as LEGAL, so
+ * Eksana's counter climbed to 28 unspent and the power fired only in games that happened to
+ * reach its full printed 20 energy. Two affordability checks, one discount = a dead mechanic.
+ */
+export const heroPowerCostFor = (player: PlayerState, leader: { heroPower: { cost: Cost; costStep?: number } }): Cost => {
+  const tunes = (leader.heroPower.costStep ?? 0) > 0;
+  if (!tunes) return leader.heroPower.cost;
+  const stepOverride = typeof process !== 'undefined' ? process.env?.AD_FAVOUR_STEP : undefined;
+  const baseOverride = typeof process !== 'undefined' ? process.env?.AD_FAVOUR_BASE : undefined;
+  const step = Number(stepOverride ?? leader.heroPower.costStep);
+  const base = Number(baseOverride ?? leader.heroPower.cost.energy);
+  return { ...leader.heroPower.cost, energy: Math.max(0, base - step * (player.cardsSincePower ?? 0)) };
+};
+
+/**
+ * This player's total cost modifier for a card type: the temporary per-turn `costMods`
+ * plus the persistent `costBase` (which survives turn-end), plus any discount riding on
+ * the specific copy in hand. The single source of truth for effective cost — every
+ * play/afford path routes through it, and none may read the stores directly.
+ */
+export const costModFor = (player: PlayerState, type: Card['type'], card?: { costDelta?: number }): number =>
+  player.costMods[type] + (player.costBase?.[type] ?? 0) + (card?.costDelta ?? 0);
 
 /** Effective cost of a hand card after this player's per-type cost modifier. */
-const affordableCard = (
+export const affordableCard = (
   player: PlayerState,
   def: { type: Card['type']; cost: Cost },
+  card?: { costDelta?: number },
 ): boolean => {
-  const effCost: Cost = { ...def.cost, energy: Math.max(0, def.cost.energy + costModFor(player, def.type)) };
+  const effCost: Cost = { ...def.cost, energy: Math.max(0, def.cost.energy + costModFor(player, def.type, card)) };
   return canAfford(player, effCost).ok;
 };
 
@@ -633,12 +865,18 @@ const effectTargetRefs = (
 ): TargetRef[] | null => {
   const { kind, target: scope } = effect;
   if (scope === 'all-enemy' || scope === 'all-ally' || scope === 'leaderUnit') return null;
-  if (kind === 'draw' || kind === 'forget' || kind === 'summon' || kind === 'conjure' || kind === 'costMod' || kind === 'custom') {
-    return null;
-  }
   if (kind === 'energy') {
     return effect.chooseElement ? ELEMENTS.map((element) => ({ kind: 'element', element })) : null;
   }
+  // Mirror `applyEffects` EXACTLY: it consumes a ref only for `TARGETED` kinds (plus the
+  // element-choosing `energy` above). This used to be a hand-maintained deny-list of
+  // ref-free kinds, and the two drifted — `energyNext`, `bankMax`, `discountHand`,
+  // `conjureOnPlay` and `mill` were all missing from it, so `targetCombos` demanded a target
+  // the resolver never reads. Harmless while a board had units to name; with an EMPTY board
+  // the ref list came back empty and the card was declared uncastable — which is how Corpselock's
+  // Signature (bankMax + conjureOnPlay) could be refused on a clear board, exactly when a
+  // signature is most likely to be cast. Deriving it from the one set removes the drift.
+  if (!TARGETED.has(kind)) return null;
   // Targeted unit/leader effect — pick the side from the scope, else from polarity.
   const ownSide =
     scope === 'ally' || scope === 'lane-ally' || scope === 'self'
@@ -665,8 +903,9 @@ const targetCombos = (state: GameState, effects: Effect[]): TargetRef[][] | null
   return lists.length ? product(lists) : [[]];
 };
 
-const unitPlays = (state: GameState, player: PlayerState, iid: string, def: UnitCard): Action[] => {
-  if (!affordableCard(player, def)) return [];
+const unitPlays = (state: GameState, player: PlayerState, inst: CardInstance, def: UnitCard): Action[] => {
+  const iid = inst.iid;
+  if (!affordableCard(player, def, inst)) return [];
   // Sacrifice: the buff stacks once per unit offered, up to `max`. Offer 0, each single own
   // unit (so a specific weak/dying body can be picked), and the "feed the N weakest" combos
   // up to `max` (the usual optimum when you want the full buff). The evaluator picks among them.
@@ -698,11 +937,23 @@ const unitPlays = (state: GameState, player: PlayerState, iid: string, def: Unit
   return out;
 };
 
-const spellPlays = (state: GameState, player: PlayerState, iid: string, def: SpellCard): Action[] => {
-  if (!affordableCard(player, def)) return [];
+/**
+ * Does this effect list let the CASTER pick a lane? `move` always has. `summon` does too —
+ * `applyEffects` has always threaded the action's lane down to it, but only `move` was ever
+ * enumerated here, so a summon could never be aimed and silently fell back to "first lane
+ * with an open slot". That is why Autopus's Fallback Code could not choose where its critter
+ * landed. A summon that hard-codes its own `lane` (the 8Bits signature) is excluded — the
+ * card's lane wins, so offering four identical actions would just bloat the search.
+ */
+const usesLane = (effects: readonly Effect[]): boolean =>
+  effects.some((e) => e.kind === 'move' || (e.kind === 'summon' && !e.lane));
+
+const spellPlays = (state: GameState, player: PlayerState, inst: CardInstance, def: SpellCard): Action[] => {
+  const iid = inst.iid;
+  if (!affordableCard(player, def, inst)) return [];
   const combos = targetCombos(state, def.effects);
   if (!combos) return [];
-  const lanes: Array<LaneId | undefined> = def.effects.some((e) => e.kind === 'move') ? [...LANES] : [undefined];
+  const lanes: Array<LaneId | undefined> = usesLane(def.effects) ? [...LANES] : [undefined];
   const out: Action[] = [];
   for (const targets of combos)
     for (const lane of lanes)
@@ -713,16 +964,20 @@ const spellPlays = (state: GameState, player: PlayerState, iid: string, def: Spe
 const heroPowerPlays = (registry: Registry, state: GameState, player: PlayerState): Action[] => {
   if (player.heroPowerUsed) return [];
   const leader = registry.leaders.get(player.leaderId);
-  if (!leader || !canAfford(player, leader.heroPower.cost).ok) return [];
+  if (!leader || !canAfford(player, heroPowerCostFor(player, leader)).ok) return [];
   const combos = targetCombos(state, leader.heroPower.effects);
   if (!combos) return [];
-  const lanes: Array<LaneId | undefined> = leader.heroPower.effects.some((e) => e.kind === 'move') ? [...LANES] : [undefined];
+  const lanes: Array<LaneId | undefined> = usesLane(leader.heroPower.effects) ? [...LANES] : [undefined];
   const out: Action[] = [];
   for (const targets of combos)
     for (const lane of lanes)
       out.push({ type: 'heroPower', targets: targets.length ? targets : undefined, lane });
   return out;
 };
+
+/** Aim candidates for the front queued extra action awaiting a Sniper lane pick. */
+const extraActionActions = (state: GameState): Action[] =>
+  state.extraActions?.length ? LANES.map((lane) => ({ type: 'resolveExtraAction', lane }) as const) : [];
 
 /** Resolve-pending candidates for the first queued move/expel/forget choice (skip + each target). */
 const pendingActions = (state: GameState): Action[] => {
@@ -770,18 +1025,22 @@ const validate = (registry: Registry, state: GameState, candidates: Action[]): A
 export const legalActions = (registry: Registry, state: GameState): Action[] => {
   if (state.phase === 'ended') return [];
   if (state.pending?.length) return validate(registry, state, pendingActions(state));
+  if (state.extraActions?.length) return validate(registry, state, extraActionActions(state));
 
   const player = state.players[state.active];
   const candidates: Action[] = [{ type: 'endTurn' }];
   for (const inst of player.hand) {
+    // A sealed card offers no legal play at all this turn, so the AI never plans a line
+    // through one and the UI never lights it up (see `bossRules.resolveSeal`).
+    if (player.sealedIid === inst.iid) continue;
     const def = registry.cards.get(inst.cardId);
     if (!def) continue;
-    if (def.type === 'unit') candidates.push(...unitPlays(state, player, inst.iid, def));
-    else if (def.type === 'foundation' && affordableCard(player, def)) {
+    if (def.type === 'unit') candidates.push(...unitPlays(state, player, inst, def));
+    else if (def.type === 'foundation' && affordableCard(player, def, inst)) {
       for (const lane of LANES) candidates.push({ type: 'playFoundation', iid: inst.iid, lane });
-    } else if (def.type === 'spell') candidates.push(...spellPlays(state, player, inst.iid, def));
-    else if (def.type === 'environment' && affordableCard(player, def)) {
-      for (const lane of LANES) if (laneAllowed(def.lanes, lane)) candidates.push({ type: 'playEnvironment', iid: inst.iid, lane });
+    } else if (def.type === 'spell') candidates.push(...spellPlays(state, player, inst, def));
+    else if (def.type === 'environment' && affordableCard(player, def, inst)) {
+      for (const lane of LANES) if (laneAllowed(def.lanes, lane, state.laneTypes)) candidates.push({ type: 'playEnvironment', iid: inst.iid, lane });
     }
   }
   candidates.push(...heroPowerPlays(registry, state, player));

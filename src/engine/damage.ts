@@ -6,6 +6,7 @@
  * defense-pierce). `ignoreDefenses` is Undershot and is itself stopped by Immunity.
  */
 import { LANES, RULES } from '@engine/constants';
+import { NULL_CARD_ID, NULL_HOLD_DAMAGE, NULL_KAMIKAZE_DAMAGE } from '@cards/special';
 import type { GameEvent } from '@engine/events';
 import { grantSignatureIfRoom, unlockSignature } from '@engine/signature';
 import type { GameState, PlayerId, PlayerState, UnitInstance } from '@engine/types';
@@ -116,6 +117,32 @@ export const mitigate = (
   return landed;
 };
 
+/**
+ * Bleed a player for shedding a Null — the single implementation for every way one can leave
+ * (destroyed in play, forgotten, expelled or drawn into a full hand), so no route is cheaper
+ * than another.
+ */
+export const nullBleed = (s: GameState, player: PlayerId, events: GameEvent[]): void =>
+  damageLeader(s, player, NULL_KAMIKAZE_DAMAGE, events);
+
+/**
+ * Charge the per-turn tax for Nulls sitting in hand — `NULL_HOLD_DAMAGE` each, so the cost
+ * compounds with the number held. See `NULL_HOLD_DAMAGE` for why holding had to stop being
+ * free. Charged at the holder's start of turn, AFTER the draw step, so a Null starts costing
+ * the turn it arrives.
+ */
+export const nullHoldTax = (s: GameState, player: PlayerId, events: GameEvent[]): void => {
+  const held = s.players[player].hand.filter((c) => c.cardId === NULL_CARD_ID).length;
+  if (held <= 0) return;
+  // `AD_HOLD` lets a balance harness sweep this rate without editing data between runs; it is
+  // read per call so it can never be baked into a build. Unset everywhere except .tuning.
+  const override = typeof process !== 'undefined' ? process.env?.AD_HOLD : undefined;
+  const rate = Number(override ?? NULL_HOLD_DAMAGE);
+  if (rate <= 0) return;
+  events.push({ t: 'nullHold', player, held });
+  damageLeader(s, player, rate * held, events);
+};
+
 /** Damage a leader, unlocking its Signature ability at the HP threshold. */
 export const damageLeader = (
   s: GameState,
@@ -154,7 +181,7 @@ export const healLeader = (
   // Riku: healing the leader heals the leader-unit (capped at its max HP).
   const lu = findLeaderUnit(s, player);
   if (lu) {
-    if (lu.status.poisoned) return; // Poison blocks healing
+    if (lu.status.poisoned || s.bossRules?.disciplined === player) return; // Poison / Discipline blocks healing
     lu.hp = Math.min(lu.maxHp, lu.hp + amount);
     pl.leaderHp = lu.hp;
     events.push({ t: 'heal', iid: lu.iid, amount, victim: lu.owner });
@@ -165,8 +192,10 @@ export const healLeader = (
 };
 
 /** Heal a unit, capped at its max HP. Poison blocks healing entirely (returns false). */
-export const healUnit = (u: UnitInstance, amount: number, events: GameEvent[]): boolean => {
-  if (u.status.poisoned) return false; // Poison blocks healing
+export const healUnit = (u: UnitInstance, amount: number, events: GameEvent[], disciplined = false): boolean => {
+  // Poison blocks healing; Aleph's Discipline boss rule generalises the same gate to a
+  // whole side (see `BossRules.disciplined`).
+  if (u.status.poisoned || disciplined) return false;
   u.hp = Math.min(u.maxHp, u.hp + amount);
   events.push({ t: 'heal', iid: u.iid, amount, victim: u.owner });
   return true;

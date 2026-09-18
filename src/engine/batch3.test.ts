@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction } from '@engine/engine';
+import { applyAction, legalActions } from '@engine/engine';
 import { resolveCombat, resolveExtraAction } from '@engine/combat';
 import { resolveEndOfTurn } from '@engine/endOfTurn';
 import { applyEffects } from '@engine/effects';
@@ -133,6 +133,77 @@ describe('Extra Action', () => {
     resolveExtraAction(s, id, testRegistry, events);
     expect(s.players[1].lanes.ground1.front?.hp).toBe(7); // took 3
     expect(s.players[0].lanes.ground1.front?.hp).toBe(5); // NO retaliation taken
+  });
+
+  it('a Sniper bonus attack has no player to aim it, so it falls back to the smartest lane (killable, else biggest threat)', () => {
+    const s = blankState();
+    place(s, 0, 'heights', unit({ owner: 0, attack: 3, hp: 5, keywords: { sniper: true } }));
+    place(s, 1, 'ground1', unit({ owner: 1, attack: 5, hp: 9 })); // biggest threat, not killable
+    place(s, 1, 'water', unit({ owner: 1, attack: 1, hp: 2 })); // killable, listed first in LANES order
+    const id = s.players[0].lanes.heights.front!.iid;
+    const events: GameEvent[] = [];
+    resolveExtraAction(s, id, testRegistry, events);
+    expect(s.players[1].lanes.water.front).toBeUndefined(); // killed — the fallback prefers a kill over "first lane"
+    expect(s.players[1].lanes.ground1.front?.hp).toBe(9); // untouched
+  });
+
+  it('a queued Sniper bonus attack pauses the turn instead of auto-firing, and resumes once aimed', () => {
+    const s = blankState();
+    place(s, 0, 'heights', unit({ owner: 0, attack: 3, hp: 5, keywords: { sniper: true } }));
+    place(s, 1, 'ground1', unit({ owner: 1, attack: 5, hp: 9 }));
+    place(s, 1, 'water', unit({ owner: 1, attack: 1, hp: 9 }));
+    const sniperIid = s.players[0].lanes.heights.front!.iid;
+    // Simulate a triggering effect (Adrenaline Rush, Overexert...) having queued the bonus
+    // attack; `applyAction` drains it as a side effect of ANY action, so a no-op debug action
+    // is enough to exercise that path in isolation.
+    s.extraActions = [sniperIid];
+    const res = applyAction(testRegistry, s, { type: 'debugMaxEnergy' });
+    expect(res.state.extraActions).toEqual([sniperIid]); // paused — not auto-resolved
+    expect(res.state.players[1].lanes.ground1.front?.hp).toBe(9); // no shot fired anywhere yet
+    expect(res.state.players[1].lanes.water.front?.hp).toBe(9);
+
+    // Only aim choices are legal while paused.
+    const legal = legalActions(testRegistry, res.state);
+    expect(legal.length).toBe(LANES.length);
+    expect(legal.every((a) => a.type === 'resolveExtraAction')).toBe(true);
+
+    // The player aims it — resolves against exactly that lane, no auto-pick involved.
+    const res2 = applyAction(testRegistry, res.state, { type: 'resolveExtraAction', lane: 'water' });
+    expect(res2.state.extraActions).toBeUndefined();
+    expect(res2.state.players[1].lanes.water.front?.hp).toBe(6); // 9 - 3, the aimed lane
+    expect(res2.state.players[1].lanes.ground1.front?.hp).toBe(9); // the other lane, untouched
+  });
+
+  it('a non-Sniper bonus attack still auto-resolves — only a Sniper needs aiming', () => {
+    const s = blankState();
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 3, hp: 5 }));
+    place(s, 1, 'ground1', unit({ owner: 1, attack: 0, hp: 9 }));
+    const id = s.players[0].lanes.ground1.front!.iid;
+    s.extraActions = [id];
+    const res = applyAction(testRegistry, s, { type: 'debugMaxEnergy' });
+    expect(res.state.extraActions).toBeUndefined(); // drained immediately, no aim needed
+    expect(res.state.players[1].lanes.ground1.front?.hp).toBe(6);
+  });
+
+  it('multiple queued Snipers each get their own aim prompt in turn', () => {
+    const s = blankState();
+    place(s, 0, 'heights', unit({ owner: 0, attack: 2, hp: 5, keywords: { sniper: true } }));
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 4, hp: 5, keywords: { sniper: true, airborne: true } }));
+    place(s, 1, 'water', unit({ owner: 1, attack: 0, hp: 9 }));
+    place(s, 1, 'ground2', unit({ owner: 1, attack: 0, hp: 9 }));
+    const sniperA = s.players[0].lanes.heights.front!.iid;
+    const sniperB = s.players[0].lanes.ground1.front!.iid;
+    s.extraActions = [sniperA, sniperB];
+    const res = applyAction(testRegistry, s, { type: 'debugMaxEnergy' });
+    expect(res.state.extraActions).toEqual([sniperA, sniperB]); // paused on the FIRST sniper
+
+    const res2 = applyAction(testRegistry, res.state, { type: 'resolveExtraAction', lane: 'water' });
+    expect(res2.state.extraActions).toEqual([sniperB]); // first resolved, second still queued (paused again)
+    expect(res2.state.players[1].lanes.water.front?.hp).toBe(7); // 9 - 2
+
+    const res3 = applyAction(testRegistry, res2.state, { type: 'resolveExtraAction', lane: 'ground2' });
+    expect(res3.state.extraActions).toBeUndefined();
+    expect(res3.state.players[1].lanes.ground2.front?.hp).toBe(5); // 9 - 4
   });
 
   it('the extraAction effect queues and the engine drains it', () => {

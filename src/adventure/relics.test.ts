@@ -19,26 +19,68 @@ describe('relic table', () => {
   });
 
   // Enemy encounter HP is designed to always be even (see encounters.ts) so the
-  // Signature threshold — half of it — is always a clean integer. An odd relic delta
-  // would silently break that invariant, so guard it here at the data level.
-  it('every enemyHpDelta is even', () => {
+  // Enemy-HP relics are PROPORTIONAL, never flat. A flat cut authored against one HP
+  // curve silently becomes a delete button when the curve is re-tuned smaller — which is
+  // exactly what happened when `normalHp` was rebuilt (a common -4 became a 40% cut, and
+  // a boss -12 removed early enemies outright).
+  it('scales enemy HP by a multiplier, never a flat amount', () => {
     for (const r of RELICS) {
-      if (r.mods.enemyHpDelta !== undefined) {
-        expect(Math.abs(r.mods.enemyHpDelta % 2), `${r.id}: ${r.mods.enemyHpDelta}`).toBe(0);
+      expect(r.mods, `${r.id} still uses a flat enemy-HP delta`).not.toHaveProperty('enemyHpDelta');
+      if (r.mods.enemyHpMult === undefined) continue;
+      // Bounded both ways. Below 1 is a discount and may never delete an enemy outright;
+      // ABOVE 1 is legal and is a PRICE — Covenant Stone buys a permanent energy
+      // advantage by making every enemy tougher — but must stay small enough that the
+      // relic remains a trade rather than a wall.
+      // A relic whose multiplier CLIMBS BACK with the act is exempt from the lower
+      // bound, and only that one: the floor exists so a permanent discount can never
+      // delete an enemy, and a discount that expires by construction is not permanent.
+      // It still may not open at zero, and it has to return above the ordinary floor
+      // within a handful of acts or it is a static discount wearing a curve.
+      const climbs = (r.scale?.source === 'act') && (r.scale.mods.enemyHpMult ?? 1) > 1;
+      if (climbs) {
+        expect(r.mods.enemyHpMult, `${r.id} opens at nothing`).toBeGreaterThanOrEqual(0.1);
+        const after = (acts: number): number =>
+          r.mods.enemyHpMult! * Math.pow(r.scale!.mods.enemyHpMult!, Math.min(r.scale!.maxSteps, acts));
+        expect(after(4), `${r.id} never climbs back out of the discount`).toBeGreaterThanOrEqual(0.5);
+        expect(after(99), `${r.id} compounds into a wall`).toBeLessThanOrEqual(2);
+      } else {
+        expect(r.mods.enemyHpMult, r.id).toBeGreaterThanOrEqual(0.5);
+        expect(r.mods.enemyHpMult, r.id).toBeLessThanOrEqual(1.3);
+      }
+      expect(r.mods.enemyHpMult, `${r.id} is a no-op`).not.toBe(1);
+      // A relic that makes fights HARDER must be paying for something, or it is simply
+      // a bad relic — the failure mode the whole rarity rewrite exists to prevent.
+      if (r.mods.enemyHpMult > 1) {
+        const paidFor = Object.keys(r.mods).filter((k) => k !== 'enemyHpMult');
+        expect(paidFor.length, `${r.id} raises enemy HP and gives nothing back`).toBeGreaterThan(0);
       }
     }
   });
 
-  it('every relic has a valid rarity and a non-empty mods object', () => {
+  it('keeps the enemy-HP cut ordered by rarity', () => {
+    const mult = (id: string): number => relicById(id)!.mods.enemyHpMult!;
+    // A common must not out-cut a rare, nor a rare a boss relic. The ladder is three
+    // rungs now, not six: four of the old six differed only in their percentage, which is
+    // exactly the "rarity is magnitude" problem the table was rewritten to fix.
+    expect(mult('ember-cache')).toBeGreaterThan(mult('siege-ram'));
+    expect(mult('siege-ram')).toBeGreaterThan(mult('war-drums'));
+  });
+
+  it('every relic has a valid rarity and something to contribute', () => {
     for (const r of RELICS) {
-      expect(['common', 'rare', 'boss'], r.id).toContain(r.rarity);
-      expect(Object.keys(r.mods).length, `${r.id} has no mods`).toBeGreaterThan(0);
+      expect(['common', 'rare', 'boss', 'cursed'], r.id).toContain(r.rarity);
+      // A SCALING relic may legitimately declare an empty `mods` — its whole payload
+      // lives in `scale.mods` and is folded per step (the Hoard-Ledger does nothing at
+      // all until the purse crosses 100 coins, which is the point of it). What is not
+      // allowed is a relic with neither.
+      const payload = Object.keys(r.mods).length + Object.keys(r.scale?.mods ?? {}).length;
+      expect(payload, `${r.id} has no mods`).toBeGreaterThan(0);
       expect(r.icon.length, r.id).toBeGreaterThan(0);
     }
   });
 
-  it('offers a spread across all three rarity bands', () => {
-    for (const band of ['common', 'rare', 'boss'] as const) {
+  it('offers a spread across all four rarity bands', () => {
+    for (const band of ['common', 'rare', 'boss', 'cursed'] as const) {
       expect(RELICS.filter((r) => r.rarity === band).length, `no ${band} relics`).toBeGreaterThan(0);
     }
   });
@@ -122,13 +164,15 @@ describe('applyDeckBuffs (element-conditional stat buffs)', () => {
 
 describe('aggregateMods', () => {
   it('sums deltas, multiplies mults, collects caps/foundations', () => {
-    const m = aggregateMods(['ember-cache', 'war-drums', 'veterans-draw', 'full-quiver', 'merchants-seal', 'whetstone', 'banked-reserves-fire', 'standing-stone', 'prophets-coin', 'wide-market', 'coin-pouch']);
-    expect(m.enemyHpDelta).toBe(-12); // -4 + -8
-    expect(m.startingHandDelta).toBe(3); // 1 + 2
+    const m = aggregateMods(['ember-cache', 'war-drums', 'veterans-draw', 'famine-charm', 'merchants-seal', 'whetstone', 'banked-reserves-fire', 'standing-stone', 'prophets-coin', 'wide-market', 'coin-pouch']);
+    // Multiplied, not summed: 0.9 * 0.75. Stacking cuts compounds toward zero rather than
+    // racing past it, so no combination can delete an enemy.
+    expect(m.enemyHpMult).toBeCloseTo(0.675);
+    expect(m.startingHandDelta).toBe(4); // veterans-draw 1 + famine-charm 3
     expect(m.storeBuyMult).toBeCloseTo(0.75);
-    expect(m.enhanceDiscount).toBeCloseTo(0.8);
+    expect(m.enhanceDiscount).toBeCloseTo(0.6);
     expect(m.extraStoreSlots).toBe(2);
-    expect(m.startCoinsDelta).toBe(40);
+    expect(m.startCoinsDelta).toBe(120);
     expect(m.startWithSignature).toBe(true);
     expect(m.elementCapDeltas).toEqual([{ element: 'fire', amount: 1 }]);
     expect(m.prePlaceFoundations).toEqual(['random']);
@@ -140,11 +184,8 @@ describe('aggregateMods', () => {
   });
 
   it('collects start-banks and sums start-energy bursts', () => {
-    const m = aggregateMods(['deep-cistern', 'worldtree-seed', 'iron-ration', 'runic-battery']);
-    expect(m.startBanks).toEqual([
-      { element: 'leader', amount: 2 },
-      { element: 'leader', amount: 4 },
-    ]);
+    const m = aggregateMods(['deep-cistern', 'banked-reserves-fire', 'iron-ration', 'runic-battery']);
+    expect(m.startBanks).toEqual([{ element: 'leader', amount: 3 }]);
     expect(m.startEnergyBonus).toBe(3); // 1 + 2
   });
 });
@@ -160,8 +201,8 @@ describe('applyRelicsToState', () => {
   it('draws extra opening cards', () => {
     const state = initGame({ registry: base, decks, seed: 1 });
     const before = state.players[0].hand.length;
-    applyRelicsToState(base, state, aggregateMods(['full-quiver']), 5); // +2
-    expect(state.players[0].hand.length).toBe(before + 2);
+    applyRelicsToState(base, state, aggregateMods(['famine-charm']), 5); // +3
+    expect(state.players[0].hand.length).toBe(before + 3);
   });
 
   it('adds the signature card to hand', () => {
@@ -175,19 +216,19 @@ describe('applyRelicsToState', () => {
     const state = initGame({ registry: base, decks, seed: 1 });
     const leaderEl = base.leaders.get(state.players[0].leaderId)!.element;
     const cap = state.players[0].elementCaps[leaderEl];
-    applyRelicsToState(base, state, aggregateMods(['deep-cistern']), 5); // +2 in leader element
-    expect(state.players[0].bank[leaderEl]).toBe(Math.min(cap, 2));
+    applyRelicsToState(base, state, aggregateMods(['deep-cistern']), 5); // +3 in leader element
+    expect(state.players[0].bank[leaderEl]).toBe(Math.min(cap, 3));
   });
 
   it('start-bank never exceeds the (relic-boosted) element cap', () => {
-    // World-Tree Seed banks 4; most caps are below 4, so it must clamp — and it must
+    // Deep Cistern banks 3; several caps are below that, so it must clamp — and it must
     // clamp to the cap AFTER any reservoir raised it, since caps apply first.
     const state = initGame({ registry: base, decks, seed: 1 });
     const leaderEl = base.leaders.get(state.players[0].leaderId)!.element;
     const boostRelic = ({ fire: 'banked-reserves-fire', water: 'banked-reserves-water', nature: 'banked-reserves-nature', earth: 'banked-reserves-earth' } as const)[leaderEl];
-    applyRelicsToState(base, state, aggregateMods(['worldtree-seed', boostRelic]), 5);
+    applyRelicsToState(base, state, aggregateMods(['deep-cistern', boostRelic]), 5);
     const cap = state.players[0].elementCaps[leaderEl]; // already includes the +1
-    expect(state.players[0].bank[leaderEl]).toBe(Math.min(cap, 4));
+    expect(state.players[0].bank[leaderEl]).toBe(Math.min(cap, 3));
     expect(state.players[0].bank[leaderEl]).toBeLessThanOrEqual(cap);
   });
 
@@ -208,9 +249,12 @@ describe('applyRelicsToState', () => {
 
   it('stacks multiple cost reductions of the same type', () => {
     const state = initGame({ registry: base, decks, seed: 1 });
-    applyRelicsToState(base, state, aggregateMods(['drill-sergeant', 'quartermaster-general']), 5);
+    // Skirmisher's Creed cuts every card type by 1, same as The Long Column used to —
+    // stacked with Drill Sergeant's unit-only -1, units should stack to -2 while spells
+    // (untouched by Drill Sergeant) come only from the Creed.
+    applyRelicsToState(base, state, aggregateMods(['drill-sergeant', 'skirmishers-creed']), 5);
     expect(state.players[0].costBase?.unit).toBe(-2); // -1 + -1
-    expect(state.players[0].costBase?.spell).toBe(-1); // from quartermaster-general
+    expect(state.players[0].costBase?.spell).toBe(-1); // from skirmishers-creed
   });
 
   it('pre-places a foundation on an empty player lane, consuming iidSeq', () => {

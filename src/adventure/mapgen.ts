@@ -7,15 +7,28 @@
  */
 import { subSeed, makeRoller } from '@adventure/seed';
 import type { MapNode, NodeKind, RunMap } from '@adventure/schema';
-import { TRIAL_TWISTS } from '@adventure/trials';
+import { TRIAL_TWISTS, TRIAL_TWIST_CHOICES, type TrialTwist } from '@adventure/trials';
 
-/** Non-boss layers per act: 7 in act 1, +1 per act, capped at 10. */
-const layerCount = (act: number): number => Math.min(10, 6 + act);
+/**
+ * Non-boss layers per act: 5 in act 1, +1 per act, capped at 10.
+ *
+ * Was `6 + act` (7 layers in act 1). Adventure is an attrition run, so the length of an act
+ * IS a difficulty dial — every extra layer is another fight's worth of chip damage before
+ * the boss. `.tuning/advRun.ts` measured act 1 as by far the deadliest act in the game, so
+ * the opening act is now two fights shorter and the ramp to a full-length act takes until
+ * act 6 rather than act 4.
+ */
+const layerCount = (act: number): number => Math.min(10, 4 + act);
 
 const nodeId = (layer: number, col: number): string => `n${layer}-${col}`;
 
-export const generateMap = (seed: number, act: number): RunMap => {
-  const roll = makeRoller(subSeed(seed, act, 'map'));
+/**
+ * `variant` re-rolls the SAME act into a different map. Used when a failed Copper Mech
+ * attempt resets the act: without it the reroll would regenerate the identical map, since
+ * a map is a pure function of (seed, act).
+ */
+export const generateMap = (seed: number, act: number, variant = 0): RunMap => {
+  const roll = makeRoller(subSeed(seed, act, 'map', variant));
   const L = layerCount(act);
 
   // Layer widths: 2-3 entries at the start, 2-4 in the middle, 1 boss on top.
@@ -27,17 +40,56 @@ export const generateMap = (seed: number, act: number): RunMap => {
   // Layer 0 is always combat; the boss layer is the boss. Elsewhere we roll,
   // keeping at least one combat per layer and biasing the pre-boss layer toward
   // shopping/upgrading (a "rest stop" before the fight).
+  /**
+   * `TRIAL_TWIST_CHOICES` distinct twists for one Trial node to choose between, spanning
+   * the SEVERITY rungs rather than drawn blind from the whole pool.
+   *
+   * A Trial now pays by the severity of the twist taken (`trialRewardBands` /
+   * `trialCoinMult`), which only makes the node a wager if the shortlist actually offers
+   * something to bet on. Three blind draws land on the same rung often enough that many
+   * Trials would have had no decision in them at all — one of each rung guarantees the
+   * choice is always "how much risk do I want", never "which of these three near-identical
+   * rules is marginally better".
+   *
+   * Falls back to filling from the whole pool if a rung is ever emptied, so adding or
+   * removing twists can never produce a Trial with fewer choices than advertised.
+   */
+  const pickTwists = (r: typeof roll): string[] => {
+    const out: string[] = [];
+    const takeFrom = (pool: TrialTwist[]): void => {
+      const fresh = pool.filter((t) => !out.includes(t.id));
+      if (fresh.length > 0) out.push(fresh[r.int(fresh.length)]!.id);
+    };
+    for (const severity of [1, 2, 3] as const) {
+      if (out.length >= TRIAL_TWIST_CHOICES) break;
+      takeFrom(TRIAL_TWISTS.filter((t) => (t.severity ?? 2) === severity));
+    }
+    let guard = 0;
+    while (out.length < Math.min(TRIAL_TWIST_CHOICES, TRIAL_TWISTS.length) && guard++ < 100) {
+      takeFrom(TRIAL_TWISTS);
+    }
+    return out;
+  };
+
   const rollKind = (r: number): NodeKind =>
     r < 0.4 ? 'combat' : r < 0.55 ? 'trial' : r < 0.7 ? 'store' : r < 0.82 ? 'enhance' : r < 0.92 ? 'rest' : 'event';
 
   const kinds: NodeKind[][] = widths.map((w, l) => {
     if (l === 0) return Array<NodeKind>(w).fill('combat');
     if (l === L) return ['boss'];
+    // The layer before the boss is ALWAYS preparation, never a fight. An act finale you
+    // walk into with whatever you happen to be holding is not a test of the run, and
+    // bosses were measured as the cause of 23 of 34 deaths at every act.
+    //
+    // Store or Rest specifically, never Enhance: an altar hands out ONE working on ONE
+    // copy, which is not preparation you can aim at a boss you can already see. A store
+    // buys an answer (and sells the dead weight); a rest restores the HP the boss is
+    // about to take.
+    if (l === L - 1) return Array.from({ length: w }, () => (roll.chance(0.5) ? 'store' : 'rest'));
     const row: NodeKind[] = [];
     let nonCombat = 0;
     for (let c = 0; c < w; c++) {
-      const preBoss = l === L - 1;
-      let kind = preBoss && roll.chance(0.5) ? (roll.chance(0.5) ? 'store' : 'enhance') : rollKind(roll.float());
+      let kind = rollKind(roll.float());
       if (kind !== 'combat' && nonCombat >= w - 1) kind = 'combat';
       if (kind !== 'combat') nonCombat++;
       row.push(kind);
@@ -45,9 +97,17 @@ export const generateMap = (seed: number, act: number): RunMap => {
     return row;
   });
 
-  // Guarantee at least one store and one enhance somewhere in the middle layers:
-  // swap a combat node in a seeded middle layer if a kind is missing entirely.
-  for (const wanted of ['store', 'enhance'] as const) {
+  // Guarantee at least one store, one enhance, one rest and one event somewhere in the
+  // middle layers: swap a combat node in a seeded middle layer if a kind is missing
+  // entirely. Because every node is reachable from layer 0 and reaches the boss (asserted
+  // in mapgen.test.ts), "exists on the map" also means "reachable on some route" — which
+  // is why guaranteeing existence is enough.
+  //
+  // REST matters most here: it was previously unguaranteed, and measured across 2000 act-1
+  // seeds, 22.6% of maps contained no Rest Site on ANY path. In an attrition run where Rest
+  // is the sole source of temporary HP, that is a quarter of runs starting without access to
+  // the healing system at all. EVENT was likewise absent from 32.2% of act-1 maps.
+  for (const wanted of ['store', 'enhance', 'rest', 'event'] as const) {
     if (kinds.some((row) => row.includes(wanted))) continue;
     // Convert a middle-layer combat node, preferring layers that keep a spare combat.
     const candidates: { l: number; c: number; spare: boolean }[] = [];
@@ -90,9 +150,15 @@ export const generateMap = (seed: number, act: number): RunMap => {
         layer: l,
         col: c,
         next: [],
-        seed: subSeed(seed, act, 'node', id),
+        seed: subSeed(seed, act, 'node', id, variant),
         visited: false,
-        ...(kind === 'trial' ? { twistId: TRIAL_TWISTS[roll.int(TRIAL_TWISTS.length)]!.id } : {}),
+        // A Trial rolls a SHORTLIST, not a single condition. A twist is symmetric as a
+        // rule but not in effect — "every unit has Immunity" barely inconveniences a
+        // stat deck and deletes a poison deck's whole game plan — so a single rolled
+        // twist landed as a coin flip on the player's archetype, with routing around
+        // the node the only available response. Choosing from three makes the twist the
+        // decision the node is about. The pick is stored back as `twistId`.
+        ...(kind === 'trial' ? { twistChoices: pickTwists(roll) } : {}),
       };
     }
     layers.push(row);

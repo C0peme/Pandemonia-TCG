@@ -72,4 +72,52 @@ describe('redactEventsFor', () => {
     const json = JSON.stringify(redactEventsFor(events, 0));
     expect(json).not.toContain('kiln');
   });
+
+  /**
+   * `conjure` is structurally identical to `draw` — it carries a `cardId` and puts a card
+   * directly into a hand (`conjureOnKill`, the `conjure` effect targeting `self`, and
+   * Corpselock's `conjureOnPlay` engine trigger can all target the CASTER's own hand) — but
+   * only `draw` was ever filtered. A player running any of those leaked the identity of a
+   * card that had just entered their own hidden hand to their opponent, over the event
+   * stream, even though the (separately redacted) GameState correctly hid it as facedown.
+   */
+  const conjureEvents: GameEvent[] = [
+    { t: 'conjure', player: 0, cardId: 'firebolt' }, // seat 0 conjures for itself
+    { t: 'conjure', player: 1, cardId: 'reaper' },   // seat 1 conjures for itself — the leak
+  ];
+
+  it('drops the opponent conjure event, same as draw', () => {
+    const forSeat0 = redactEventsFor(conjureEvents, 0);
+    expect(forSeat0).toContainEqual({ t: 'conjure', player: 0, cardId: 'firebolt' });
+    expect(forSeat0.some((e) => e.t === 'conjure' && e.player === 1)).toBe(false);
+  });
+
+  it('does not leak the opponent conjured cardId', () => {
+    const json = JSON.stringify(redactEventsFor(conjureEvents, 0));
+    expect(json).not.toContain('reaper');
+  });
+
+  /**
+   * `forget` fires for BOTH a card discarded from a hand (hand-cap overflow) and a card
+   * milled off the top of a deck (`millCards` — the `forget` effect's `target: 'enemy'`
+   * case, an ordinary competitive mill/removal spell cast AGAINST the opponent). Either
+   * way it reveals a card that was sitting in a hidden zone. This was the most exploitable
+   * of the three leaks this file fixes at once: casting a ordinary "mill 2" spell on your
+   * opponent handed you their deck order in plain text over the event stream.
+   */
+  const forgetEvents: GameEvent[] = [
+    { t: 'forget', player: 0, cardId: 'firebolt', iid: 'a9' }, // my own hand overflow
+    { t: 'forget', player: 1, cardId: 'kiln' },                // I milled THEIR deck — the leak
+  ];
+
+  it('drops the opponent forget event (hand overflow or a deck mill), same as draw', () => {
+    const forSeat0 = redactEventsFor(forgetEvents, 0);
+    expect(forSeat0).toContainEqual({ t: 'forget', player: 0, cardId: 'firebolt', iid: 'a9' });
+    expect(forSeat0.some((e) => e.t === 'forget' && e.player === 1)).toBe(false);
+  });
+
+  it('does not leak a card milled off the opponent deck', () => {
+    const json = JSON.stringify(redactEventsFor(forgetEvents, 0));
+    expect(json).not.toContain('kiln');
+  });
 });

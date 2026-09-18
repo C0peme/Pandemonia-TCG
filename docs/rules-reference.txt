@@ -8,14 +8,24 @@ Pandemonia is a two-player lane-based card game. Each player controls a Leader a
 
 --- THE BOARD ---
 
-Each player has four lanes:
+Each player has five lanes, in this left-to-right order:
 
-  Heights   — airborne combat; only Airborne units attack/block here by default
+  Heights   — the high ground; Sniper units here choose their target freely
   Ground 1  — standard ground lane
-  Ground 2  — standard ground lane
   Water     — aquatic combat; non-aquatic, non-airborne units Drown here
+  Ground 2  — standard ground lane
+  Heights 2 — the second high ground; identical in every rule to Heights
 
 Lanes are mirrored: your Heights faces the opponent's Heights, etc. Each lane can hold at most one unit unless Double Team is active (then front + back slots).
+
+The ORDER above is the physical board, and it decides adjacency: effects that hit
+"adjacent lanes" (Branch Shot, Splash) hit the columns immediately left and right. So
+Ground 1's neighbours are Heights and Water — not Ground 2, which is two columns away.
+
+Water is the only lane with an entry requirement. Both Heights columns are free to enter
+for any unit, which is why the second one was added: a deck with no Airborne or Aquatic
+units was confined to three usable lanes and routinely stalled holding cards it could
+afford but had nowhere to place.
 
 Foundations occupy a standalone slot in a lane. They bond to the next unit placed there. While unattended (no unit on top), a standalone foundation does not attack on its owner's turn, but it defends the lane like a unit — it absorbs the attack that would otherwise hit the leader, takes damage through the full defense set (Shield, Tough, True Shield, Immunity), and retaliates with its own Attack. It can also be targeted by spells/abilities.
 
@@ -60,7 +70,6 @@ Producer units bank element energy for their owner at the end of each of their o
 1. Declare Attack
    - The active player's non-sleeping, non-frozen units that have not just been placed attack their opposing lane.
    - If the opposing lane slot is empty, damage bleeds through to the opponent's leader.
-   - The first player cannot attack on Round 1.
 
 2. Main Phase (play cards freely in any order)
    - Play units (pay energy cost, place in a lane)
@@ -228,16 +237,21 @@ Current environments: Vent, Graveyard, Molten Floor, Sludge Pool, Watchtowers, C
 
 Foundations are placed standalone in a lane (not on top of a unit). When a unit is placed in the same lane, the foundation bonds beneath it, granting its bonuses to that unit. A foundation can grant stats, keywords, an on-hit status package, AND per-turn / before-attack effects — the bonded unit runs all of them as if printed on it. A bonded foundation is destroyed when its unit dies; if the foundation is destroyed first (e.g. by Undershot) the host loses everything it granted.
 
-Prepared position (Battle Ready on bond): a unit that bonds onto a foundation which was ALREADY in play (placed on a previous turn) deploys ready to fight — it ignores summoning sickness and may attack the same turn. A foundation and unit dropped on the SAME turn do not get this; the ground must have been set in advance.
+A Foundation is a full unit, not a passenger: it also fights with everything it grants. Its own stats and keywords are the granted ones merged onto whatever it already carries, and its granted per-turn/on-attack effects run on itself too — a Sniper foundation aims like Sniper, a Producer foundation banks energy, standing alone or bonded.
 
-Standalone foundations can be targeted by spells/abilities and destroyed by damage; while standalone they defend the lane as a unit (taking combat damage through the full defense set and retaliating with their own Attack), but they do not attack on their owner's turn.
+Foundation stacking: a Foundation played into a lane that already holds a standalone Foundation bonds onto it exactly like a unit would, inheriting the ground's LIVE body (buffs/damage/Growth included, halved). The new top Foundation remains a full Foundation itself — still fights standalone, still eligible to have a further unit OR Foundation bond onto it later, compounding the same way.
+
+Prepared position (Battle Ready on bond): a unit OR Foundation that bonds onto ground which was ALREADY in play (placed on a previous turn) deploys ready to fight — it ignores summoning sickness and may attack the same turn. Ground and what bonds onto it dropped on the SAME turn do not get this; the ground must have been set in advance. This is universal to every Foundation — no card needs to grant Battle Ready separately.
+
+Standalone foundations can be targeted by spells/abilities and destroyed by damage; while standalone they defend the lane as a unit (taking combat damage through the full defense set and retaliating with their own Attack) and attack on their owner's turn exactly like a unit, once past summoning sickness.
 
 
 --- HAND AND DECK ---
 
   - Starting hand: 4 cards (each player then draws on their first turn, opening at 5).
   - Draw 1 card at the start of each turn.
-  - Hand cap: 10 cards. Cards drawn beyond the cap are discarded.
+  - Hand cap: 10 cards. Any card that would enter a full hand is discarded instead — drawn,
+    conjured, or returned to hand by Expel alike.
   - Deck-out: when a player draws from an empty deck, a Null card enters their hand. If a Null card dies in play, it deals damage directly to that player's own leader.
   - Max 4 copies of any single card in a deck.
   - Deck size: exactly 30 cards.

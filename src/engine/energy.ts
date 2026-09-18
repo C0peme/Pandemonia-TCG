@@ -10,11 +10,11 @@
  */
 import type { Cost } from '@cards/schema';
 import type { Element } from '@engine/constants';
-import { RULES } from '@engine/constants';
+import { ELEMENTS, RULES } from '@engine/constants';
 import type { PlayerState } from '@engine/types';
 
 export const bankTotal = (bank: Record<Element, number>): number =>
-  bank.fire + bank.water + bank.nature + bank.earth;
+  ELEMENTS.reduce((sum, el) => sum + bank[el], 0);
 
 export interface AffordResult {
   ok: boolean;
@@ -70,7 +70,7 @@ export const applyBanking = (
   const bank = { ...player.bank };
   let budget = player.energy; // can't bank more than the energy left over this turn
   if (RULES.PER_TURN_BANK_LIMIT !== null) budget = Math.min(budget, RULES.PER_TURN_BANK_LIMIT);
-  for (const el of ['fire', 'water', 'nature', 'earth'] as const) {
+  for (const el of ELEMENTS) {
     if (budget <= 0) break;
     const want = choice[el] ?? 0;
     if (want <= 0) continue; // zero / negative requests contribute nothing

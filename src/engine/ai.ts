@@ -22,8 +22,9 @@
  * `resolveCombat` (both RNG-free for plays and combat), so planning never disturbs the live
  * RNG — the eventual real `endTurn` reproduces the same draw.
  */
-import { ELEMENTS, LANES, type Element, type LaneId } from '@engine/constants';
+import { ELEMENTS, LANES, type Element, type LaneId, type LaneLayout, isHeights, isWater } from '@engine/constants';
 import type { Registry } from '@cards/registry';
+import { foundationGrantKeywords, foundationGrantStat } from '@engine/foundation';
 import type { Action } from '@engine/actions';
 import { applyAction, legalActions } from '@engine/engine';
 import { resolveCombat } from '@engine/combat';
@@ -357,7 +358,7 @@ const bankValue = (W: EvalWeights, registry: Registry, p: GameState['players'][P
  *  B — Lethal+multi-reach, TrueShield+Spike, Growth+Healer, Immunity+Taunt
  *  Existing — wall stack (Spike+absorber), punishing Taunt, anthem width
  */
-const synergyValue = (W: EvalWeights, side: GameState['players'][PlayerId]): number => {
+const synergyValue = (W: EvalWeights, side: GameState['players'][PlayerId], layout?: LaneLayout): number => {
   const units = LANES.flatMap((l) =>
     [side.lanes[l].front, side.lanes[l].back].filter((u): u is UnitInstance => Boolean(u)),
   );
@@ -393,7 +394,7 @@ const synergyValue = (W: EvalWeights, side: GameState['players'][PlayerId]): num
       // Airborne + Overshot: lane freedom makes the face clock even harder to block or answer.
       if (kw.airborne && kw.overshot) v += W.airborne * 0.5;
       // Aquatic + aggressive keyword in Water: drowning enemies are 0-attack; the unit fires freely.
-      if (lane === 'water' && kw.aquatic) {
+      if (isWater(lane, layout) && kw.aquatic) {
         const aggro = kw.overshot || kw.sniper || kw.doubleStrike || kw.strikeThrough;
         if (aggro) v += atkVal * 0.4;
       }
@@ -518,6 +519,13 @@ const foundationGrantValue = (
 ): number => {
   const card = registry.cards.get(sf.cardId);
   if (!card || card.type !== 'foundation') return 0;
+  // Value what this Foundation would ACTUALLY hand up right now: half its LIVE body plus its
+  // own keywords (see foundation.ts), not the authored `grants` the engine no longer reads.
+  const grants = {
+    ...card.grants,
+    stat: foundationGrantStat({ attack: sf.status.drowning ? (sf.predrownAttack ?? 0) : sf.attack, hp: sf.hp }),
+    keywords: foundationGrantKeywords(card, sf.keywords) as import('@cards/schema').Keywords,
+  };
   let bestVal = 0;
   let bestAtk = 0;
   let haveHost = false;
@@ -525,16 +533,16 @@ const foundationGrantValue = (
     const def = registry.cards.get(inst.cardId);
     if (def?.type !== 'unit') continue;
     haveHost = true;
-    const val = grantOnHostValue(W, card.grants, def);
+    const val = grantOnHostValue(W, grants, def);
     if (val > bestVal) {
       bestVal = val;
-      bestAtk = def.attack + (card.grants.stat?.attack ?? 0);
+      bestAtk = def.attack + (grants.stat.attack ?? 0);
     }
   }
   if (!haveHost) {
     // No body in hand yet — value the grant against an average beater so the AI still sets up,
     // but halved: the payoff body has still to be drawn.
-    bestVal = grantOnHostValue(W, card.grants, GENERIC_HOST) * 0.5;
+    bestVal = grantOnHostValue(W, grants, GENERIC_HOST) * 0.5;
     bestAtk = GENERIC_HOST.attack;
   }
   // Battle-Ready tempo only on a foundation that has been STANDING (placed a prior turn).
@@ -684,7 +692,14 @@ const evaluate = (W: EvalWeights, registry: Registry, state: GameState, me: Play
   score += (state.players[me].hand.length - state.players[opp].hand.length) * W.cardAdvantage;
   score += deckValue(W, state.players[me].deck.length) - deckValue(W, state.players[opp].deck.length);
   score += bankValue(W, registry, state.players[me]) - bankValue(W, registry, state.players[opp]);
+<<<<<<< Updated upstream
   score += synergyValue(W, state.players[me]) - synergyValue(W, state.players[opp]);
+=======
+  // Energy queued for next turn is real energy, just later. Without this the AI sees
+  // Cancerous Growth spend 2 energy for no board change and never casts it.
+  score += ((state.players[me].energyNext ?? 0) - (state.players[opp].energyNext ?? 0)) * W.energyNext;
+  score += synergyValue(W, state.players[me], state.laneTypes) - synergyValue(W, state.players[opp], state.laneTypes);
+>>>>>>> Stashed changes
   score += environmentSynergyValue(W, registry, state, me);
   score += handSynergyValue(W, registry, state, me) - handSynergyValue(W, registry, state, opp);
   // Credit the future bonding value of standalone foundations (their grants are invisible to unitValue).
@@ -709,13 +724,9 @@ const evaluate = (W: EvalWeights, registry: Registry, state: GameState, me: Play
  */
 const computeProjection = (W: EvalWeights, registry: Registry, state: GameState, me: PlayerId): number => {
   if (state.phase === 'ended') return evaluate(W, registry, state, me);
-  // 1. The active player's attack (the round-1 first player may not attack).
-  const skipCombat = state.active === state.first && state.round === 1;
-  let board = state;
-  if (!skipCombat) {
-    board = resolveCombat(state, planSnipers(state), registry).state;
-    if (board.phase === 'ended') return evaluate(W, registry, board, me);
-  }
+  // 1. The active player's attack. No round-1 exception — mirrors the engine.
+  let board = resolveCombat(state, planSnipers(state), registry).state;
+  if (board.phase === 'ended') return evaluate(W, registry, board, me);
   // 2. The active player's end-of-turn ticks (Burn / Poison / Growth / Producer / Smelt / …).
   const after = structuredClone(board);
   resolveEndOfTurn(after, after.active, [], registry);
@@ -782,7 +793,7 @@ const planSnipers = (state: GameState): Partial<Record<string, LaneId>> => {
   if (enemyLanes.length === 0) return choices;
   for (const u of unitsOf(state, me)) {
     const loc = locateUnit(state, u.iid)!;
-    if (!u.keywords.sniper || !(loc.lane === 'heights' || u.keywords.airborne) || !canAct(u)) continue;
+    if (!u.keywords.sniper || !(isHeights(loc.lane, state.laneTypes) || u.keywords.airborne) || !canAct(u)) continue;
     const killable = enemyLanes.filter((l) => (state.players[opp].lanes[l].front?.hp ?? 0) <= u.attack);
     const pool = killable.length ? killable : enemyLanes;
     // Among the pool, hit the highest-attack front unit (neutralise the biggest threat).
@@ -878,8 +889,9 @@ const endTurnAction = (registry: Registry, state: GameState): Action => ({
 export const greedyAction = (registry: Registry, state: GameState, w: EvalWeights = DEFAULT_WEIGHTS): Action => {
   if (state.phase === 'ended') return { type: 'endTurn' };
   const me = state.active;
-  if (state.pending?.length) {
-    return bestAction(w, registry, state, me, legalActions(registry, state)) ?? { type: 'resolvePending' };
+  if (state.pending?.length || state.extraActions?.length) {
+    const fallback: Action = state.pending?.length ? { type: 'resolvePending' } : { type: 'resolveExtraAction', lane: LANES[0]! };
+    return bestAction(w, registry, state, me, legalActions(registry, state)) ?? fallback;
   }
   const base = projectAndEvaluate(w, registry, state, me);
   let best: Action | null = null;
@@ -934,7 +946,7 @@ const candidateTurns = (W: EvalWeights, registry: Registry, state: GameState, me
   for (let depth = 0; depth <= MAX_PLAN_DEPTH; depth++) {
     const next: PlanNode[] = [];
     for (const node of beam) {
-      if (!node.state.pending?.length) completed.push(node); // ending here is an option
+      if (!node.state.pending?.length && !node.state.extraActions?.length) completed.push(node); // ending here is an option
       const scored = legalActions(registry, node.state)
         .filter((a) => a.type !== 'endTurn')
         .map((a) => {
@@ -1029,7 +1041,7 @@ const findLethal = (registry: Registry, state: GameState, me: PlayerId): Action[
     const plays = legalActions(registry, s).filter((a) => a.type !== 'endTurn');
 
     // With no pending choice outstanding, ending the turn here is a candidate lethal.
-    if (!s.pending?.length) {
+    if (!s.pending?.length && !s.extraActions?.length) {
       const closed = closeTurn(registry, s);
       if (closed.phase === 'ended' && closed.winner === me) return [...path, endTurnAction(registry, s)];
       if (path.length >= LETHAL_DEPTH) return null;
@@ -1039,7 +1051,7 @@ const findLethal = (registry: Registry, state: GameState, me: PlayerId): Action[
     const scored = plays
       .map((a) => {
         const ns = applyAction(registry, s, a).state;
-        const closed = ns.pending?.length ? null : closeTurn(registry, ns);
+        const closed = (ns.pending?.length || ns.extraActions?.length) ? null : closeTurn(registry, ns);
         const oppHp = closed?.winner === me ? -1 : (closed ?? ns).players[opp].leaderHp;
         return { a, ns, oppHp };
       })

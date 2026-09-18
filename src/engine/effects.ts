@@ -11,20 +11,40 @@
  * forget, summon (a unit onto the board), conjure (a card into a hand). `custom` is a
  * placeholder for hand-coded effects.
  */
+<<<<<<< Updated upstream
 import { LANES, type LaneId } from '@engine/constants';
+=======
+import { ELEMENTS, LANES, RULES, isWater, type LaneId } from '@engine/constants';
+import { NULL_CARD_ID } from '@cards/special';
+>>>>>>> Stashed changes
 import type { PlayerId, Lane } from '@engine/types';
 import type { Effect, UnitCard } from '@cards/schema';
 import type { Registry } from '@cards/registry';
 import type { TargetRef } from '@engine/actions';
+<<<<<<< Updated upstream
 import { buffUnit, createUnitInstance, locateUnit, laneUnits, relocateUnit, vacateSlot } from '@engine/board';
 import { applyStatus, clearCleansableStatuses, isHarmfulStatus } from '@engine/status';
 import { damageLeader, findLeaderUnit, healLeader, healUnit, mitigate, setDamageTriggerHook, type DamageOpts } from '@engine/damage';
+=======
+import { buffUnit, createUnitInstance, locateUnit, laneUnits, promoteBackRow, relocateUnit, vacateSlot } from '@engine/board';
+import { applyStatus, clearCleansableStatuses, isHarmfulStatus, wakeOnHit } from '@engine/status';
+import { addAttack, liveAttack, setAttack } from '@engine/drowning';
+import { damageLeader, findLeaderUnit, healLeader, healUnit, mitigate, nullBleed, setDamageTriggerHook, type DamageOpts } from '@engine/damage';
+>>>>>>> Stashed changes
 import { addCardToHand, millCards } from '@engine/hand';
 import { drawCard } from '@engine/draw';
+import { resolveRecursion } from '@engine/bossRules';
 import type { GameEvent } from '@engine/events';
 import { opponentOf, type GameState, type UnitInstance } from '@engine/types';
 
-const TARGETED: ReadonlySet<Effect['kind']> = new Set([
+/**
+ * Effect kinds that consume an explicit target ref.
+ *
+ * Exported because the UI needs the same list to decide whether an effect requires a click,
+ * and a hand-copied duplicate there is how `cleanse` came to be missing from one of them.
+ * Add a kind here and both the ref accounting and the UI's target prompt follow.
+ */
+export const TARGETED: ReadonlySet<Effect['kind']> = new Set([
   'damage',
   'heal',
   'buff',
@@ -42,6 +62,35 @@ const TARGETED: ReadonlySet<Effect['kind']> = new Set([
 
 /** Scopes that auto-apply to all units on a side — no target ref consumed from the array. */
 const AOE_SCOPES: ReadonlySet<Effect['target']> = new Set(['all-enemy', 'all-ally']);
+
+/**
+ * Scopes that resolve themselves, so nothing is ever clicked for them: the AOE scopes plus
+ * `leaderUnit`. Shared with the UI for the same reason as `TARGETED`.
+ */
+export const SELF_RESOLVING_SCOPES: ReadonlySet<Effect['target']> = new Set([
+  ...AOE_SCOPES,
+  'leaderUnit',
+]);
+
+/**
+ * How many target refs a list of effects will consume, in order.
+ *
+ * Exported so the UI can ask for the right NUMBER of targets instead of assuming one. A
+ * card with two targeted effects — Eksana's upgraded Swift Kill duplicates its damage —
+ * was unplayable because the UI always dispatched exactly one ref, so the second effect
+ * read `undefined` and the whole cast failed with "requires a target" on a board full of
+ * legal ones.
+ *
+ * Must stay in step with the ref-consuming rules in `applyEffects`: AOE scopes and
+ * `leaderUnit` resolve themselves and consume nothing.
+ */
+export const targetRefsNeeded = (effects: readonly Effect[]): number =>
+  effects.filter(
+    (e) =>
+      !SELF_RESOLVING_SCOPES.has(e.target) &&
+      (TARGETED.has(e.kind) || (e.kind === 'energy' && e.chooseElement)),
+  ).length;
+
 
 /** First open slot in a lane for an incoming unit, respecting Double Team. */
 const openSlot = (laneObj: Lane, def: UnitCard): 'front' | 'back' | null => {
@@ -106,9 +155,20 @@ const applyOne = (
         delete target.status.sleepHeal;
         events.push({ t: 'wake', iid: target.iid, from: 'sleep' });
       }
+<<<<<<< Updated upstream
       dealUnitDamage(s, target, amount + wakeupBonus, {}, events, registry, (landed) =>
         events.push({ t: 'damageUnit', iid: target.iid, amount: landed, hpAfter: target.hp, victim: target.owner }),
       );
+=======
+      // Conjure-on-kill: the chain continues as a CARD in hand rather than resolving inline,
+      // so the player must actually play the next link (and choose its target). That is what
+      // lets a chain recharge a `costStep` hero power as it runs — each link is a card played.
+      if (effect.conjureOnKill && target.hp <= 0) {
+        const iid = `c${++s.iidSeq}`;
+        events.push({ t: 'conjure', player: caster, cardId: effect.conjureOnKill });
+        addCardToHand(s, caster, { iid, cardId: effect.conjureOnKill }, events);
+      }
+>>>>>>> Stashed changes
       // Chain: if this hit destroyed the target, splash to the weakest OTHER enemy unit.
       if (effect.chain && target.hp <= 0) {
         const opp = opponentOf(caster);
@@ -163,16 +223,29 @@ const applyOne = (
       }
       const target = resolveUnitTarget(s, caster, effect.target, ref);
       if ('error' in target) return target;
-      healUnit(target, amount, events);
+      healUnit(target, amount, events, s.bossRules?.disciplined === target.owner);
       return;
     }
     case 'buff': {
       const target = resolveUnitTarget(s, caster, effect.target, ref);
       if ('error' in target) return target;
+<<<<<<< Updated upstream
       buffUnit(target, effect.stat ?? {}, events); // Poison blocks gains internally
       // Grant keywords (e.g. Immunity, Undershot) when the buff carries them.
+=======
+      // Poison blocks gains internally; Discipline (Aleph's boss rule) generalises that
+      // to a whole side.
+      buffUnit(target, effect.stat ?? {}, events, s.bossRules?.disciplined === target.owner);
+      // Grant keywords (e.g. Immunity, Pierce) when the buff carries them.
+>>>>>>> Stashed changes
       if (effect.keywords) {
         Object.assign(target.keywords, effect.keywords);
+        events.push({ t: 'buff', iid: target.iid, attack: 0, hp: 0 });
+      }
+      // Grant an on-hit package, same rule as a Foundation's `grants.onHit`: only when the
+      // target has none of its own, so a printed rider is never silently overwritten.
+      if (effect.onHit && !target.onHit) {
+        target.onHit = { ...effect.onHit };
         events.push({ t: 'buff', iid: target.iid, attack: 0, hp: 0 });
       }
       return;
@@ -186,7 +259,11 @@ const applyOne = (
       }
       const dA = effect.stat?.attack ?? 0;
       const dH = effect.stat?.hp ?? 0;
-      target.attack = Math.max(0, target.attack - dA);
+      // Must go through `addAttack`, not a direct assignment: while a unit is DROWNING its
+      // live `attack` is pinned at 0 and the real value is parked in `predrownAttack`. A
+      // direct write computed `max(0, 0 - dA) = 0`, changed nothing, and the unit surfaced
+      // at full attack — i.e. debuffs silently did nothing to anything in the Water lane.
+      addAttack(target, -dA);
       target.maxHp = Math.max(1, target.maxHp - dH);
       target.hp = Math.min(target.hp, target.maxHp);
       events.push({ t: 'buff', iid: target.iid, attack: -dA, hp: -dH });
@@ -202,7 +279,12 @@ const applyOne = (
       // Classification lives in STATUS_SPECS so this gate can't drift from the apply logic
       // (it previously listed Zombified — a revive, i.e. a buff — as harmful, which made it
       // impossible to Zombify your own Immune unit).
-      if (isHarmfulStatus(status) && isImmune(target)) {
+      //
+      // THE CAULDRON (Kedou's boss rule): Burn/Poison landing on the affected side bypass
+      // this gate entirely — Immunity does not function against them. Every other harmful
+      // status is still blocked normally.
+      const cauldronBurnPoison = (status === 'burn' || status === 'poison') && s.bossRules?.cauldron === target.owner;
+      if (isHarmfulStatus(status) && isImmune(target) && !cauldronBurnPoison) {
         events.push({ t: 'blocked', iid: target.iid, source: 'immunity' });
         return;
       }
@@ -221,6 +303,34 @@ const applyOne = (
       if (type === 'all') { cm.unit += amount; cm.spell += amount; cm.foundation += amount; cm.environment += amount; }
       else cm[type] += amount;
       events.push({ t: 'costMod', player: who, amount });
+      return;
+    }
+    case 'discountHand': {
+      // A ONE-TIME discount that attaches to the copies you are holding right now and
+      // travels with them, rather than to a card type for as long as a modifier is set.
+      // `amount` is negative (a reduction), matching `costMod`'s convention.
+      const hand = s.players[caster].hand;
+      for (const card of hand) card.costDelta = (card.costDelta ?? 0) + amount;
+      events.push({ t: 'costMod', player: caster, amount });
+      return;
+    }
+    case 'conjureOnPlay': {
+      if (!registry) return { error: 'conjureOnPlay requires a registry' };
+      // The pool is every card the player could legitimately be given — the same
+      // exclusions the store and the Copper Mech's raid use (no system cards, no
+      // signatures, no tokens, nothing unfinished).
+      const cardIds = [...registry.cards.values()]
+        .filter((c) => !c.id.startsWith('__') && !c.tags.includes('token') && !c.tags.includes('signature') && !c.wip)
+        .map((c) => c.id);
+      if (cardIds.length === 0) return;
+      s.players[caster].conjureOnPlay = {
+        cardIds,
+        // Bounded deliberately: with the companion cost discount, "playing a card conjures
+        // a card" is otherwise a true infinite loop — the hand cap limits what you hold,
+        // not how many times the cycle runs, and the AI's search would ride it forever.
+        perTurn: amount || RULES.CONJURE_ON_PLAY_PER_TURN,
+        usedThisTurn: 0,
+      };
       return;
     }
     case 'extraAction': {
@@ -314,17 +424,22 @@ const applyOne = (
       const preferred = effect.lane ?? lane;
       const destLane =
         preferred && openSlot(lanes[preferred], def) ? preferred : LANES.find((l) => openSlot(lanes[l], def));
-      if (!destLane) return { error: 'No open lane to summon into' };
+      // A full board SKIPS this summon rather than failing the whole card. A multi-summon
+      // card (Autopus's 8Bits signature summons into all four lanes) would otherwise be
+      // unplayable unless every lane it names was free: the first summons cascade into the
+      // open lanes, the last finds none, and its error aborted the entire spell. "Fill what
+      // is left" is the intended behaviour. Authoring mistakes (bad id, non-unit) still error.
+      if (!destLane) return;
       const slot = openSlot(lanes[destLane], def)!;
       const waterCompatible = Boolean(def.keywords.aquatic) || Boolean(def.keywords.airborne);
-      const drowning = destLane === 'water' && !waterCompatible;
+      const drowning = isWater(destLane, s.laneTypes) && !waterCompatible;
       const iid = `s${++s.iidSeq}`;
       const created = createUnitInstance(def, { iid, cardId: def.id }, owner, drowning);
       if (slot === 'front' && lanes[destLane].front) lanes[destLane].back = lanes[destLane].front;
       lanes[destLane][slot] = created;
       // Airborne units act as if in the Heights, so they forfeit Aquatic's Water-entry effects.
       const aquaticEffects = Array.isArray(def.keywords.aquatic) ? def.keywords.aquatic : null;
-      if (destLane === 'water' && !drowning && aquaticEffects && !def.keywords.airborne) {
+      if (isWater(destLane, s.laneTypes) && !drowning && aquaticEffects && !def.keywords.airborne) {
         applyTriggeredEffects(s, created, aquaticEffects, events, undefined, registry);
       }
       events.push({ t: 'summon', player: owner, cardId: def.id, lane: destLane });
@@ -338,12 +453,15 @@ const applyOne = (
         events.push({ t: 'blocked', iid: target.iid, source: 'immunity' });
         return;
       }
-      const newAtk = effect.stat?.attack ?? target.attack;
+      // Read AND write through the drowning shadow store: while submerged the live `attack`
+      // is pinned at 0, so both defaulting to it and assigning over it are wrong (the write
+      // is lost on surfacing, and meanwhile the unit is armed underwater).
+      const newAtk = effect.stat?.attack ?? liveAttack(target);
       const newHp = effect.stat?.hp ?? target.maxHp;
-      target.attack = Math.max(0, newAtk);
+      setAttack(target, newAtk);
       target.maxHp = Math.max(1, newHp);
       target.hp = Math.min(target.hp, target.maxHp);
-      events.push({ t: 'buff', iid: target.iid, attack: target.attack, hp: target.hp });
+      events.push({ t: 'buff', iid: target.iid, attack: liveAttack(target), hp: target.hp });
       return;
     }
     case 'cleanse': {
@@ -355,7 +473,9 @@ const applyOne = (
       // status, since cleanse is cast on your OWN unit.
       const target = resolveUnitTarget(s, caster, effect.target, ref);
       if ('error' in target) return target;
-      clearCleansableStatuses(target);
+      // The Cauldron: Burn/Poison on the affected side survive a cleanse untouched.
+      const keep = s.bossRules?.cauldron === target.owner ? (['burn', 'poison'] as const) : [];
+      clearCleansableStatuses(target, keep);
       events.push({ t: 'cleanse', iid: target.iid });
       return;
     }
@@ -413,7 +533,10 @@ const runKamikaze = (
     const toSelf = eff.target === 'ally';
     ref = { kind: 'leader', player: toSelf ? u.owner : opponentOf(u.owner) };
   }
-  applyOne(s, u.owner, eff, ref, undefined, events, registry);
+  // Thread the dying unit's own lane through: a summon-type Kamikaze (Hive Spawn) with no
+  // fixed `effect.lane` should prefer landing back where it died, not the first open lane
+  // found board-wide.
+  applyOne(s, u.owner, eff, ref, lane, events, registry);
 };
 
 /**
@@ -450,15 +573,28 @@ export const processDeaths = (s: GameState, events: GameEvent[], killerIid?: str
             continue;
           }
           u.dying = true; // guard against nested re-entry while the death trigger resolves
-          if (u.keywords.kamikaze) runKamikaze(s, u, lane, events, killerIid, registry);
-          events.push({ t: 'unitDestroyed', iid: u.iid, cardId: u.cardId });
+          // Clear the slot BEFORE the death trigger fires: a summon-type Kamikaze (Hive Spawn)
+          // reads the live board for an open slot, and the dying unit's own lane is the one
+          // it wants to land back in. Leaving the corpse in place until after the trigger made
+          // that lane look full and pushed the summon elsewhere (or dropped it on a full board).
           laneObj[slot] = undefined;
+          // A dying Null bleeds through the shared ESCALATING counter rather than its own
+          // Kamikaze, so death-in-play and discard ramp together. The keyword stays on the
+          // card deliberately: it is what the AI and the UI read to see that a Null hurts its
+          // owner, and stripping it would make the AI blind to the downside of holding one.
+          if (u.cardId === NULL_CARD_ID) nullBleed(s, u.owner, events);
+          else if (u.keywords.kamikaze) runKamikaze(s, u, lane, events, killerIid, registry);
+          events.push({ t: 'unitDestroyed', iid: u.iid, cardId: u.cardId });
+          // RECURSION (Noctua): the corpse rises under the boss's control. After the death
+          // trigger, so a Kamikaze still pays out, and bounded to once per unit — see
+          // `resolveRecursion`, whose `raised` flag is what stops this loop from being
+          // infinite (a raised unit dying again would otherwise re-enter right here).
+          if (registry) resolveRecursion(registry, s, u, events);
           changed = true;
         }
-        if (!laneObj.front && laneObj.back) {
-          laneObj.front = laneObj.back;
-          laneObj.back = undefined;
-        }
+        // Promoted only now, not when the slot was cleared above: the death trigger had to
+        // see the gap. Same rule as `vacateSlot`, which is why it is the same function.
+        promoteBackRow(laneObj);
         // A standalone Foundation is a full unit and dies through the same triggers, but it
         // lives in its own slot (no back-promotion) and emits `foundationDestroyed` so combat
         // and the UI treat it as a Foundation loss.
@@ -471,9 +607,9 @@ export const processDeaths = (s: GameState, events: GameEvent[], killerIid?: str
             events.push({ t: 'zombieRevive', iid: sf.iid });
           } else {
             sf.dying = true;
+            laneObj.standaloneFoundation = undefined; // see the unit-death branch above: clear before the trigger
             if (sf.keywords.kamikaze) runKamikaze(s, sf, lane, events, killerIid, registry);
             events.push({ t: 'foundationDestroyed', iid: sf.iid, hostIid: '' });
-            laneObj.standaloneFoundation = undefined;
             changed = true;
           }
         }
@@ -534,7 +670,21 @@ export const applyTriggeredEffects = (
     const beneficial = BENEFICIAL.has(effect.kind);
 
     // Player-scoped effects fire unconditionally — no unit target needed.
+<<<<<<< Updated upstream
     if (effect.kind === 'draw' || effect.kind === 'energy' || effect.kind === 'forget') {
+=======
+    if (
+      effect.kind === 'draw' ||
+      effect.kind === 'energy' ||
+      effect.kind === 'energyNext' ||
+      effect.kind === 'bankMax' ||
+      effect.kind === 'forget' ||
+      // Acts on the caster's whole HAND, so it needs no unit target at all. Without this it
+      // fell through to the harmful 'any' branch and was silently skipped whenever the enemy
+      // board was empty — a hand discount that only worked while being attacked.
+      effect.kind === 'discountHand'
+    ) {
+>>>>>>> Stashed changes
       applyOne(s, owner, effect, undefined, undefined, events, registry);
       continue;
     }
@@ -599,7 +749,13 @@ export const applyTriggeredEffects = (
       // Lane-aware single ally (most-hurt same-lane first, then board-wide). No leader fallback.
       const laneHurt = laneAllies().filter((u) => u.hp < u.maxHp);
       const boardHurt = unitsOf(s, owner).filter((u) => u.iid !== source.iid && u.hp < u.maxHp);
-      const candidates = laneHurt.length ? laneHurt : boardHurt;
+      // ...and if NOTHING is hurt, any ally at all. The most-hurt preference is a heal
+      // heuristic, but the branch serves every ally-scoped effect: an `extraAction` or a
+      // `buff` aimed at an undamaged board found no candidate and did nothing, so a card
+      // whose whole text was "an ally attacks again" was blank until something took damage.
+      // Harmless for the heals it was written for — healing a full-HP unit is already a no-op.
+      const anyAlly = unitsOf(s, owner).filter((u) => u.iid !== source.iid);
+      const candidates = laneHurt.length ? laneHurt : boardHurt.length ? boardHurt : anyAlly;
       if (candidates.length > 0) {
         const most = candidates.reduce((a, b) => (a.maxHp - a.hp >= b.maxHp - b.hp ? a : b));
         applyOne(s, owner, effect, { kind: 'unit', iid: most.iid }, undefined, events, registry);
@@ -646,7 +802,7 @@ export const firePolish = (
 ): void => {
   const p = u.keywords.polish;
   if (!p) return;
-  if (p.stat) buffUnit(u, p.stat, events);
+  if (p.stat) buffUnit(u, p.stat, events, s.bossRules?.disciplined === u.owner);
   if (p.effects?.length) applyTriggeredEffects(s, u, p.effects, events, undefined, registry);
 };
 
@@ -700,7 +856,7 @@ export const fireBloodlust = (
   const bl = killer.keywords.bloodlust;
   if (!bl) return;
   const times = victim.foundation ? 2 : 1;
-  if (bl.buff) for (let i = 0; i < times; i++) buffUnit(killer, bl.buff, events);
+  if (bl.buff) for (let i = 0; i < times; i++) buffUnit(killer, bl.buff, events, s.bossRules?.disciplined === killer.owner);
   if (bl.effects?.length) applyTriggeredEffects(s, killer, bl.effects, events, undefined, registry);
 };
 

@@ -286,6 +286,43 @@ const popGlyph = (el: HTMLElement, glyph: string, color?: string): void => {
   setTimeout(done, 900);
 };
 
+<<<<<<< Updated upstream
+=======
+/**
+ * A floating combat number that rises off a unit or leader and fades — the running feedback of
+ * how much a hit/heal/tick actually did (Hearthstone's damage splats, in this game's gilt-woodcut
+ * key). Appended to <body> at fixed coords so it never clips against the unit/lane overflow.
+ */
+type FloatVariant = 'dmg' | 'dmg-leader' | 'heal' | 'burn' | 'poison' | 'buff' | 'debuff';
+function floatNumber(el: HTMLElement, text: string, variant: FloatVariant, stagger = 0, stack = 0): void {
+  const r = el.getBoundingClientRect();
+  const x = r.left + r.width / 2;
+  // Numbers landing on the SAME target (a Branch/Splash pair on one leader, a Double Strike) start
+  // progressively higher and lean alternately left/right so each hit reads as its own beat rather
+  // than merging into one lump.
+  const y = r.top + r.height * 0.34 - stack * 18;
+  const span = document.createElement('span');
+  span.className = `fx-dmgnum fx-dmgnum--${variant}`;
+  span.textContent = text;
+  Object.assign(span.style, {
+    position: 'fixed', left: `${x}px`, top: `${y}px`, zIndex: '88', pointerEvents: 'none',
+  } as Partial<CSSStyleDeclaration>);
+  document.body.appendChild(span);
+  const dx = (stack % 2 === 0 ? 1 : -1) * (10 + stack * 4) + (Math.random() - 0.5) * 10;
+  const a = span.animate(
+    [
+      { transform: 'translate(-50%,-50%) scale(0.5)', opacity: 0 },
+      { transform: `translate(calc(-50% + ${dx}px),-150%) scale(1.15)`, opacity: 1, offset: 0.3 },
+      { transform: `translate(calc(-50% + ${dx * 1.5}px),-270%) scale(1)`, opacity: 0 },
+    ],
+    { duration: 900, delay: stagger, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'backwards' },
+  );
+  const done = (): void => span.remove();
+  a.finished.then(done).catch(done);
+  setTimeout(done, 1000 + stagger);
+}
+
+>>>>>>> Stashed changes
 /** An expanding ring pulse over a unit (used for Shield / Immunity blocks). */
 const ring = (el: HTMLElement, color: string): void => {
   const r = document.createElement('span');
@@ -305,7 +342,7 @@ const ring = (el: HTMLElement, color: string): void => {
 };
 
 export type FlourishKind =
-  | 'burn' | 'grow' | 'buff' | 'heal' | 'poison'
+  | 'burn' | 'grow' | 'buff' | 'debuff' | 'heal' | 'poison'
   | 'polish' | 'shield' | 'immunity' | 'taunt' | 'zombie' | 'smelt';
 
 /** Play a single ability/status activation flourish on one unit. */
@@ -329,6 +366,10 @@ export function playUnitFlourish(iid: string, kind: FlourishKind): void {
     case 'buff': // bloodlust / stat buff — red-gold surge
       glow(el, 'rgba(255,80,60,0.95)', 620);
       spawnParticles(el, ['#ff7a5e', '#ffd27a'], 6);
+      break;
+    case 'debuff': // stats stripped — a violet drain, matching the affliction colour language
+      glow(el, 'rgba(170,80,220,0.9)', 620);
+      spawnParticles(el, ['#c07ae0', '#8a4aa8'], 6, 1); // drifts DOWN: something taken away
       break;
     case 'heal':
       glow(el, 'rgba(90,230,140,0.9)');
@@ -504,16 +545,32 @@ export interface RevealCard {
   /** Element-cost runes already resolved to glyphs, e.g. "△△". */
   pips: string;
   body?: { atk: number; hp: number };
+  /** What the card DOES, in words. Shown only on the centre-stage (spell) reveal, which is
+   *  the one case where the board gives the player no other clue about what just happened. */
+  text?: string;
 }
 
 const REVEAL_W = 118;
 const REVEAL_H = 152;
+/**
+ * A spell reveal is bigger and slower than a placement reveal, and it is the only one that
+ * prints its rules text. A placement leaves a body on the board you can read at leisure; a
+ * spell resolves and is gone, so the card IS the explanation — and it has to stay up long
+ * enough to read a sentence AND still be on screen when its effects land (see SPELL_BEAT_MS
+ * in useGame, which holds the board until part-way through this animation).
+ */
+const SPELL_W = 190;
+const SPELL_H = 250;
+const SPELL_MS = 3200;
 
 export function playRevealFx(card: RevealCard, from: DOMRect, to: DOMRect | null): void {
   if (prefersReduced()) return;
   const esc = (s: string): string => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] ?? c));
+  const spell = to === null;
+  const W = spell ? SPELL_W : REVEAL_W;
+  const H = spell ? SPELL_H : REVEAL_H;
   const wrap = document.createElement('div');
-  wrap.className = 'fx-reveal';
+  wrap.className = spell ? 'fx-reveal fx-reveal--spell' : 'fx-reveal';
   const bodyHtml = card.body
     ? `<span class="card__stats"><span class="card__atk">${card.body.atk}</span><span class="card__hp">${card.body.hp}</span></span>`
     : '';
@@ -527,16 +584,17 @@ export function playRevealFx(card: RevealCard, from: DOMRect, to: DOMRect | null
         `<span class="card__art"><span class="card__sigil erune">${ELEMENT_SYMBOL[card.element as keyof typeof ELEMENT_SYMBOL] ?? ''}</span></span>` +
         `<span class="card__name">${esc(card.name)}</span>` +
         `<span class="card__type">${esc(card.typeLabel)}</span>` +
+        (card.text ? `<span class="card__text">${esc(card.text)}</span>` : '') +
         bodyHtml +
       `</span></div>` +
     `</div>`;
   Object.assign(wrap.style, {
-    position: 'fixed', left: '0', top: '0', width: `${REVEAL_W}px`, height: `${REVEAL_H}px`,
+    position: 'fixed', left: '0', top: '0', width: `${W}px`, height: `${H}px`,
     zIndex: '85', pointerEvents: 'none',
   } as Partial<CSSStyleDeclaration>);
   document.body.appendChild(wrap);
 
-  const at = (cx: number, cy: number): string => `translate(${cx - REVEAL_W / 2}px, ${cy - REVEAL_H / 2}px)`;
+  const at = (cx: number, cy: number): string => `translate(${cx - W / 2}px, ${cy - H / 2}px)`;
   const startX = from.left + from.width / 2, startY = from.top + from.height / 2;
   const stageX = window.innerWidth / 2, stageY = window.innerHeight * 0.44;
   const inner = wrap.firstElementChild as HTMLElement;
@@ -556,18 +614,26 @@ export function playRevealFx(card: RevealCard, from: DOMRect, to: DOMRect | null
     outer.finished.then(done).catch(done);
     setTimeout(done, 1300);
   } else {
+    // Flies in, flips, and holds centre-stage at full size for the whole beat before fading
+    // OUT IN PLACE. It used to step aside afterward to a small "parked" corner — but that
+    // corner is the same top-right spot the persistent Spells Cast area now lives in (see
+    // SpellArea in App.tsx), so the parked card sat on top of real, clickable UI: easy to
+    // mistake for part of it, impossible to click (this token is decorative, pointerEvents
+    // stays off), and it "disappeared" there once the animation finished. The Spells Cast
+    // pile is now the permanent, clickable record — this token only needs to announce the
+    // cast, not double as a way to review it, so simply fading away is the honest behaviour.
     const outer = wrap.animate([
-      { transform: `${at(startX, startY)} scale(0.5)`, opacity: 0.9 },
-      { transform: `${at(stageX, stageY)} scale(1.06)`, opacity: 1, offset: 0.28 },
-      { transform: `${at(stageX, stageY)} scale(1.06)`, opacity: 1, offset: 0.78 },
-      { transform: `${at(stageX, stageY - 30)} scale(0.94)`, opacity: 0 },
-    ], { duration: 1350, easing: 'cubic-bezier(.3,.6,.3,1)' });
+      { transform: `${at(startX, startY)} scale(0.35)`, opacity: 0.9 },
+      { transform: `${at(stageX, stageY)} scale(1)`, opacity: 1, offset: 0.12 },
+      { transform: `${at(stageX, stageY)} scale(1)`, opacity: 1, offset: 0.82 },
+      { transform: `${at(stageX, stageY)} scale(0.96)`, opacity: 0 },
+    ], { duration: SPELL_MS, easing: 'cubic-bezier(.3,.6,.3,1)' });
     inner.animate([
-      { transform: 'rotateY(180deg)' }, { transform: 'rotateY(0deg)', offset: 0.28 }, { transform: 'rotateY(0deg)' },
-    ], { duration: 1350, easing: 'ease-out' });
+      { transform: 'rotateY(180deg)' }, { transform: 'rotateY(0deg)', offset: 0.11 }, { transform: 'rotateY(0deg)' },
+    ], { duration: SPELL_MS, easing: 'ease-out' });
     const done = (): void => wrap.remove();
     outer.finished.then(done).catch(done);
-    setTimeout(done, 1600);
+    setTimeout(done, SPELL_MS + 250);
   }
 }
 
@@ -667,6 +733,46 @@ export function playEventFlourishes(
   opts: FlourishOpts = {},
 ): void {
   if (prefersReduced()) return;
+<<<<<<< Updated upstream
+=======
+  // Floating combat numbers — every hit/heal/tick shows what it did. A dying unit is already gone
+  // from the DOM by now (its crumble tells that story), so a missing element just skips the number.
+  let numIndex = 0;
+  const perTarget = new Map<string, number>(); // how many numbers already stacked on each target
+  const emit = (el: HTMLElement, text: string, variant: FloatVariant, key: string): void => {
+    const stack = perTarget.get(key) ?? 0;
+    perTarget.set(key, stack + 1);
+    // Global left→right cadence, PLUS extra spacing for repeat hits on the same target so a
+    // Branch/Splash pair pops as "−3 … −3", not a simultaneous "−6".
+    const stagger = Math.min(numIndex++, 8) * 85 + stack * 150;
+    floatNumber(el, text, variant, stagger, stack);
+  };
+  for (const e of events) {
+    const amt = e.amount ?? 0;
+    if (amt <= 0 && e.t !== 'heal') continue;
+    if (e.t === 'damageUnit') { const el = e.iid ? unitEl(e.iid) : null; if (el) emit(el, `−${amt}`, 'dmg', `u:${e.iid}`); }
+    else if (e.t === 'burnTick') { const el = e.iid ? unitEl(e.iid) : null; if (el) emit(el, `−${amt}`, 'burn', `u:${e.iid}`); }
+    else if (e.t === 'poisonTick') { const el = e.iid ? unitEl(e.iid) : null; if (el) emit(el, `−${amt}`, 'poison', `u:${e.iid}`); }
+    else if (e.t === 'damageLeader') { const el = e.player != null ? leaderEl(e.player) : null; if (el) emit(el, `−${amt}`, 'dmg-leader', `l:${e.player}`); }
+    else if (e.t === 'heal' && amt > 0) { const el = e.iid ? unitEl(e.iid) : e.player != null ? leaderEl(e.player) : null; if (el) emit(el, `+${amt}`, 'heal', e.iid ? `u:${e.iid}` : `l:${e.player}`); }
+  }
+  // Stat changes carry their own magnitude. Debuffs arrive as a `buff` with NEGATIVE values
+  // (effects.ts), so both directions are handled here — previously a shrink produced no number
+  // and no flourish at all, making a debuff spell nearly invisible on the board.
+  for (const e of events) {
+    if (e.t !== 'buff') continue;
+    const dA = e.attack ?? 0, dH = e.hp ?? 0;
+    if (dA === 0 && dH === 0) continue; // a no-op buff event: nothing changed to show
+    const el = e.iid ? unitEl(e.iid) : null;
+    if (!el) continue;
+    const sign = (n: number): string => (n > 0 ? `+${n}` : `${n}`);
+    const parts: string[] = [];
+    if (dA !== 0) parts.push(`${sign(dA)}⚔`);
+    if (dH !== 0) parts.push(`${sign(dH)}❤`);
+    const gain = dA + dH >= 0;
+    emit(el, parts.join(' '), gain ? 'buff' : 'debuff', `u:${e.iid}`);
+  }
+>>>>>>> Stashed changes
   // Proportional board shake: the biggest hit in this batch decides the jolt (lethal kill >
   // a heavy leader blow > a solid unit hit; small chip damage doesn't shake at all).
   let impact = 0;
@@ -694,7 +800,12 @@ export function playEventFlourishes(
     switch (e.t) {
       case 'burnTick': trigger(e.iid, 'burn'); break;
       case 'growth': trigger(e.iid, 'grow'); break;
-      case 'buff': if ((e.attack ?? 0) > 0 || (e.hp ?? 0) > 0) trigger(e.iid, 'buff'); break;
+      case 'buff': {
+        const dA = e.attack ?? 0, dH = e.hp ?? 0;
+        // A shrink is as worth showing as a pump; only a true no-op is skipped.
+        if (dA !== 0 || dH !== 0) trigger(e.iid, dA + dH >= 0 ? 'buff' : 'debuff');
+        break;
+      }
       case 'heal': trigger(e.iid, 'heal'); break;
       case 'poisonTick': trigger(e.iid, 'poison'); break;
       case 'zombieRevive': trigger(e.iid, 'zombie'); break;

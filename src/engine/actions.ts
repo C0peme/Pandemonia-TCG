@@ -35,6 +35,13 @@ export type Action =
    * omit `targetIid` to skip this activation (e.g. no legal target).
    */
   | { type: 'resolvePending'; targetIid?: string; toLane?: LaneId }
+  /**
+   * Resolve the first queued bonus attack (`state.extraActions`) that needed the player to
+   * aim it — a Sniper eligible to redirect (Heights or Airborne). `lane` is the enemy lane it
+   * strikes. Non-Sniper (or otherwise ineligible) bonus attacks resolve immediately without
+   * ever reaching this action; see `extraActionNeedsAim` in `combat.ts`.
+   */
+  | { type: 'resolveExtraAction'; lane: LaneId }
   /** Debug only — add a card directly to the active player's hand. */
   | { type: 'debugAddCard'; cardId: string }
   /** Debug only — set the active player's energy to a large amount. */

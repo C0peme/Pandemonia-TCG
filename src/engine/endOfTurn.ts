@@ -18,10 +18,10 @@
  * only — they belong to that player and fire once per round at their own turn end. Freeze
  * duration also ticks here.
  */
-import { LANES, RULES, type LaneId } from '@engine/constants';
+import { LANES, RULES, type LaneId, type LaneLayout } from '@engine/constants';
 import { buffUnit, laneUnits } from '@engine/board';
 import { applyFoundation } from '@engine/foundation';
-import { reconcileDrowning } from '@engine/drowning';
+import { reconcileDrowning, setAttack } from '@engine/drowning';
 import { applyTriggeredEffects, processDeaths, dealUnitDamage } from '@engine/effects';
 import type { Registry } from '@cards/registry';
 import type { GameEvent } from '@engine/events';
@@ -37,7 +37,7 @@ import { type GameState, type PlayerId, type UnitInstance } from '@engine/types'
  * claims (via `appliedKeywordKeys`/`appliedTriggers`) that they are present, and a later
  * revert would splice effects off the NEW form and delete keywords it owns.
  */
-const metamorphose = (registry: Registry, u: UnitInstance, lane: LaneId, events: GameEvent[]): void => {
+const metamorphose = (registry: Registry, u: UnitInstance, lane: LaneId, events: GameEvent[], layout?: LaneLayout): void => {
   const meta = u.keywords.metamorphosis;
   if (!meta?.into) return;
   const into = registry.cards.get(meta.into);
@@ -45,7 +45,11 @@ const metamorphose = (registry: Registry, u: UnitInstance, lane: LaneId, events:
   const deficit = u.maxHp - u.hp; // damage carries over
   const f = u.foundation;
   u.cardId = into.id;
-  u.attack = Math.max(0, into.attack + (meta.gains?.attack ?? 0));
+  // Through the drowning shadow store: a unit that metamorphoses while submerged must not
+  // come up armed, and the value has to land where `reconcileDrowning` (called below) will
+  // find it — a direct write is otherwise overwritten by the OLD form's `predrownAttack`
+  // the moment the new form surfaces.
+  setAttack(u, into.attack + (meta.gains?.attack ?? 0));
   u.maxHp = into.hp + (meta.gains?.hp ?? 0);
   u.hp = Math.max(1, u.maxHp - deficit);
   u.keywords = { ...into.keywords };
@@ -61,12 +65,14 @@ const metamorphose = (registry: Registry, u: UnitInstance, lane: LaneId, events:
   if (f) {
     const fCard = registry.cards.get(f.cardId);
     if (fCard && fCard.type === 'foundation') {
-      u.foundation = applyFoundation(u, fCard, f.iid, lane);
+      // `f.live` replays the same body the original bond measured — re-deriving it from the
+      // card would silently reset a buffed Foundation to printed value on Metamorphosis.
+      u.foundation = applyFoundation(u, fCard, f.iid, lane, f.live);
       u.foundation.hp = f.hp;
     }
   }
   // The new form may swim or fly where the old one did not (or vice versa).
-  reconcileDrowning(u, lane);
+  reconcileDrowning(u, lane, layout);
   events.push({ t: 'transform', iid: u.iid, into: into.id });
 };
 
@@ -87,8 +93,12 @@ export const resolveEndOfTurn = (
 ): void => {
   // Burn expiry (owner-only). Burn dealt its damage during combat, right before the unit
   // attacked or retaliated (see combat.ts `procBurn`); here its one-turn lifespan simply ends.
-  for (const u of activeUnits(s, player)) {
-    if (u.status.burn) delete u.status.burn;
+  // The Cauldron (Kedou's boss rule) makes Burn on the affected side PERMANENT — it never
+  // expires on its own, matching how Poison already behaves.
+  if (s.bossRules?.cauldron !== player) {
+    for (const u of activeUnits(s, player)) {
+      if (u.status.burn) delete u.status.burn;
+    }
   }
 
   // Smelt — only fires if the unit has strictly more HP than the cost (leaves ≥ 1 HP).
@@ -108,7 +118,7 @@ export const resolveEndOfTurn = (
   for (const u of activeUnits(s, player)) {
     if (u.keywords.growth) {
       const before = { a: u.attack, h: u.maxHp };
-      buffUnit(u, u.keywords.growth, events);
+      buffUnit(u, u.keywords.growth, events, s.bossRules?.disciplined === player);
       events.push({ t: 'growth', iid: u.iid, attack: u.attack - before.a, hp: u.maxHp - before.h });
     }
   }
@@ -170,7 +180,7 @@ export const resolveEndOfTurn = (
   for (const { unit: u, lane } of activeUnitsWithLane(s, player)) {
     u.turnsInPlay += 1;
     if (registry && u.keywords.metamorphosis && u.turnsInPlay >= u.keywords.metamorphosis.everyTurns) {
-      metamorphose(registry, u, lane, events);
+      metamorphose(registry, u, lane, events, s.laneTypes);
     }
   }
 };

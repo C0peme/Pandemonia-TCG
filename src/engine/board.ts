@@ -75,16 +75,28 @@ export const laneUnits = (lane: Lane): UnitInstance[] =>
   [lane.front, lane.back, lane.standaloneFoundation].filter((u): u is UnitInstance => u !== undefined);
 
 /**
+ * Close a front/back gap: a lane must never hold an occupied `back` over an empty `front`,
+ * because combat reads `front`. The Foundation slot is independent and never promotes.
+ *
+ * Its own function because `processDeaths` needs the two halves of `vacateSlot` SPLIT: it
+ * has to clear the dying unit's slot BEFORE the death trigger fires (a summon-type Kamikaze
+ * reads the live board for an open slot) but promote only after. That left the promotion
+ * rule written out twice, in two files.
+ */
+export const promoteBackRow = (lane: Lane): void => {
+  if (!lane.front && lane.back) {
+    lane.front = lane.back;
+    lane.back = undefined;
+  }
+};
+
+/**
  * Remove the unit in `slot`, promoting a Double Team back-row unit to the front so the
  * lane never ends up with an occupied `back` and an empty `front` (combat reads `front`).
  */
 export const vacateSlot = (lane: Lane, slot: Slot): void => {
   lane[laneField(slot)] = undefined;
-  // Back-promotion only applies to the front/back ranks; the Foundation slot is independent.
-  if (!lane.front && lane.back) {
-    lane.front = lane.back;
-    lane.back = undefined;
-  }
+  promoteBackRow(lane);
 };
 
 /** First open slot for an incoming unit, respecting Double Team; null if the lane is full. */
@@ -98,8 +110,11 @@ const openSlotForUnit = (lane: Lane, incoming: UnitInstance): 'front' | 'back' |
   return null;
 };
 
-/** Recompute Water `drowning` when a unit's lane changes (see drowning.ts). */
-const applyLaneEntry = (unit: UnitInstance, destLane: LaneId): void => reconcileDrowning(unit, destLane);
+/** Recompute Water `drowning` when a unit's lane changes (see drowning.ts). Reads the
+ *  fight's lane layout, so relocation onto a re-laid board drowns against the board being
+ *  played rather than the printed one. */
+const applyLaneEntry = (s: GameState, unit: UnitInstance, destLane: LaneId): void =>
+  reconcileDrowning(unit, destLane, s.laneTypes);
 
 /**
  * Move an in-play unit to another lane. The single shared relocation routine for the
@@ -123,7 +138,7 @@ export const relocateUnit = (
     if (destLaneObj.standaloneFoundation) return `Lane ${destLane} is full`;
     vacateSlot(s.players[loc.owner].lanes[loc.lane], loc.slot);
     destLaneObj.standaloneFoundation = loc.unit;
-    applyLaneEntry(loc.unit, destLane);
+    applyLaneEntry(s, loc.unit, destLane);
     events.push({ t: 'moved', iid: loc.unit.iid, lane: destLane });
     if (registry) {
       refreshLaneEnvironment(registry, s, loc.lane);
@@ -135,7 +150,7 @@ export const relocateUnit = (
   if (!slot) return `Lane ${destLane} is full`;
   vacateSlot(s.players[loc.owner].lanes[loc.lane], loc.slot);
   destLaneObj[slot] = loc.unit;
-  applyLaneEntry(loc.unit, destLane);
+  applyLaneEntry(s, loc.unit, destLane);
   events.push({ t: 'moved', iid: loc.unit.iid, lane: destLane });
   if (registry) {
     refreshLaneEnvironment(registry, s, loc.lane);
@@ -152,11 +167,15 @@ export const buffUnit = (
   u: UnitInstance,
   stat: { attack?: number; hp?: number },
   events: GameEvent[],
+  disciplined = false,
 ): boolean => {
   const dA = stat.attack ?? 0;
   const dH = stat.hp ?? 0;
   const isGain = dA > 0 || dH > 0;
-  if (isGain && u.status.poisoned) return false;
+  // Poison's growth-lock, and Aleph's Discipline boss rule generalising it to a whole
+  // side (see `BossRules.disciplined`) — same gate, same reason: a gain simply never
+  // lands. A LOSS (a debuff effect calling this with negative values) still applies.
+  if (isGain && (u.status.poisoned || disciplined)) return false;
   // Drowning-aware: while under, the real attack lives in `predrownAttack` (see drowning.ts).
   addAttack(u, dA);
   u.maxHp = Math.max(1, u.maxHp + dH);
@@ -184,26 +203,37 @@ export const applyOnHitStatuses = (u: UnitInstance, oh: OnHit, events: GameEvent
  * `Lane.standaloneFoundation` and fights, takes damage/status, and is targeted through the same
  * machinery as any unit — no transient view. When a unit is later placed on top it folds into
  * that unit's `foundation` (see engine `playUnit`).
+ *
+ * A Foundation is not a passenger waiting to hand its ability off — it is a full unit that
+ * ALSO passes that ability on, so it fights with everything it grants: `grants.keywords`/
+ * `onHit` are merged onto its own (its own explicit values win on conflict), and
+ * `grants.onAttack`/`endOfTurn`/`startOfTurn` seed its own trigger arrays, which the shared
+ * unit loops (`activeUnits` in endOfTurn.ts, `resolveFoundationAttacker` in combat.ts) already
+ * run for a standalone Foundation exactly like any other unit. A Sniper foundation aims like
+ * Sniper; a Producer foundation banks energy while standing alone, not just once bonded.
  */
 export const makeFoundationUnit = (
   card: FoundationCard,
   instance: CardInstance,
   owner: PlayerId,
-): UnitInstance => ({
-  iid: instance.iid,
-  cardId: card.id,
-  owner,
-  attack: card.attack,
-  hp: card.hp,
-  maxHp: card.hp,
-  keywords: { ...card.keywords },
-  onHit: card.onHit ? { ...card.onHit } : undefined,
-  // A Foundation's per-turn `grants` (Producer/Healer) transfer to the unit bonded on top
-  // (see applyFoundation) — a standalone Foundation carries no self-triggers, matching prior
-  // behavior. Status ticks, growth, aging, etc. flow through the shared unit loops.
-  status: {},
-  shield: typeof card.keywords.shield === 'number' ? card.keywords.shield : undefined,
-  turnsInPlay: 0,
-  justPlaced: true,
-  isFoundation: true,
-});
+): UnitInstance => {
+  const keywords = { ...(card.grants.keywords ?? {}), ...card.keywords };
+  return {
+    iid: instance.iid,
+    cardId: card.id,
+    owner,
+    attack: card.attack,
+    hp: card.hp,
+    maxHp: card.hp,
+    keywords,
+    onHit: card.onHit ? { ...card.onHit } : card.grants.onHit ? { ...card.grants.onHit } : undefined,
+    onAttack: card.grants.onAttack?.length ? structuredClone(card.grants.onAttack) : undefined,
+    endOfTurn: card.grants.endOfTurn?.length ? structuredClone(card.grants.endOfTurn) : undefined,
+    startOfTurn: card.grants.startOfTurn?.length ? structuredClone(card.grants.startOfTurn) : undefined,
+    status: {},
+    shield: typeof keywords.shield === 'number' ? keywords.shield : undefined,
+    turnsInPlay: 0,
+    justPlaced: true,
+    isFoundation: true,
+  };
+};

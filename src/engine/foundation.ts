@@ -3,12 +3,19 @@
  * keywords. If the Foundation is destroyed (e.g. by Undershot) the host immediately
  * loses what the Foundation provided. If the host dies, the Foundation goes with it.
  */
-import type { FoundationCard } from '@cards/schema';
+import { GRANTABLE_KEYWORD_KEYS, type FoundationCard } from '@cards/schema';
 import type { LaneId } from '@engine/constants';
 import { addAttack, reconcileDrowning } from '@engine/drowning';
-import type { FoundationInstance, UnitInstance } from '@engine/types';
+import type { FoundationInstance, FoundationLive, UnitInstance } from '@engine/types';
 
 type KwRecord = Record<string, unknown>;
+
+/** The subset of a Foundation's own keywords that a bare merge onto the host fully wires up. */
+const pickGrantable = (kw: KwRecord): KwRecord => {
+  const out: KwRecord = {};
+  for (const key of GRANTABLE_KEYWORD_KEYS) if (kw[key] !== undefined) out[key] = kw[key];
+  return out;
+};
 
 /** Append granted triggered effects to a host array, returning how many were added. */
 const appendTriggers = (host: UnitInstance, key: 'onAttack' | 'endOfTurn' | 'startOfTurn', granted?: unknown[]): number => {
@@ -17,6 +24,37 @@ const appendTriggers = (host: UnitInstance, key: 'onAttack' | 'endOfTurn' | 'sta
   host[key] = [...existing, ...structuredClone(granted) as never[]];
   return granted.length;
 };
+
+/**
+ * Snapshot a standalone Foundation's LIVE body, for `applyFoundation`. A standalone Foundation
+ * is a full unit: it can be buffed, grown, enhanced and damaged before anything bonds onto it,
+ * and all of that must reach the host. Attack is read drowning-aware (the real value lives in
+ * `predrownAttack` while submerged), and HP is the CURRENT pool, so a chewed-up Foundation
+ * lifts less than a fresh one.
+ */
+export const foundationLiveState = (u: UnitInstance): FoundationLive => ({
+  attack: u.status.drowning ? (u.predrownAttack ?? 0) : u.attack,
+  hp: u.hp,
+  keywords: structuredClone(u.keywords),
+});
+
+/** Half of a live stat, rounded down — the share of its body a Foundation lends upward. */
+const halfOf = (n: number): number => Math.floor(Math.max(0, n) / 2);
+
+/** The stat grant a body of these stats produces. Shared with the UI so the card can show it. */
+export const foundationGrantStat = (body: { attack: number; hp: number }) => ({
+  attack: halfOf(body.attack),
+  hp: halfOf(body.hp),
+});
+
+/**
+ * The keywords a Foundation hands up: its OWN grantable keywords (live ones included) with the
+ * authored `grants.keywords` layered on top. Shared with the UI.
+ */
+export const foundationGrantKeywords = (card: FoundationCard, liveKw?: unknown): Record<string, unknown> => ({
+  ...pickGrantable((liveKw ?? card.keywords) as KwRecord),
+  ...(card.grants.keywords ?? {}),
+});
 
 /**
  * Attach a Foundation's grants to a host unit; returns the FoundationInstance.
@@ -31,14 +69,24 @@ export const applyFoundation = (
   card: FoundationCard,
   iid: string,
   lane?: LaneId,
+  live?: FoundationLive,
 ): FoundationInstance => {
-  const stat = card.grants.stat ?? {};
-  const kw = (card.grants.keywords ?? {}) as KwRecord;
+  // The stat grant is HALF the body the Foundation actually has right now — `live`, the
+  // standalone snapshot (buffs, Growth, enhancements, damage all included), falling back to
+  // the printed card when no snapshot is supplied. This universal rule REPLACES the authored
+  // `grants.stat`, which was a frozen base-value figure: the ground under a unit is worth what
+  // it is worth at bond time, not what it was printed at.
+  const body = live ?? { attack: card.attack, hp: card.hp, keywords: card.keywords };
+  const stat = foundationGrantStat(body);
+  // The host also inherits the abilities the Foundation ITSELF carries (again live, not
+  // printed), filtered to the runtime-grantable set — the same blocklist a `buff` obeys —
+  // with the authored `grants.keywords` layered on top.
+  const kw: KwRecord = foundationGrantKeywords(card, body.keywords);
 
   // Drowning-aware: a granted attack bonus must not push a submerged unit above 0.
-  addAttack(host, stat.attack ?? 0);
-  host.maxHp += stat.hp ?? 0;
-  host.hp += stat.hp ?? 0;
+  addAttack(host, stat.attack);
+  host.maxHp += stat.hp;
+  host.hp += stat.hp;
 
   const appliedKeywordKeys: string[] = [];
   const hostKw = host.keywords as KwRecord;
@@ -76,11 +124,12 @@ export const applyFoundation = (
     iid,
     cardId: card.id,
     hp: card.hp,
-    appliedStat: { attack: stat.attack ?? 0, hp: stat.hp ?? 0 },
+    appliedStat: { attack: stat.attack, hp: stat.hp },
     appliedKeywordKeys,
     appliedShield,
     appliedOnHit,
     appliedTriggers,
+    live,
   };
 };
 

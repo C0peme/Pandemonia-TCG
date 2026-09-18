@@ -7,7 +7,7 @@
  * not already carry that keyword — a unit's own/foundation keywords are never clobbered.
  * The keys actually added are tracked on the unit so they can be cleanly reverted.
  */
-import { LANES, type LaneId } from '@engine/constants';
+import { LANES, isWater, type LaneId } from '@engine/constants';
 import type { Keywords } from '@cards/schema';
 import type { Registry } from '@cards/registry';
 import type { GameState, UnitInstance } from '@engine/types';
@@ -77,7 +77,7 @@ export const refreshLaneEnvironment = (registry: Registry, state: GameState, lan
   }
   // Grants can add or remove Aquatic, which decides who drowns in Water — so the
   // drowning state has to be reconciled whenever they change, not just on entry.
-  if (laneId === 'water') for (const unit of units) reconcileDrowning(unit, laneId);
+  if (isWater(laneId, state.laneTypes)) for (const unit of units) reconcileDrowning(unit, laneId, state.laneTypes);
 };
 
 /** Reconcile every lane column on the board with its Environment grants. */

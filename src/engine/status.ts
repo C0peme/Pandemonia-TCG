@@ -150,10 +150,19 @@ export const applyStatus = (
  * beneficial status. This is the one function `cleanse` should call: it cannot miss a
  * keyword-backed status the way a bare `unit.status = {}` did.
  */
-export const clearCleansableStatuses = (u: UnitInstance): void => {
-  const { drowning } = u.status;
-  u.status = drowning ? { drowning } : {};
+export const clearCleansableStatuses = (u: UnitInstance, keep: readonly StatusKind[] = []): void => {
+  const { drowning, burn, poisoned } = u.status;
+  // `keep` is the Cauldron's seam (Kedou's boss rule): Burn and Poison on the affected
+  // side cannot be cleansed at all, so a cleanse effect preserves exactly those two
+  // fields rather than being blocked outright — every OTHER affliction still lifts.
+  // `StatusState` names Poison's field `poisoned`, not `poison` (the STATUS_SPECS key).
+  u.status = {
+    ...(drowning ? { drowning } : {}),
+    ...(keep.includes('burn') && burn !== undefined ? { burn } : {}),
+    ...(keep.includes('poison') && poisoned !== undefined ? { poisoned } : {}),
+  };
   for (const status of Object.keys(STATUS_SPECS) as StatusKind[]) {
+    if (keep.includes(status)) continue;
     if (STATUS_SPECS[status].backing === 'keyword' && STATUS_SPECS[status].cleansable) {
       delete u.keywords[status as 'zombified' | 'trueShield' | 'taunt'];
     }

@@ -1,10 +1,19 @@
-import { useState, useMemo, useEffect, useRef, Fragment } from 'react';
-import { LANES, RULES, type Element, type LaneId } from '@engine/constants';
+import { useState, useMemo, useEffect, useRef, useSyncExternalStore, Fragment } from 'react';
+import { ELEMENTS, LANES, RULES, isHeights, isWater, laneTypeOf, type Element, type LaneId, type LaneLayout } from '@engine/constants';
 import type { GameEvent } from '@engine/events';
 import type { Card, Effect, Keywords } from '@cards/schema';
 import type { EnvironmentInstance, GameState, Lane, PlayerId, PlayerState, UnitInstance } from '@engine/types';
+import type { Registry } from '@cards/registry';
 import { formatCost, listAbilities, listStatuses, STATUS_INFO, ELEMENT_NAME, type NamedAbility } from '@cards/abilities';
+import { costModFor, heroPowerCostFor } from '@engine/engine';
+import { foundationGrantKeywords, foundationGrantStat } from '@engine/foundation';
 import { ElementRune } from '@ui/ElementRune';
+<<<<<<< Updated upstream
+=======
+import { isEnhancedCardId } from '@adventure/runRegistry';
+import { Emblem } from '@ui/Emblem';
+import type { DebugKeyword } from '@engine/actions';
+>>>>>>> Stashed changes
 import { useGame, type CombatAnim, type CombatPhase } from '@ui/useGame';
 import { useRegistry, useContent } from '@ui/useContent';
 import * as store from '@cards/store';
@@ -13,9 +22,17 @@ import { CardStudio } from '@ui/CardStudio';
 import { BalanceLab } from '@ui/BalanceLab';
 import { Multiplayer } from '@ui/Multiplayer';
 import { Adventure } from '@ui/adventure/Adventure';
-import { getMuted, getVolume, setMuted, setVolume, getMusicMuted, setMusicMuted } from '@ui/audio';
+import { getMuted, getVolume, setMuted, setVolume, getMusicMuted, setMusicMuted, getMusicVolume, setMusicVolume } from '@ui/audio';
 
-const LANE_LABEL: Record<LaneId, string> = { heights: 'Heights', ground1: 'Ground', ground2: 'Ground', water: 'Water' };
+const LANE_LABEL: Record<LaneId, string> = { heights: 'Heights', ground1: 'Ground', water: 'Water', ground2: 'Ground', heights2: 'Heights' };
+/**
+ * A column's label for the board being played, not the printed one. Lane ids never change,
+ * but a re-laid board (Naife's signature, a `laneLayout` Trial) changes what each column IS
+ * — so the header has to be derived from `GameState.laneTypes` rather than from the id.
+ */
+const LANE_TYPE_LABEL = { heights: 'Heights', ground: 'Ground', water: 'Water' } as const;
+const laneLabel = (lane: LaneId, layout?: LaneLayout): string =>
+  layout ? LANE_TYPE_LABEL[laneTypeOf(lane, layout)] : LANE_LABEL[lane];
 const COMBAT_PHASE_LABEL: Record<CombatPhase, string> = {
   skip: '— skip —',
   effects: '♨ Effects',
@@ -23,9 +40,27 @@ const COMBAT_PHASE_LABEL: Record<CombatPhase, string> = {
   retaliate: '▣ Retaliate',
   onhit: '✦ On-Hit',
 };
-const ELEMENTS: Element[] = ['fire', 'water', 'nature', 'earth'];
 
-export type Detail = { kind: 'card'; card: Card } | { kind: 'unit'; unit: UnitInstance };
+/**
+ * Whether a live `PlayArea` board is mounted anywhere in the app. The gothic theme's
+ * fan CSS (`.game.theme-gothic .hand .handcard`) needs the OUTER `.game` div to carry
+ * `theme-gothic`, but `PlayArea` renders inside Adventure combat and inside Multiplayer
+ * matches too — both under the top-nav's `theme-stone` — which silently un-fanned the
+ * hand there. `PlayArea` reports its own mount here so the outer theme can react to
+ * "a board is actually showing" instead of just "the Battle tab is selected".
+ */
+let boardMounts = 0;
+const boardListeners = new Set<() => void>();
+const notifyBoard = (): void => boardListeners.forEach((l) => l());
+const useBoardActive = (): boolean =>
+  useSyncExternalStore(
+    (cb) => { boardListeners.add(cb); return () => boardListeners.delete(cb); },
+    () => boardMounts > 0,
+  );
+
+export type Detail =
+  | { kind: 'card'; card: Card; bank?: Record<Element, number>; costMod?: number }
+  | { kind: 'unit'; unit: UnitInstance };
 type DragKind = 'place' | 'target' | 'env' | null;
 
 type View = 'board' | 'adventure' | 'deckbuilder' | 'studio' | 'lab' | 'multiplayer';
@@ -57,6 +92,7 @@ export function App() {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [view, setView] = useState<View>('board');
   const [showDeckPicker, setShowDeckPicker] = useState(false);
+  const boardActive = useBoardActive();
 
   const NAV: { id: View; label: string }[] = [
     { id: 'board', label: '⚔ Battle' },
@@ -67,7 +103,7 @@ export function App() {
   ];
 
   return (
-    <div className={`game ${view === 'board' ? 'theme-gothic' : 'theme-stone'}`}>
+    <div className={`game ${view === 'board' || boardActive ? 'theme-gothic' : 'theme-stone'}`}>
       <header className="topbar">
         <strong>Pandemonia</strong>
         {view === 'board' && (
@@ -165,6 +201,12 @@ function findUnitByIid(game: GameState, iid: string): UnitInstance | undefined {
 export function PlayArea({ g, onDetail, onPlayAgain, playAgainLabel }: { g: ReturnType<typeof useGame>; onDetail: (d: Detail) => void; onPlayAgain?: () => void; playAgainLabel?: string }) {
   const { game } = g;
   const registry = useRegistry();
+  // Announce that a live board is mounted so the outer .game div picks up the gothic
+  // theme (and with it the hand-fan CSS) no matter which top-nav tab hosts this board.
+  useEffect(() => {
+    boardMounts++; notifyBoard();
+    return () => { boardMounts--; notifyBoard(); };
+  }, []);
   // Local play restarts via g.reset; net play uses an explicit rematch handler (host only).
   const playAgain = onPlayAgain ?? (g.isNet ? undefined : g.reset);
   const me = game.players[g.pov];
@@ -264,7 +306,11 @@ export function PlayArea({ g, onDetail, onPlayAgain, playAgainLabel }: { g: Retu
                   g={g}
                   dragKind={dragKind}
                   onUnitDetail={(u) => onDetail({ kind: 'unit', unit: u })}
-                  sniperTargeting={g.sel.kind === 'sniperPhase'}
+                  sniperTargeting={g.sel.kind === 'sniperPhase' || g.sel.kind === 'extraActionAim'}
+                  laneTargeting={
+                    g.sel.kind === 'heroLane' || g.sel.kind === 'spellMove' || g.sel.kind === 'spellTargets' ||
+                    (g.sel.kind === 'pending' && Boolean(g.sel.pickedUnit))
+                  }
                   combatAnim={g.combatAnim}
                   declaring={g.declareLanes?.includes(lane) ?? false}
                 />
@@ -272,10 +318,10 @@ export function PlayArea({ g, onDetail, onPlayAgain, playAgainLabel }: { g: Retu
             </div>
             <LeaderBox who={g.isNet ? 'You' : `You (P${g.pov + 1})`} label={leaderName(me)} player={me} isMe isMyTurn={g.myTurn} g={g} dragKind={dragKind} handCount={null} isActive={game.active === me.id} />
           </div>
-          <Hand g={g} active={me} onDetail={(card) => onDetail({ kind: 'card', card })} />
+          <Hand g={g} active={me} onDetail={(card, bank, costMod) => onDetail({ kind: 'card', card, bank, costMod })} />
           {g.debugMode && <DebugPanel g={g} />}
         </div>
-        <Controls g={g} active={me} />
+        <Controls g={g} active={me} onDetail={onDetail} />
       </div>
 
       <HoverPeek peek={peek} />
@@ -321,7 +367,8 @@ function TargetingArrow({ g }: { g: ReturnType<typeof useGame> }) {
   const sel = g.sel;
   const dragTarget = !!g.drag && (g.drag.card.type === 'spell' || g.drag.card.type === 'environment');
   const active =
-    sel.kind === 'hero' || sel.kind === 'sniperPhase' || sel.kind === 'spellMove' ||
+    sel.kind === 'hero' || sel.kind === 'heroLane' || sel.kind === 'sniperPhase' || sel.kind === 'spellMove' ||
+    sel.kind === 'spellTargets' || sel.kind === 'heroTargets' || sel.kind === 'extraActionAim' ||
     (sel.kind === 'pending' && Boolean(sel.pickedUnit)) || dragTarget;
   const svgRef = useRef<SVGSVGElement>(null);
   const pathRef = useRef<SVGPathElement>(null);
@@ -331,7 +378,12 @@ function TargetingArrow({ g }: { g: ReturnType<typeof useGame> }) {
     if (!active) return;
     const sourceEl = () => {
       if (sel.kind === 'hero') return document.querySelector(`[data-leader="${g.game.active}"] .leader__skill`) ?? document.querySelector(`[data-leader="${g.game.active}"]`);
+      if (sel.kind === 'heroLane') {
+        if (sel.target?.kind === 'unit') return document.querySelector(`[data-iid="${CSS.escape(sel.target.iid)}"]`);
+        return document.querySelector(`[data-leader="${g.game.active}"] .leader__skill`) ?? document.querySelector(`[data-leader="${g.game.active}"]`);
+      }
       if (sel.kind === 'sniperPhase') { const nxt = sel.pending.find((p) => !sel.choices[p.iid]); return nxt ? document.querySelector(`[data-iid="${CSS.escape(nxt.iid)}"]`) : null; }
+      if (sel.kind === 'extraActionAim') return document.querySelector(`[data-iid="${CSS.escape(sel.iid)}"]`);
       if (sel.kind === 'pending' && sel.pickedUnit) return document.querySelector(`[data-iid="${CSS.escape(sel.pickedUnit)}"]`);
       if (sel.kind === 'spellMove' && sel.target.kind === 'unit') return document.querySelector(`[data-iid="${CSS.escape(sel.target.iid)}"]`);
       if (dragTarget && g.drag) return document.querySelector(`[data-cardiid="${CSS.escape(g.drag.iid)}"]`);
@@ -370,6 +422,166 @@ function TargetingArrow({ g }: { g: ReturnType<typeof useGame> }) {
   );
 }
 
+<<<<<<< Updated upstream
+=======
+/** Available energy: a bold numeral (always readable at a glance) paired with a small cluster of
+ *  electric "spark" pips for the physical feel. The pips are deliberately a cold electric colour,
+ *  NOT the gold used by cost jewels, so energy never reads as a cost. Pips cap at 5 (past that
+ *  they stop being countable and the numeral carries it). */
+function EnergyGems({ energy, next = 0 }: { energy: number; next?: number }) {
+  const PIP_CAP = 5;
+  const shown = Math.min(energy, PIP_CAP);
+  // `next` is energy QUEUED for the following turn (Producers, Cancerous Growth). It had no
+  // standing readout at all — it appeared once in the event log and then vanished — so the
+  // payoff of a Producer or a hero power was invisible until it silently arrived.
+  const label = `${energy} energy available` + (next > 0 ? `, +${next} queued for next round` : '');
+  return (
+    <span className="energygems" title={label} aria-label={label}>
+      <span className="energygems__bolt" aria-hidden="true">↯</span>
+      <span className="energygems__num">{energy}</span>
+      <span className="energygems__pips" aria-hidden="true">
+        {Array.from({ length: shown }, (_, i) => <span key={i} className="energygems__pip" />)}
+      </span>
+      {next > 0 && <span className="energygems__next">+{next}<span className="energygems__next-tag">next</span></span>}
+    </span>
+  );
+}
+
+/**
+ * Every spell a side has cast this game, newest first, tagged with the round it was cast in.
+ * Derived from the accumulated event log rather than tracked as its own piece of state:
+ * `castSpell` is already public information (the reveal animation shows it to both sides),
+ * so the log is a complete and correctly-ordered record with nothing new to redact.
+ */
+function spellHistory(
+  log: GameEvent[],
+  player: PlayerId,
+  registry: Registry,
+): { cardId: string; round: number }[] {
+  const out: { cardId: string; round: number }[] = [];
+  let round = 1;
+  for (const e of log) {
+    if (e.t === 'turnStart') round = e.round;
+    else if (e.t === 'castSpell' && e.player === player) {
+      const def = registry.cards.get(e.cardId);
+      if (def?.type === 'spell') out.push({ cardId: e.cardId, round });
+    }
+  }
+  out.reverse();
+  return out;
+}
+
+/**
+ * A used-spells pile — "what did that spell actually do?" used to mean scrolling the log
+ * for the name and hoping to remember its text. The pile's face always shows the MOST
+ * RECENT spell that side cast (so the pile is never a mystery even closed); clicking it
+ * opens every spell that side has cast this game, most recent first, each one a click
+ * away from the full card via `onDetail`. Always visible (with a placeholder before the
+ * first cast) rather than appearing/disappearing, since it lives in its own dedicated
+ * area now and popping in and out there would just be confusing.
+ */
+function SpellPile({
+  label,
+  player,
+  log,
+  onDetail,
+}: {
+  /** "You" / the opponent leader's name — printed above the pile. */
+  label: string;
+  player: PlayerId;
+  log: GameEvent[];
+  onDetail: (d: Detail) => void;
+}) {
+  const registry = useRegistry();
+  const [open, setOpen] = useState(false);
+  const history = useMemo(() => spellHistory(log, player, registry), [log, player, registry]);
+  const top = history[0];
+  const topDef = top ? registry.cards.get(top.cardId) : undefined;
+  return (
+    <div className="spellpile">
+      <span className="spellpile__label">{label}</span>
+      {topDef ? (
+        <button
+          className="spellpile__face"
+          onClick={() => setOpen(true)}
+          title={`Used spells (${history.length}) — most recent: ${topDef.name}. Click to see them all.`}
+        >
+          <CardFace def={topDef} />
+          <span className="spellpile__count">{history.length}</span>
+        </button>
+      ) : (
+        <span className="spellpile__empty" title="No spells cast yet this game">—</span>
+      )}
+      {open && (
+        <SpellHistoryModal label={label} history={history} registry={registry} onDetail={onDetail} onClose={() => setOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Full-size, readable pop-up for one side's spell history — the same `.overlay`/`.detail`
+ * modal language as Card Info, at full card size, rather than a cramped inline dropdown of
+ * postage-stamp thumbnails squeezed under a 190px-wide sidebar tile. Click any card for its
+ * full CardDetail.
+ */
+function SpellHistoryModal({
+  label,
+  history,
+  registry,
+  onDetail,
+  onClose,
+}: {
+  label: string;
+  history: { cardId: string; round: number }[];
+  registry: Registry;
+  onDetail: (d: Detail) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="detail spellmodal" onClick={(e) => e.stopPropagation()}>
+        <h3>{label} — Used Spells ({history.length})</h3>
+        <div className="advpanel__grid">
+          {history.map((h, i) => {
+            const def = registry.cards.get(h.cardId);
+            if (!def) return null;
+            return (
+              <div key={i} className="spellmodal__slot">
+                <MiniCard card={def} onClick={() => { onDetail({ kind: 'card', card: def }); onClose(); }} />
+                <span className="muted">Round {h.round}</span>
+              </div>
+            );
+          })}
+        </div>
+        <button onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Dedicated area for both sides' used-spell piles, docked at the top of the Controls rail
+ * (above the enemy reserves) — a fixed, always-visible location rather than a widget tucked
+ * into the leader bar corner, where it was easy to miss and got cramped against the bar's
+ * other plates.
+ */
+function SpellArea({ g, onDetail }: { g: ReturnType<typeof useGame>; onDetail: (d: Detail) => void }) {
+  const registry = useRegistry();
+  const opp = g.game.players[g.opponent];
+  const oppName = registry.leaders.get(opp.leaderId)?.name ?? 'Opponent';
+  return (
+    <div className="spellarea">
+      <span className="spellarea__label">✦ Spells Cast</span>
+      <div className="spellarea__row">
+        <SpellPile label={oppName} player={opp.id} log={g.log} onDetail={onDetail} />
+        <SpellPile label="You" player={g.pov} log={g.log} onDetail={onDetail} />
+      </div>
+    </div>
+  );
+}
+
+>>>>>>> Stashed changes
 function LeaderBox({
   who,
   label,
@@ -398,11 +610,20 @@ function LeaderBox({
   const registry = useRegistry();
   const leaderDef = registry.leaders.get(player.leaderId);
   const leaderElem = leaderDef?.element;
-  const heroTargeting = g.sel.kind === 'hero';
+  const heroTargeting = g.sel.kind === 'hero' || g.sel.kind === 'heroTargets' || g.sel.kind === 'spellTargets';
+  // The plate ALWAYS renders — a Hero Power is public information, and hiding the opponent's
+  // (and your own, off-turn) meant it could not be read at all. Only the ability to USE it is
+  // gated; off-turn and enemy plates are inert and open the leader reference instead.
   const canUseSkill = isMe && isMyTurn;
-  const leaderSkill = canUseSkill ? leaderDef?.heroPower : undefined;
-  const heroActive = g.sel.kind === 'hero';
+  const leaderSkill = leaderDef?.heroPower;
+  const heroCost = leaderDef && leaderSkill ? heroPowerCostFor(player, leaderDef) : leaderSkill?.cost;
+  const heroActive = g.sel.kind === 'hero' || g.sel.kind === 'heroTargets';
   const heroEffect = leaderSkill?.text ?? leaderSkill?.effects.map(effectLine).join('; ') ?? '';
+  // The Signature card this leader unlocks at half their MAX HP (see damage.ts signatureThreshold).
+  const sigCard = leaderDef?.signatureCardId ? registry.cards.get(leaderDef.signatureCardId) : undefined;
+  const sigThreshold = Math.floor((player.leaderMaxHp ?? 30) / 2);
+  const leaderMax = player.leaderMaxHp ?? 30;
+  const tempHp = Math.max(0, player.leaderHp - leaderMax);
   return (
     <div
       data-leader={player.id}
@@ -418,15 +639,50 @@ function LeaderBox({
         <div className="leader__name">{who}{isActive && <span className="leader__toact" title="This player is to act">◆</span>}</div>
         <div className="leader__sub">{label}</div>
       </div>
+      {/* Adventure's post-battle heal can overheal into TEMPORARY HP, so leaderHp may sit
+          above leaderMaxHp. The vessel stays pinned at full (there is no "more than full")
+          and the surplus is called out as its own +N, since it behaves differently: nothing
+          in a fight heals it back once it is spent. */}
       <div
-        className="leader__hp"
-        style={{ ['--hp-pct' as string]: `${Math.max(0, Math.min(100, (player.leaderHp / (player.leaderMaxHp ?? 30)) * 100))}%` }}
-        title={`${player.leaderHp} / ${player.leaderMaxHp ?? 30} HP`}
+        className={`leader__hp${tempHp > 0 ? ' leader__hp--temp' : ''}`}
+        style={{ ['--hp-pct' as string]: `${Math.max(0, Math.min(100, (player.leaderHp / leaderMax) * 100))}%` }}
+        title={
+          tempHp > 0
+            ? `${player.leaderHp} / ${leaderMax} HP — ${tempHp} of it temporary HP above the maximum (healing will not restore it once spent)`
+            : `${player.leaderHp} / ${leaderMax} HP`
+        }
       >
         <span className="leader__hp-fill" aria-hidden="true" />
-        <span className="leader__hp-num">{player.leaderHp}<span className="leader__hp-unit"> HP</span></span>
+        <span className="leader__hp-num">
+          {player.leaderHp}<span className="leader__hp-unit"> HP</span>
+          {tempHp > 0 && <span className="leader__hp-temp"> +{tempHp}</span>}
+        </span>
       </div>
-      {player.signatureUnlocked && <div className="leader__sig">★ Sig</div>}
+      {/* The Signature gets the same plate the Hero Power does — name, effect icons and rules
+          text — because a symbol alone said WHICH card was coming but nothing about what it
+          does, which is the whole basis for playing toward it.
+          The threshold is NOT printed here: the ★ notch on the HP vessel beside it already
+          marks where it arrives, and a second "at 15 HP" column only stole width from the
+          effect text, which is the part worth reading. It stays in the tooltip. */}
+      {sigCard && (
+        <div
+          className={`leader__sig${player.signatureUnlocked ? ' leader__sig--on' : ''}`}
+          title={player.signatureUnlocked
+            ? `Signature ready — ${sigCard.name} is in hand`
+            : `Signature — ${sigCard.name} arrives when this leader reaches ${sigThreshold} HP`}
+        >
+          <span className="leader__sig-icon" aria-hidden="true">
+            <Emblem card={sigCard as Parameters<typeof Emblem>[0]['card']} className="leader__sig-art" />
+          </span>
+          <span className="leader__sig-body">
+            <span className="leader__sig-name">
+              <span className="leader__sig-star" aria-hidden="true">{player.signatureUnlocked ? '✓' : '★'}</span>
+              {sigCard.name}
+            </span>
+            <span className="leader__sig-effect">{cardAbilityLine(sigCard) || sigCard.text || '—'}</span>
+          </span>
+        </div>
+      )}
       <div className="leader__res">
         {/* Banked elements deliberately omitted here — the Altar's ELEMENT BANKS panel already
             shows both players' banks in full, and duplicating them bloated this banner. */}
@@ -441,22 +697,53 @@ function LeaderBox({
           <span className="deckpile__count">{player.deck.length}</span>
         </span>
       </div>
-      {canUseSkill && leaderSkill && (
+      {leaderSkill && (
         <button
-          className={`leader__skill${player.heroPowerUsed ? ' leader__skill--used' : ''}${heroActive ? ' leader__skill--active' : ''}${g.hintMode && !player.heroPowerUsed ? ' leader__skill--hint' : ''}`}
-          disabled={player.heroPowerUsed}
-          onClick={(e) => { e.stopPropagation(); g.selectHero(); }}
-          title={`${leaderSkill.name} — ${heroEffect} (cost ${formatCost(leaderSkill.cost)})`}
+          className={`leader__skill${player.heroPowerUsed && canUseSkill ? ' leader__skill--used' : ''}${heroActive && canUseSkill ? ' leader__skill--active' : ''}${g.hintMode && canUseSkill && !player.heroPowerUsed ? ' leader__skill--hint' : ''}${canUseSkill ? '' : ' leader__skill--readonly'}`}
+          disabled={canUseSkill && player.heroPowerUsed}
+          onClick={(e) => {
+            e.stopPropagation();
+            // Usable: cast it. Otherwise the plate is a reference — open the leader card view.
+            if (canUseSkill) g.selectHero();
+          }}
+          title={
+            canUseSkill
+              ? `${leaderSkill.name} — ${heroEffect} (cost ${formatCost(heroCost!)})`
+              : `${leaderSkill.name} — ${heroEffect} · click to view this leader's cards`
+          }
         >
           <span className="leader__skill-icon">{heroSkillIcon(leaderSkill.effects)}</span>
           <span className="leader__skill-body">
             <span className="leader__skill-name">{leaderSkill.name}</span>
+            <span className="leader__skill-chips">
+              {heroEffectChips(leaderSkill.effects).map((c, i) => (
+                <span key={i} className="herochip" title={c.title}>
+                  <span className="herochip__icon" aria-hidden="true">{c.icon}</span>
+                  {c.val && <span className="herochip__val">{c.val}</span>}
+                </span>
+              ))}
+            </span>
             <span className="leader__skill-effect">{heroEffect}</span>
           </span>
           <span className="leader__skill-cost">
-            {player.heroPowerUsed
+            {player.heroPowerUsed && canUseSkill
               ? <span className="leader__skill-used">✓ Used</span>
+<<<<<<< Updated upstream
               : <span className="herocost__energy">↯{leaderSkill.cost.energy}</span>}
+=======
+              : (() => {
+                  // A power that queues energy back (Cancerous Growth: spend 2, get 2 next
+                  // round) reads as pure cost unless the return is shown next to it.
+                  const back = leaderSkill.effects.reduce(
+                    (s, e) => s + (e.kind === 'energyNext' ? (e.amount ?? 0) : 0), 0);
+                  return (
+                    <>
+                      <span className="herocost__energy">↯{heroCost!.energy}</span>
+                      {back > 0 && <span className="herocost__return" title={`Returns ${back} energy next round`}>+{back} next</span>}
+                    </>
+                  );
+                })()}
+>>>>>>> Stashed changes
           </span>
         </button>
       )}
@@ -490,6 +777,41 @@ function LaneControl({ opp, me }: { opp: number; me: number }) {
  * half on top, a middle band (lane label + Environment), and your half at the bottom. The
  * Environment tints the whole column's background.
  */
+/**
+ * What would happen if the dragged unit were dropped into this lane. The board used to light
+ * EVERY friendly lane the same gold regardless of outcome, so a player learned "Water drowns
+ * land units" and "a full lane rejects the drop" only by suffering them. Showing the outcome
+ * on the lane at drag time teaches both rules at the moment they matter, with no text.
+ *
+ *   'ok'    — the unit lands normally.
+ *   'full'  — no slot free (needs Double Team); the drop would be refused.
+ *   'drown' — legal, but Water pins a non-Aquatic/Airborne unit's attack to 0 and ticks damage.
+ *             Still allowed: body-blocking in Water is a real (if costly) choice.
+ *
+ * Mirrors the engine's `resolvePosition` capacity rule and `waterCompatible`, including an
+ * Environment in the lane that grants Aquatic/Airborne (e.g. Shallows), which un-drowns it.
+ */
+export function laneDropState(
+  lane: Lane,
+  laneId: LaneId,
+  card: Card | null,
+  envGrants: Keywords | undefined,
+): 'ok' | 'full' | 'drown' {
+  if (!card || card.type !== 'unit') return 'ok';
+  const kw = card.keywords ?? {};
+  const doubleTeam =
+    Boolean(lane.front?.keywords.doubleTeam) || Boolean(lane.back?.keywords.doubleTeam) || Boolean(kw.doubleTeam);
+  // A standalone Foundation leaves the front slot open to bond into.
+  const frontOccupied = Boolean(lane.front);
+  if (frontOccupied && (Boolean(lane.back) || !doubleTeam)) return 'full';
+  if (laneId === 'water') {
+    const wet = Boolean(kw.aquatic) || Boolean(kw.airborne)
+      || Boolean(envGrants?.aquatic) || Boolean(envGrants?.airborne);
+    if (!wet) return 'drown';
+  }
+  return 'ok';
+}
+
 function LaneColumn({
   lane,
   game,
@@ -497,6 +819,7 @@ function LaneColumn({
   dragKind,
   onUnitDetail,
   sniperTargeting,
+  laneTargeting,
   combatAnim,
   declaring,
 }: {
@@ -506,6 +829,9 @@ function LaneColumn({
   dragKind: DragKind;
   onUnitDetail: (u: UnitInstance) => void;
   sniperTargeting: boolean;
+  /** True while a lane-picking flow (Leader Skill destination, Move spell, pending move) is
+   *  waiting for a lane — clicking your own half of this lane commits it directly. */
+  laneTargeting: boolean;
   combatAnim: CombatAnim | null;
   declaring: boolean;
 }) {
@@ -527,26 +853,52 @@ function LaneColumn({
   const oppAtk = laneAtk(opp.lanes[lane]);
   const myAtk = laneAtk(me.lanes[lane]);
 
+  // Outcome of dropping the dragged unit into THIS lane (own side only) — drives the lane tint.
+  const dropState =
+    dragKind === 'place'
+      ? laneDropState(
+          me.lanes[lane],
+          lane,
+          g.drag?.card ?? null,
+          env ? (registry.cards.get(env.cardId) as { grantKeywords?: Keywords } | undefined)?.grantKeywords : undefined,
+        )
+      : 'ok';
+
   const half = (player: PlayerState, isActive: boolean) => {
-    const heroTargeting = g.sel.kind === 'hero';
+    const heroTargeting = g.sel.kind === 'hero' || g.sel.kind === 'heroTargets';
     const sacMode = g.sel.kind === 'sacrifice' && !g.sel.confirmed;
     const sacSet = g.sel.kind === 'sacrifice' ? g.sel.sac : [];
     const sandboxBrush = g.debugMode && Boolean(g.sandbox.brush);
-    const unitClickable = heroTargeting || (sacMode && isActive) || sandboxBrush;
-    const laneDroppable = dragKind === 'place' && isActive;
+    // While a multi-target spell is collecting its remaining targets, every unit on the
+    // board is a legal pick — the same affordance hero targeting already uses.
+    const spellTargeting = g.sel.kind === 'spellTargets';
+    const unitClickable = heroTargeting || spellTargeting || (sacMode && isActive) || sandboxBrush;
+    // A full lane is NOT a drop target — lighting it gold invited a drop the engine refuses.
+    const laneDroppable = dragKind === 'place' && isActive && dropState !== 'full';
+    // Lane-picking destinations (Leader Skill lane, Move spell, pending move) always resolve
+    // against the acting player's own board, same as the old chip list did.
+    const laneTarget = isActive && laneTargeting;
+    const onLaneTarget = (): void => {
+      if (g.sel.kind === 'heroLane') g.pickHeroLane(lane);
+      else if (g.sel.kind === 'spellMove') g.pickMoveLane(lane);
+      else if (g.sel.kind === 'pending') g.pickPendingLane(lane);
+    };
     return (
       <LaneView
         lane={player.lanes[lane]}
         laneId={lane}
         droppable={laneDroppable}
+        dropState={isActive ? dropState : 'ok'}
         dragCard={g.drag?.card ?? null}
         unitClickable={unitClickable}
-        spellTarget={dragKind === 'target'}
+        spellTarget={dragKind === 'target' || spellTargeting}
         sacSet={sacSet}
         isOpponent={!isActive}
         sniperTarget={!isActive && sniperTargeting}
+        laneTarget={laneTarget}
         onDropLane={(pos) => g.dropOnLane(player.id, lane, pos)}
-        onSniperTarget={() => g.pickSniperTarget(lane)}
+        onSniperTarget={() => (g.sel.kind === 'extraActionAim' ? g.pickExtraActionLane(lane) : g.pickSniperTarget(lane))}
+        onLaneTarget={onLaneTarget}
         onUnit={(iid) => g.clickUnit(iid, player.id)}
         onUnitDrop={(iid) => g.dropOnTarget({ kind: 'unit', iid })}
         onUnitDetail={onUnitDetail}
@@ -569,7 +921,10 @@ function LaneColumn({
         onDrop={envDroppable ? () => g.dropEnvironment(lane) : undefined}
       >
         <span className="lanecol__label">
-          {LANE_LABEL[lane]}{lane === 'heights' ? ' ▲' : lane === 'water' ? ' ≈' : ''}
+          {/* Reads the LIVE layout: a re-laid board (Naife's rule, a laneLayout Trial) has
+              to say what each column actually IS, or the player is planning against the
+              printed board while the engine resolves against another one. */}
+          {laneLabel(lane, g.game.laneTypes)}{isHeights(lane, g.game.laneTypes) ? ' ▲' : isWater(lane, g.game.laneTypes) ? ' ≈' : ''}
         </span>
         {(oppAtk > 0 || myAtk > 0) && <LaneControl opp={oppAtk} me={myAtk} />}
         {combatActive && combatPhase && (
@@ -586,21 +941,26 @@ function LaneView({
   lane,
   laneId,
   droppable,
+  dropState = 'ok',
   dragCard,
   unitClickable,
   spellTarget,
   sacSet,
   isOpponent,
   sniperTarget = false,
+  laneTarget = false,
   onDropLane,
   onUnit,
   onUnitDrop,
   onUnitDetail,
   onSniperTarget,
+  onLaneTarget,
 }: {
   lane: Lane;
   laneId: LaneId;
   droppable: boolean;
+  /** Outcome of dropping the dragged unit here — tints the lane so the rule shows itself. */
+  dropState?: 'ok' | 'full' | 'drown';
   dragCard: Card | null;
   unitClickable: boolean;
   spellTarget: boolean;
@@ -609,11 +969,14 @@ function LaneView({
   isOpponent: boolean;
   /** When true, clicking the half selects this lane as a sniper target. */
   sniperTarget?: boolean;
+  /** When true, clicking the half commits this lane as a Leader Skill/Move destination. */
+  laneTarget?: boolean;
   onDropLane: (pos?: 'front' | 'back') => void;
   onUnit: (iid: string) => void;
   onUnitDrop: (iid: string) => void;
   onUnitDetail: (u: UnitInstance) => void;
   onSniperTarget?: () => void;
+  onLaneTarget?: () => void;
 }) {
   const renderUnit = (u: UnitInstance, slot: 'front' | 'back') => (
     <UnitView
@@ -642,8 +1005,8 @@ function LaneView({
 
   return (
     <div
-      className={`lane lane--${laneId} lane--${isOpponent ? 'foe' : 'me'} ${droppable && !showPositionZones ? 'lane--drop' : ''} ${showPositionZones ? 'lane--dtplace' : ''} ${sniperTarget ? 'lane--sniper-target' : ''}`}
-      onClick={sniperTarget ? onSniperTarget : undefined}
+      className={`lane lane--${laneId} lane--${isOpponent ? 'foe' : 'me'} ${droppable && !showPositionZones ? 'lane--drop' : ''} ${showPositionZones ? 'lane--dtplace' : ''} ${sniperTarget ? 'lane--sniper-target' : ''} ${laneTarget ? 'lane--lane-target' : ''} ${dropState !== 'ok' ? `lane--${dropState}` : ''}`}
+      onClick={sniperTarget ? onSniperTarget : laneTarget ? onLaneTarget : undefined}
       onDragOver={(e) => droppable && !showPositionZones && e.preventDefault()}
       onDrop={showPositionZones ? undefined : () => onDropLane()}
     >
@@ -665,8 +1028,19 @@ function LaneView({
         <>
           {units[0]}
           {units[1]}
+<<<<<<< Updated upstream
           {!lane.front && lane.standaloneFoundation && renderUnit(lane.standaloneFoundation, 'front')}
           {!lane.front && !lane.back && !lane.standaloneFoundation && <div className="lane__empty">{droppable ? '＋' : '·'}</div>}
+=======
+          {!lane.front && lane.standaloneFoundation && renderUnit(lane.standaloneFoundation, 'front', droppable)}
+          {!lane.front && !lane.back && !lane.standaloneFoundation && (
+            <div className="lane__empty">{dropState === 'drown' ? '⇊' : droppable ? '＋' : '·'}</div>
+          )}
+          {/* A full lane says so, rather than silently refusing the drop. */}
+          {dropState === 'full' && <div className="lane__blocked" aria-hidden="true">✕</div>}
+          {/* Water warns before it drowns: the same ⇊ the afflicted unit will wear. */}
+          {dropState === 'drown' && (lane.front || lane.back) && <div className="lane__warn" aria-hidden="true">⇊</div>}
+>>>>>>> Stashed changes
         </>
       )}
     </div>
@@ -678,11 +1052,22 @@ function EnvironmentTile({ env }: { env: EnvironmentInstance }) {
   const card = registry.cards.get(env.cardId);
   const name = card?.name ?? env.cardId;
   const text = card?.text ?? '';
+  const granted = card?.type === 'environment' ? listAbilities(card.grantKeywords ?? {}) : [];
   return (
     <div className="unit unit--environment" title={text ? `${name} — ${text}` : name}>
       <div className="unit__name">⬡ {name}</div>
       {text && <div className="unit__envtext">{text}</div>}
-      <div className="unit__kw"><span className="kwbadge">Environment</span></div>
+      {/* Show WHAT the lane now grants, as the same icons units wear — the old chip just said
+          the word "Environment", which the ⬡ already conveys. */}
+      <div className="unit__kw">
+        {granted.length > 0
+          ? granted.map((a) => (
+              <span key={a.key} className={`kwbadge kwbadge--${badgeTone(a.key)}`} title={`This lane grants ${a.name} — ${a.description}`}>
+                <span className="kwbadge__icon" aria-hidden="true">{a.icon}</span>
+              </span>
+            ))
+          : <span className="kwbadge kwbadge--util" title="Environment"><span className="kwbadge__icon" aria-hidden="true">⬡</span></span>}
+      </div>
     </div>
   );
 }
@@ -690,7 +1075,11 @@ function EnvironmentTile({ env }: { env: EnvironmentInstance }) {
 /** Numeric value carried by a keyword (e.g. Shield 3), or null for flag abilities. */
 function abilityValue(a: NamedAbility, kw: Keywords): number | null {
   const v = kw[a.key as keyof Keywords];
-  return typeof v === 'number' ? v : null;
+  if (typeof v === 'number') return v;
+  // Countdown's magnitude is `turns`, buried inside an object — the plain numeric check
+  // above misses it entirely, so the badge read as a bare "⏳ Countdown" with no timer.
+  if (a.key === 'countdown' && v && typeof v === 'object' && 'turns' in v) return (v as { turns: number }).turns;
+  return null;
 }
 
 /** Human-readable badge: icon + full ability name + numeric value where applicable. */
@@ -699,14 +1088,113 @@ function shortBadge(a: NamedAbility, kw: Keywords): string {
   return v !== null ? `${a.icon} ${a.name} ${v}` : `${a.icon} ${a.name}`;
 }
 
+/**
+ * Every TRIGGERED effect a card definition carries, as labelled human lines.
+ *
+ * The card face and the detail panel used to render `effects` for spells and environments
+ * only, so a unit or foundation whose whole point is a trigger — The Fence's "On play: draw",
+ * a Kamikaze payload, a Bloodlust or Polish rider, a Foundation's granted end-of-turn tick —
+ * showed its stats and nothing else. The mechanic existed, ran, and was invisible.
+ *
+ * The effect-keywords (healer/producer/debuff/mover/expel) are folded into these same trigger
+ * arrays by `expandKeywordEffects` at registry-build time, and their keyword is DELETED there,
+ * so a registry card renders each of them exactly once — here, not as an ability badge.
+ */
+export function cardTriggerLines(card: Card): string[] {
+  const lines: string[] = [];
+  const push = (label: string, effects?: Effect[]): void => {
+    const body = (effects ?? []).map(effectLine).filter(Boolean).join(', ');
+    if (body) lines.push(`${label}: ${body}`);
+  };
+  if (card.type === 'unit' || card.type === 'foundation') {
+    const kw = card.keywords;
+    if (card.type === 'unit') {
+      push('▶ On play', card.onPlay);
+      push('⚔ On attack', card.onAttack);
+      push('⌛ End of turn', card.endOfTurn);
+      push('☀ Start of turn', card.startOfTurn);
+    } else {
+      // A Foundation's triggers are transferred onto whatever bonds on top of it, so they
+      // read as a promise about the host, not about the foundation's own body.
+      push('⌂ Grants ⚔ On attack', card.grants.onAttack);
+      push('⌂ Grants ⌛ End of turn', card.grants.endOfTurn);
+      push('⌂ Grants ☀ Start of turn', card.grants.startOfTurn);
+      const gh = card.grants.onHit;
+      if (gh) {
+        const hits = Object.keys(gh).map((k) => `${STATUS_INFO[k as keyof typeof STATUS_INFO]?.icon ?? ''} ${k}`).join(', ');
+        if (hits) lines.push(`⌂ Grants ✦ On-hit: ${hits}`);
+      }
+    }
+    // Keyword-carried payloads. The ability badge names the trigger ("Kamikaze", "Bloodlust");
+    // only these lines say what actually happens when it fires.
+    if (kw.kamikaze) push('✺ Kamikaze', [kw.kamikaze]);
+    if (kw.bloodlust && (kw.bloodlust.buff || kw.bloodlust.effects)) {
+      const parts = [statLabel(kw.bloodlust.buff), ...(kw.bloodlust.effects ?? []).map(effectLine)].filter(Boolean);
+      if (parts.length) lines.push(`‡ Bloodlust: ${parts.join(', ')}`);
+    }
+    if (kw.polish && (kw.polish.stat || kw.polish.effects)) {
+      const parts = [statLabel(kw.polish.stat), ...(kw.polish.effects ?? []).map(effectLine)].filter(Boolean);
+      if (parts.length) lines.push(`✧ Polish: ${parts.join(', ')}`);
+    }
+    if (kw.sacrifice) {
+      const per = statLabel(kw.sacrifice.buff);
+      lines.push(`† Sacrifice up to ${kw.sacrifice.max}${per ? ` — each gives ${per}` : ''}`);
+    }
+    // Countdown's badge (shortBadge/abilityValue) only ever showed the bare "⏳ Countdown N" —
+    // the timer, never WHAT fires when it reaches zero. Same shape as Kamikaze: the badge
+    // names the trigger, this line says what it actually does.
+    if (kw.countdown) {
+      const cd = kw.countdown;
+      const body = (cd.effects ?? []).map(effectLine).filter(Boolean).join(', ');
+      if (body) {
+        const when = cd.repeat ? `Every ${cd.turns} turn(s)` : `After ${cd.turns} turn(s)`;
+        lines.push(`⏳ ${when}: ${body}${cd.consume ? ' — then destroyed' : ''}`);
+      }
+    }
+    if (Array.isArray(kw.aquatic)) push('≈ On entering Water', kw.aquatic);
+  }
+  return lines;
+}
+
+/** "+2⚔ +1❤" for a stat mod, or '' when it carries nothing. */
+function statLabel(stat?: { attack?: number; hp?: number }): string {
+  if (!stat) return '';
+  return [
+    stat.attack ? `${stat.attack > 0 ? '+' : ''}${stat.attack}⚔` : '',
+    stat.hp ? `${stat.hp > 0 ? '+' : ''}${stat.hp}❤` : '',
+  ].filter(Boolean).join(' ');
+}
+
 /** Ability names line for any card definition (units, foundations, spells). */
 export function cardAbilityLine(card: Card): string {
-  const kw = card.type === 'unit' ? card.keywords : card.type === 'foundation' ? (card.grants.keywords ?? {}) : {};
+  // An Environment's real mechanic is the keyword it grants to its lane, held in `grantKeywords`
+  // — not in `effects` (which only carries a 'custom' placeholder). Reading the grant here means
+  // an Environment describes itself with the same icon vocabulary units use.
+  const kw =
+    card.type === 'unit' ? card.keywords
+    : card.type === 'foundation' ? foundationGrantKeywords(card)
+    : card.type === 'environment' ? (card.grantKeywords ?? {})
+    : {};
   const abilities = listAbilities(kw);
+  // A Foundation's granted STATS were invisible — `grants.keywords` rendered but `grants.stat`
+  // did not, so "+2/+1 to whatever stands here" (often the whole reason to play it) never
+  // appeared anywhere on the card.
+  // The grant is HALF the Foundation's own body (derived, see `foundationGrantStat`), not the
+  // authored `grants.stat` the engine no longer reads.
+  const grantStat = card.type === 'foundation' ? foundationGrantStat(card) : undefined;
+  const statLine = grantStat && (grantStat.attack || grantStat.hp)
+    ? [`⌂ Grants ${[grantStat.attack ? `${grantStat.attack > 0 ? '+' : ''}${grantStat.attack}⚔` : '', grantStat.hp ? `${grantStat.hp > 0 ? '+' : ''}${grantStat.hp}❤` : ''].filter(Boolean).join(' ')}`]
+    : [];
   const onHit = card.type === 'unit' && card.onHit ? Object.keys(card.onHit).map((k) => `✦ On-hit ${STATUS_INFO[k as keyof typeof STATUS_INFO]?.icon ?? ''} ${k}`) : [];
-  // Spells and environments are defined by their effects — show those as icon lines too.
-  const effects = card.type === 'spell' || card.type === 'environment' ? card.effects.map(effectLine) : [];
-  return [...abilities.map((a) => shortBadge(a, kw)), ...onHit, ...effects].join(' · ');
+  // Spells and environments are defined by their effects — show those as icon lines too. Skip
+  // placeholder 'custom' notes on an Environment that already renders its grant above, so the
+  // card doesn't say the same thing twice in two vocabularies.
+  const grantsShown = card.type === 'environment' && abilities.length > 0;
+  const effects =
+    card.type === 'spell' || card.type === 'environment'
+      ? card.effects.filter((e) => !(grantsShown && e.kind === 'custom')).map(effectLine).filter(Boolean)
+      : [];
+  return [...statLine, ...abilities.map((a) => shortBadge(a, kw)), ...onHit, ...effects, ...cardTriggerLines(card)].join(' · ');
 }
 
 /**
@@ -763,6 +1251,19 @@ const OFFENSIVE_KEYS = new Set<string>([
 const DEFENSIVE_KEYS = new Set<string>([
   'trueShield', 'taunt', 'immunity', 'zombified', 'shield', 'spike', 'tough', 'kamikaze', 'polish',
 ]);
+
+/**
+ * The colour a keyword badge carries on the board. The point is pre-attentive reading: a player
+ * scanning the field should register "that one threatens me" / "that one is hard to kill" from
+ * colour alone, without decoding each glyph or reading any text. Reuses the same offensive /
+ * defensive sets the stat-glyph substitution already relies on, so there is no second taxonomy.
+ */
+export const badgeTone = (key: string): 'atk' | 'def' | 'util' =>
+  // An on-hit package ("applies Burn when it damages") is a threat, not utility. Its synthetic
+  // key is in neither keyword set, so without this it fell through to the gilt "utility" tone
+  // and read as harmless.
+  key === '__onhit__' ? 'atk'
+  : OFFENSIVE_KEYS.has(key) ? 'atk' : DEFENSIVE_KEYS.has(key) ? 'def' : 'util';
 
 /**
  * Decide what shows behind each stat and what stays as side badges. A single attack ability
@@ -844,6 +1345,21 @@ function UnitView({
   const registry = useRegistry();
   const abilities = listAbilities(u.keywords);
   const { atk, def, side } = unitStatGlyphs(u, abilities);
+  // What this Foundation will hand to the unit that bonds with it (standalone only — once
+  // bonded the grant is already baked into the host's stats and badges).
+  const foundationGrant = (() => {
+    if (!u.isFoundation) return null;
+    const fdef = registry.cards.get(u.cardId);
+    if (!fdef || fdef.type !== 'foundation') return null;
+    // Derived from the LIVE body, so a buffed Foundation advertises the bigger grant it now makes.
+    const st = foundationGrantStat({ attack: u.status.drowning ? (u.predrownAttack ?? 0) : u.attack, hp: u.hp });
+    const stat = st && (st.attack || st.hp)
+      ? [st.attack ? `${st.attack > 0 ? '+' : ''}${st.attack}⚔` : '', st.hp ? `${st.hp > 0 ? '+' : ''}${st.hp}❤` : ''].filter(Boolean).join(' ')
+      : '';
+    const granted = listAbilities(foundationGrantKeywords(fdef, u.keywords) as never);
+    if (!stat && granted.length === 0) return null;
+    return { stat, icons: granted.map((a) => a.icon), label: [stat, ...granted.map((a) => a.name)].filter(Boolean).join(', ') };
+  })();
   const frozen = (u.status.freeze ?? 0) > 0;
   const asleep = (u.status.sleep ?? 0) > 0;
   const burning = (u.status.burn ?? 0) > 0;
@@ -888,6 +1404,18 @@ function UnitView({
       {asleep && <div className="fx-zzz" aria-hidden="true"><span>Z</span><span>z</span><span>z</span></div>}
       {frozen && <div className="fx-ice" aria-hidden="true"><span className="fx-ice__crystal">❄</span></div>}
       {sacSelected && <div className="unit__dagger" title="Marked for sacrifice">†</div>}
+      {/* A standalone Foundation is a promise: it fights alone now, and hands its grant to the
+          next unit placed here. That grant was invisible until you committed a unit to it, so
+          the decision had to be made blind. Show it while it still matters. */}
+      {u.isFoundation && foundationGrant && (
+        <div className="unit__grant" title={`Bonds with the next unit placed here and grants it ${foundationGrant.label}`}>
+          <span className="unit__grant-icon" aria-hidden="true">⌂→</span>
+          {foundationGrant.stat && <span className="unit__grant-stat">{foundationGrant.stat}</span>}
+          {foundationGrant.icons.map((ic, i) => (
+            <span key={i} className="unit__grant-kw" aria-hidden="true">{ic}</span>
+          ))}
+        </div>
+      )}
       <div className="unit__name">{u.isFoundation ? '⌂ ' : ''}{registry.cards.get(u.cardId)?.name ?? u.cardId}</div>
       <div className="unit__body">
         <StatBlock attack={u.attack} hp={u.hp} maxHp={u.maxHp} atk={atk} def={def} />
@@ -895,8 +1423,12 @@ function UnitView({
           <div className="unit__kw">
             {side.map((a) => {
               const v = abilityValue(a, u.keywords);
+              // "Inflicts Burn" and "is Burning" share the same glyph; the arrow marks the
+              // outgoing one so a threat is never mistaken for an affliction the unit suffers.
+              const inflicts = a.key === '__onhit__';
               return (
-                <span key={a.key} className="kwbadge" title={`${a.name} — ${a.description}`}>
+                <span key={a.key} className={`kwbadge kwbadge--${badgeTone(a.key)}`} title={`${a.name} — ${a.description}`}>
+                  {inflicts && <span className="kwbadge__arrow" aria-hidden="true">→</span>}
                   <span className="kwbadge__icon" aria-hidden="true">{a.icon}</span>
                   {v !== null && <span className="kwbadge__val">{v}</span>}
                 </span>
@@ -943,7 +1475,7 @@ function OpponentHand({ count }: { count: number }) {
   );
 }
 
-function Hand({ g, active, onDetail }: { g: ReturnType<typeof useGame>; active: PlayerState; onDetail: (card: Card) => void }) {
+function Hand({ g, active, onDetail }: { g: ReturnType<typeof useGame>; active: PlayerState; onDetail: (card: Card, bank?: Record<Element, number>, costMod?: number) => void }) {
   const registry = useRegistry();
   if (g.passing) return <div className="hand hand--hidden">Hand hidden — pass the device</div>;
   const n = active.hand.length;
@@ -954,8 +1486,17 @@ function Hand({ g, active, onDetail }: { g: ReturnType<typeof useGame>; active: 
         const def = registry.cards.get(c.cardId);
         if (!def) return null;
         const affordable = g.canAffordCard(c.iid);
+        // The live cost modifier for this card type (Anti Magic Field, run-long relic
+        // discounts) AND for this physical copy (`costDelta`, set by effects like
+        // Corpselock's hand discount). The copy was previously omitted here, so the face
+        // showed one price while `canAffordCard` — which goes through the engine and does
+        // include it — charged another. A card could read as affordable and refuse to play.
+        const cmod = costModFor(active, def.type, c);
         const armed = g.sel.kind === 'sacrifice' && g.sel.iid === c.iid;
-        const draggable = affordable && g.canDrag(c.iid) && g.myTurn;
+        // Sealed by a boss rule (Screyera's Foresight). It has to LOOK different, not just
+        // fail to respond — an unplayable card with no explanation reads as a broken UI.
+        const sealed = active.sealedIid === c.iid;
+        const draggable = affordable && !sealed && g.canDrag(c.iid) && g.myTurn;
         // Fan the hand: rotate each card around its base and drop the edges into an arc.
         const off = i - center;
         const rot = off * 3.4;
@@ -970,15 +1511,20 @@ function Hand({ g, active, onDetail }: { g: ReturnType<typeof useGame>; active: 
             key={c.iid}
             data-cardiid={c.iid}
             style={fan}
-            className={`handcard chip--${def.element} ${armed ? 'handcard--armed' : ''} ${affordable ? '' : 'handcard--disabled'} ${g.hintMode && affordable ? 'handcard--playable' : ''} ${draggable ? 'handcard--drag' : ''}`}
+            className={`handcard chip--${def.element} ${armed ? 'handcard--armed' : ''} ${affordable && !sealed ? '' : 'handcard--disabled'} ${sealed ? 'handcard--sealed' : ''} ${g.hintMode && affordable && !sealed ? 'handcard--playable' : ''} ${draggable ? 'handcard--drag' : ''}`}
             draggable={draggable}
             onDragStart={() => g.startDrag(c.iid)}
             onDragEnd={g.endDrag}
             onClick={() => g.clickHand(c.iid)}
-            onDoubleClick={() => onDetail(def)}
-            title={draggable ? 'Drag onto the board' : 'Double-click for details'}
+            onDoubleClick={() => onDetail(def, active.bank, cmod)}
+            title={sealed ? 'Sealed this turn — she has already seen it' : draggable ? 'Drag onto the board' : 'Double-click for details'}
           >
+<<<<<<< Updated upstream
             <CardFace def={def} />
+=======
+            <CardFace def={def} bank={active.bank} costMod={cmod} />
+            {sealed && <span className="handcard__seal" aria-label="Sealed">🔒</span>}
+>>>>>>> Stashed changes
           </button>
         );
       })}
@@ -987,12 +1533,13 @@ function Hand({ g, active, onDetail }: { g: ReturnType<typeof useGame>; active: 
   );
 }
 
-function Controls({ g, active }: { g: ReturnType<typeof useGame>; active: PlayerState }) {
+function Controls({ g, active, onDetail }: { g: ReturnType<typeof useGame>; active: PlayerState; onDetail: (d: Detail) => void }) {
   const registry = useRegistry();
   const [bank, setBank] = useState<Partial<Record<Element, number>>>({});
   const [muted, setMutedUI] = useState(getMuted());
   const [volume, setVolumeUI] = useState(getVolume());
   const [musicMuted, setMusicMutedUI] = useState(getMusicMuted());
+  const [musicVolume, setMusicVolumeUI] = useState(getMusicVolume());
   const banked = ELEMENTS.reduce((s, e) => s + (bank[e] ?? 0), 0);
   // Banking is a commit that only happens on End Turn, so queuing it is meaningless when it
   // isn't your turn — drop any queued banking the moment the turn hands off so the counter
@@ -1011,6 +1558,8 @@ function Controls({ g, active }: { g: ReturnType<typeof useGame>; active: Player
 
   return (
     <div className="controls">
+
+      <SpellArea g={g} onDetail={onDetail} />
 
       {/* Enemy reserves — the opponent's banked elements. Your own banks aren't duplicated
           here; they live in the Banking tiles below. */}
@@ -1046,7 +1595,17 @@ function Controls({ g, active }: { g: ReturnType<typeof useGame>; active: Player
             const total = current + pending;
             const atCap = total >= cap;
             return (
+<<<<<<< Updated upstream
               <div key={e} className={`banktile banktile--${e}${pending > 0 ? ' banktile--active' : ''}`}>
+=======
+              <div key={e} className={`banktile banktile--${e}${pending > 0 ? ' banktile--active' : ''}${atCap ? ' banktile--atcap' : ''}`}
+                style={{ ['--fill-pct' as string]: `${cap > 0 ? Math.min(100, (total / cap) * 100) : 0}%`,
+                         ['--commit-pct' as string]: `${cap > 0 ? Math.min(100, (current / cap) * 100) : 0}%` }}>
+                <span className="banktile__vial" aria-hidden="true"><span className="banktile__vial-fill" /><span className="banktile__vial-pending" /></span>
+                {/* At cap the + button simply stopped working with no reason given. The lid
+                    says the reservoir is full — that IS the cap rule, shown rather than told. */}
+                {atCap && <span className="banktile__lid" aria-hidden="true" title={`${ELEMENT_NAME[e]} bank is at its cap of ${cap} — this leader cannot store more`}>▬</span>}
+>>>>>>> Stashed changes
                 <span className="banktile__icon"><ElementRune element={e} size={18} /> <span className="banktile__elname">{ELEMENT_NAME[e]}</span></span>
                 <span className="banktile__fraction">{total}<span className="banktile__cap">/{cap}</span></span>
                 {pending > 0 && <span className="banktile__pending">+{pending}</span>}
@@ -1075,53 +1634,92 @@ function Controls({ g, active }: { g: ReturnType<typeof useGame>; active: Player
         <button className="btn-cancel" onClick={g.cancelSelection} title="Or right-click anywhere on the board">Cancel <span className="muted" style={{ fontSize: 11 }}>(or right-click)</span></button>
       )}
 
-      {/* Sound */}
+      {/* Sound — one row per bus. Music had a persisted level and a working setter but no
+          control, so its volume was only reachable by editing localStorage. Two rows rather
+          than one: the sidebar is ~150px, and four controls abreast leaves each slider too
+          narrow to aim at. */}
       <div className="audioctl">
-        <button
-          className="audioctl__toggle"
-          onClick={() => { const m = !muted; setMuted(m); setMutedUI(m); }}
-          title={muted ? 'Unmute sound' : 'Mute sound'}
-        >
-          {muted ? '⊘' : '♪'}
-        </button>
-        <input
-          className="audioctl__slider"
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={volume}
-          disabled={muted}
-          onChange={(ev) => { const v = Number(ev.target.value); setVolume(v); setVolumeUI(v); }}
-          title="Sound volume"
-        />
-        <button
-          className={`audioctl__toggle${musicMuted ? ' audioctl__toggle--off' : ''}`}
-          onClick={() => { const m = !musicMuted; setMusicMuted(m); setMusicMutedUI(m); }}
-          title={musicMuted ? 'Enable music' : 'Mute music'}
-        >
-          ♫
-        </button>
+        <div className="audioctl__row">
+          <button
+            className="audioctl__toggle"
+            onClick={() => { const m = !muted; setMuted(m); setMutedUI(m); }}
+            title={muted ? 'Unmute sound' : 'Mute sound'}
+          >
+            {muted ? '⊘' : '♪'}
+          </button>
+          <input
+            className="audioctl__slider"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={volume}
+            disabled={muted}
+            onChange={(ev) => { const v = Number(ev.target.value); setVolume(v); setVolumeUI(v); }}
+            title="Sound volume"
+          />
+        </div>
+        <div className="audioctl__row">
+          <button
+            className={`audioctl__toggle${musicMuted ? ' audioctl__toggle--off' : ''}`}
+            onClick={() => { const m = !musicMuted; setMusicMuted(m); setMusicMutedUI(m); }}
+            title={musicMuted ? 'Enable music' : 'Mute music'}
+          >
+            ♫
+          </button>
+          <input
+            className="audioctl__slider"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={musicVolume}
+            disabled={musicMuted}
+            onChange={(ev) => { const v = Number(ev.target.value); setMusicVolume(v); setMusicVolumeUI(v); }}
+            title="Music volume"
+          />
+        </div>
       </div>
 
       {/* Context: card selected, sacrifice, hero target, etc. */}
       <div className="controls__ctx">
-        {cardSel && (
-          <div className="selinfo">
-            <b>{cardSel.card.name}</b>
-            <div className="selinfo__abilities">
-              {abilitiesForCard(cardSel.card).map((a) => (
-                <span key={a.key} className="ability" title={a.description}>{a.name}</span>
-              ))}
-              {cardSel.card.type === 'spell' && cardSel.card.effects.map((e, i) => (
-                <span key={i} className="ability">{effectLine(e)}</span>
-              ))}
-              {abilitiesForCard(cardSel.card).length === 0 && cardSel.card.type !== 'spell' && (
-                <span className="muted">No special abilities.</span>
-              )}
+        {cardSel && (() => {
+          const abilities = abilitiesForCard(cardSel.card);
+          // Effects live in `.effects` for a spell/environment, but for a unit/foundation
+          // whose ability was authored via the `healer`/`producer`/`mover`/`expel`/`debuff`
+          // shorthand, `expandKeywordEffects` folds it into a trigger array (`onPlay`/
+          // `endOfTurn`/…, or `grants.*` for a foundation's own body) and DELETES the
+          // shorthand key — so `abilitiesForCard`, which only reads the raw `keywords`
+          // object, sees nothing. `cardTriggerLines` (already relied on by `DetailBody`,
+          // which is why the full card-detail modal has never had this gap) is the one
+          // place that reads those trigger arrays back out as text. Reef Nurse ("On play:
+          // heal an ally 2", authored via the Healer shorthand) and every trigger-granting
+          // Foundation (Smuggler's Cache, Mana Geyser, Lifewell Base) showed "No special
+          // abilities" here — in the one panel a player checks before playing a card —
+          // despite doing exactly what their printed text says.
+          const triggers = cardTriggerLines(cardSel.card);
+          const envEffects = cardSel.card.type === 'environment' ? cardSel.card.effects : [];
+          const empty = abilities.length === 0 && triggers.length === 0
+            && cardSel.card.type !== 'spell' && envEffects.length === 0;
+          return (
+            <div className="selinfo">
+              <b>{cardSel.card.name}</b>
+              <div className="selinfo__abilities">
+                {abilities.map((a) => (
+                  <span key={a.key} className="ability" title={a.description}>{a.name}</span>
+                ))}
+                {cardSel.card.type === 'spell' && cardSel.card.effects.map((e, i) => (
+                  <span key={i} className="ability">{effectLine(e)}</span>
+                ))}
+                {envEffects.map((e, i) => (
+                  <span key={i} className="ability">{effectLine(e)}</span>
+                ))}
+                {triggers.map((t, i) => <span key={`t${i}`} className="ability">{t}</span>)}
+                {empty && <span className="muted">No special abilities.</span>}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         {sac && !sac.confirmed && (
           <>
             <span className="hint">† Sacrifice up to {sac.sacNeed} ({sac.sac.length}/{sac.sacNeed}) then confirm.</span>
@@ -1144,15 +1742,16 @@ function Controls({ g, active }: { g: ReturnType<typeof useGame>; active: Player
         {g.sel.kind === 'hero' && !heroNeedsElement && (
           <span className="hint">Click a target unit or leader.</span>
         )}
+        {g.sel.kind === 'heroLane' && (
+          <span className="hint">⌖ {leaderSkill?.name ?? 'Leader Skill'}: click a lane on your side of the field.</span>
+        )}
+        {g.sel.kind === 'spellTargets' && (
+          <span className="hint">
+            ⌖ <b>{g.sel.card.name}</b>: click target {g.sel.refs.length + 1} of {g.sel.need}.
+          </span>
+        )}
         {g.sel.kind === 'spellMove' && (
-          <div className="selinfo selinfo--col">
-            <span className="hint">⌖ Destination for <b>{g.sel.card.name}</b>:</span>
-            <div className="selinfo__row">
-              {LANES.map((l) => (
-                <button key={l} className="chip" onClick={() => g.pickMoveLane(l)}>{LANE_LABEL[l]}</button>
-              ))}
-            </div>
-          </div>
+          <span className="hint">⌖ <b>{g.sel.card.name}</b>: click a lane on your side of the field.</span>
         )}
         {g.sel.kind === 'sniperPhase' && (() => {
           const current = g.sel.pending[0];
@@ -1163,6 +1762,11 @@ function Controls({ g, active }: { g: ReturnType<typeof useGame>; active: Player
             </span>
           ) : null;
         })()}
+        {g.sel.kind === 'extraActionAim' && (
+          <span className="hint">
+            ◎ <b>{g.sel.name}</b>: click an enemy lane to aim its bonus attack.
+          </span>
+        )}
         {g.sel.kind === 'pending' && (() => {
           const pc = g.game.pending?.[0];
           if (!pc) return null;
@@ -1174,14 +1778,7 @@ function Controls({ g, active }: { g: ReturnType<typeof useGame>; active: Player
               {!g.sel.pickedUnit ? (
                 <span className="hint">⇄ <b>{label}</b>: click {scopeWord} unit to {verb}.</span>
               ) : (
-                <div className="selinfo selinfo--col">
-                  <span className="hint">⌖ Move to which lane?</span>
-                  <div className="selinfo__row">
-                    {LANES.map((l) => (
-                      <button key={l} className="chip" onClick={() => g.pickPendingLane(l)}>{LANE_LABEL[l]}</button>
-                    ))}
-                  </div>
-                </div>
+                <span className="hint">⌖ Click a lane on your side of the field to move it there.</span>
               )}
               <button className="chip" onClick={g.skipPending}>Skip</button>
             </div>
@@ -1209,20 +1806,67 @@ function findUnitCardId(game: GameState, iid: string): string {
 export function effectLine(e: Effect): string {
   const t = e.target ? ` (${e.target})` : '';
   switch (e.kind) {
-    case 'damage': return `✸ Deal ${e.amount}${t}`;
+    // `amountFrom` replaces a fixed amount (Reprisal deals the TARGET's own attack). Without
+    // it the line rendered the literal word "undefined". `chainDiminish` and `pierce` are the
+    // whole point of the cards that carry them, so they are named rather than silently dropped.
+    case 'damage': {
+      const amt = e.amountFrom === 'targetAttack' ? "the target's ⚔" : String(e.amount ?? 0);
+      const extra = [
+        e.chainDiminish ? '↯ chains, weakening' : e.chain ? `↯ chains ${e.chain}` : '',
+        e.pierce ? '⤵ pierces defences' : '',
+      ].filter(Boolean).join(' ');
+      return `✸ Deal ${amt}${t}${extra ? ` · ${extra}` : ''}`;
+    }
     case 'heal': return `✚ Heal ${e.amount}${t}`;
-    case 'buff': return `↑ Buff ${e.stat?.attack ? `+${e.stat.attack} atk ` : ''}${e.stat?.hp ? `+${e.stat.hp} hp` : ''}${t}`;
-    case 'debuff': return `▼ Debuff${t}`;
+    // A buff/debuff may carry STATS, granted KEYWORDS, or both. Only stats were ever rendered,
+    // so a keyword-granting buff (e.g. the Signature "Masking": Pierce + Double Strike) printed
+    // as a bare "↑ Buff" and told the player nothing about what it actually does.
+    case 'buff':
+    case 'debuff': {
+      const st = e.stat;
+      const parts: string[] = [];
+      if (st?.attack) parts.push(`${st.attack > 0 ? '+' : ''}${st.attack}⚔`);
+      if (st?.hp) parts.push(`${st.hp > 0 ? '+' : ''}${st.hp}❤`);
+      for (const a of listAbilities((e.keywords ?? {}) as Keywords)) parts.push(`${a.icon} ${a.name}`);
+      const icon = e.kind === 'buff' ? '↑' : '▼';
+      const label = parts.length > 0 ? parts.join(' ') : e.kind === 'buff' ? 'Buff' : 'Debuff';
+      return `${icon} ${label}${t}`;
+    }
     case 'draw': return `♠ Draw ${e.amount}`;
-    case 'applyStatus': return `${STATUS_INFO[e.status as keyof typeof STATUS_INFO]?.icon ?? '✧'} Apply ${STATUS_INFO[e.status as keyof typeof STATUS_INFO]?.name ?? e.status}${t}`;
+    // Status MAGNITUDE was dropped, so Burn 3 and Burn 1 read identically.
+    case 'applyStatus': {
+      const info = STATUS_INFO[e.status as keyof typeof STATUS_INFO];
+      const n = e.amount && e.amount > 1 ? ` ${e.amount}` : '';
+      return `${info?.icon ?? '✧'} Apply ${info?.name ?? e.status}${n}${t}`;
+    }
     case 'energy': return `↯ Gain ${e.amount} energy`;
     case 'move': return `⇄ Move${t}`;
     case 'expel': return `↩ Expel${t}`;
-    case 'forget': return `⌫ Forget${t}`;
+    case 'forget': return `⌫ Forget${e.amount && e.amount > 1 ? ` ${e.amount}` : ''}${t}`;
     case 'summon': return `♟ Summon ${e.cardId ?? ''}${e.lane ? ` in ${e.lane}` : ''}`;
     case 'conjure': return `♢ Conjure ${e.cardId ?? ''}${t}`;
     case 'extraAction': return `↯ Bonus action${t}`;
-    case 'costMod': return `¤ Spell cost ${(e.amount ?? 0) >= 0 ? '+' : ''}${e.amount}${t}`;
+    // `cleanse` and `setStats` had NO case and fell through to the default branch, which
+    // returns the bare kind — so three shipped cards (Rejuvenate, Ironroot Ward, Purify)
+    // displayed the literal word "cleanse" where their effect should be.
+    case 'cleanse': return `✧ Clear all statuses${t}`;
+    case 'setStats': {
+      const st = e.stat;
+      const parts = [st?.attack !== undefined ? `${st.attack}⚔` : '', st?.hp !== undefined ? `${st.hp}❤` : ''].filter(Boolean);
+      return `⚙ Set to ${parts.length ? parts.join(' ') : 'base stats'}${t}`;
+    }
+    // The label hardcoded "Spell" while `cardType` may name any type (or 'all'), so an
+    // environment discount claimed to be a spell discount. A very large negative is the
+    // "make it free" idiom used by the data, and reads better as such.
+    case 'costMod': {
+      const what = e.cardType && e.cardType !== 'all' ? `${e.cardType[0]!.toUpperCase()}${e.cardType.slice(1)}` : 'Card';
+      const amt = e.amount ?? 0;
+      return amt <= -99 ? `¤ ${what}s cost 0${t}` : `¤ ${what} cost ${amt >= 0 ? '+' : ''}${amt}${t}`;
+    }
+    // 'custom' is a placeholder the authored data uses when the real mechanic lives elsewhere
+    // (environments keep theirs in `grantKeywords`). Its `note` is the human description, so
+    // show that — never the bare kind, which surfaced as the literal word "custom" on cards.
+    case 'custom': return (e as { note?: string }).note ?? '';
     default: return e.kind;
   }
 }
@@ -1242,7 +1886,33 @@ function heroSkillIcon(effects: Effect[]): string {
   return EFFECT_ICON[e.kind] ?? '✧';
 }
 
-function abilitiesForCard(card: Card): NamedAbility[] {
+/**
+ * A hero power as SYMBOLS: one chip per effect, carrying its icon and magnitude.
+ *
+ * Every authored leader power sets a prose `text`, and `heroEffect` prefers that over
+ * `effectLine` — so the icons `effectLine` would have produced were suppressed on all 13 of
+ * them, leaving the most complex button in the game as pure text with a single leading glyph.
+ * This derives the row from the EFFECTS themselves, so it cannot disagree with what the power
+ * actually does, and it covers every effect rather than just the first.
+ */
+function heroEffectChips(effects: Effect[]): { icon: string; val: string; title: string }[] {
+  return effects.map((e) => {
+    const amount = (e as { amount?: number }).amount;
+    if (e.kind === 'applyStatus') {
+      const key = (e as { status?: string }).status as keyof typeof STATUS_INFO;
+      const info = STATUS_INFO[key];
+      return { icon: info?.icon ?? '✧', val: amount ? String(amount) : '', title: effectLine(e) };
+    }
+    if (e.kind === 'buff' || e.kind === 'debuff') {
+      const st = (e as { stat?: { attack?: number; hp?: number } }).stat ?? {};
+      const parts = [st.attack ? `${st.attack > 0 ? '+' : ''}${st.attack}⚔` : '', st.hp ? `${st.hp > 0 ? '+' : ''}${st.hp}❤` : ''].filter(Boolean);
+      return { icon: EFFECT_ICON[e.kind] ?? '✧', val: parts.join(' '), title: effectLine(e) };
+    }
+    return { icon: EFFECT_ICON[e.kind] ?? '✧', val: amount ? String(amount) : '', title: effectLine(e) };
+  });
+}
+
+export function abilitiesForCard(card: Card): NamedAbility[] {
   if (card.type === 'unit') return listAbilities(card.keywords);
   if (card.type === 'foundation') return listAbilities(card.grants.keywords ?? {});
   return [];
@@ -1318,14 +1988,14 @@ function DebugPanel({ g }: { g: ReturnType<typeof useGame> }) {
       />
       <div className="debug-panel__list">
         {allCards.map((c) => {
-          const placeable = !sandbox.placeMode || c.type === 'unit';
+          const placeable = !sandbox.placeMode || c.type === 'unit' || c.type === 'foundation';
           return (
             <button
               key={c.id}
               className={`debug-card chip--${c.element} ${placeable ? '' : 'debug-card--disabled'}`}
               disabled={!placeable}
               onClick={() => g.debugInject(c.id)}
-              title={sandbox.placeMode ? (c.type === 'unit' ? `Place ${c.name} on ${sandbox.target === 'me' ? 'your' : "opponent's"} ${LANE_LABEL[sandbox.lane]} (${sandbox.pos})` : 'Only units can be placed') : `Add ${c.name} to hand`}
+              title={sandbox.placeMode ? (c.type === 'unit' || c.type === 'foundation' ? `Place ${c.name} on ${sandbox.target === 'me' ? 'your' : "opponent's"} ${LANE_LABEL[sandbox.lane]} (${sandbox.pos})` : 'Only units and foundations can be placed') : `Add ${c.name} to hand`}
             >
               <span className="debug-card__type">{c.type[0]!.toUpperCase()}</span>
               <span className="debug-card__name">{c.name}</span>
@@ -1348,6 +2018,16 @@ export function DetailBody({ detail }: { detail: Detail }) {
   const abilities = detail.kind === 'unit' ? listAbilities(detail.unit.keywords) : def ? abilitiesForCard(def) : [];
   const statuses = detail.kind === 'unit' ? listStatuses(detail.unit.status) : [];
   const effects = def && (def.type === 'spell' || def.type === 'environment') ? def.effects : [];
+  // Units and foundations keep their mechanics in trigger arrays and keyword payloads, not
+  // in `effects` — without this the detail panel showed a Kamikaze/On-play card as vanilla.
+  const triggers = def ? cardTriggerLines(def) : [];
+  // A hand card carries its live discount context (`Hand` already computes it for
+  // `CardFace`); everything else (deck builder, shop, codex) has none, which is the
+  // correct fallback there too — there is no live per-turn bank outside an active game.
+  // Without threading this through, double-clicking a discounted hand card to inspect it
+  // showed the PRINTED price while the card itself, right behind the modal, showed the
+  // real one — the two disagreeing on the one number a player is checking it for.
+  const live = detail.kind === 'card' && detail.bank ? costBreakdown(detail.card, detail.bank, detail.costMod) : undefined;
   return (
     <>
         <div className="detail__head">
@@ -1362,7 +2042,14 @@ export function DetailBody({ detail }: { detail: Detail }) {
           )}
         </div>
         <div className="detail__stats">
-          {def && <span><b>Cost:</b> {formatCost(def.cost)}</span>}
+          {def && (
+            <span>
+              <b>Cost:</b> {formatCost(def.cost)}
+              {live && live.effective !== def.cost.energy + (def.cost.elements ?? []).reduce((sum, e) => sum + e.amount, 0) && (
+                <> — costs you <b>{live.effective}</b> energy right now</>
+              )}
+            </span>
+          )}
           {detail.kind === 'unit' && <span><b>ATK:</b> {detail.unit.attack} · <b>HP:</b> {detail.unit.hp}/{detail.unit.maxHp}</span>}
           {detail.kind === 'card' && def?.type === 'unit' && <span><b>ATK:</b> {def.attack} · <b>HP:</b> {def.hp}</span>}
           {detail.kind === 'card' && def?.type === 'foundation' && <span><b>ATK:</b> {def.attack} · <b>HP:</b> {def.hp}</span>}
@@ -1380,6 +2067,14 @@ export function DetailBody({ detail }: { detail: Detail }) {
             <h4>Effect</h4>
             {effects.map((e, i) => (
               <div key={i} className="detail__ability">{effectLine(e)}</div>
+            ))}
+          </div>
+        )}
+        {triggers.length > 0 && (
+          <div className="detail__section">
+            <h4>Triggered</h4>
+            {triggers.map((line, i) => (
+              <div key={i} className="detail__ability">{line}</div>
             ))}
           </div>
         )}
@@ -1436,12 +2131,66 @@ function HoverPeek({ peek }: { peek: { detail: Detail; rect: DOMRect } | null })
  * large element rune, name banner, type line, rules text, and ATK/HP plaques. Shared by the
  * hand and every MiniCard so cards read identically everywhere.
  */
+<<<<<<< Updated upstream
 export function CardFace({ def }: { def: Card }) {
   const kwLine = cardAbilityLine(def);
   const hasBody = 'attack' in def && 'hp' in def;
   const pips = (def.cost.elements ?? []).flatMap((e) => Array(e.amount).fill(e.type) as Element[]);
+=======
+/**
+ * What this card ACTUALLY costs in energy given a bank, and which pips that bank covers.
+ * Element pips are paid from their own bank first and any shortfall is charged as generic
+ * energy (engine/energy.ts `settleCost`), so the printed `cost.energy` is not the real price.
+ * Shared by the card face and the hand's "short by N" marker so the two can never disagree.
+ */
+export function costBreakdown(
+  def: Card,
+  bank?: Record<Element, number>,
+  costMod = 0,
+): { effective: number; pips: { el: Element; covered: boolean }[]; shortfall: number } {
+  let shortfall = 0;
+  const pips: { el: Element; covered: boolean }[] = [];
+  for (const req of def.cost.elements ?? []) {
+    const covered = bank ? Math.min(bank[req.type], req.amount) : req.amount;
+    shortfall += req.amount - covered;
+    for (let i = 0; i < req.amount; i++) pips.push({ el: req.type, covered: i < covered });
+  }
+  // Cost modifiers (Anti Magic Field, Adventure relic discounts) are applied to the BASE energy
+  // and clamped at 0 before pip shortfall is added — matching `playUnit`/`castSpell` exactly.
+  // Without this the card face showed the printed price while the engine charged a different
+  // one, which is worse than showing nothing: the number was confidently wrong.
+  const baseEnergy = Math.max(0, def.cost.energy + costMod);
+  return { effective: baseEnergy + shortfall, pips, shortfall };
+}
+
+export function CardFace({ def, bank, costMod = 0 }: { def: Card; bank?: Record<Element, number>; costMod?: number }) {
+  const kwLine = cardAbilityLine(def);
+  const hasBody = 'attack' in def && 'hp' in def;
+  const reqs = def.cost.elements ?? [];
+
+  // Element costs draw from the bank first and charge any shortfall to generic energy (see
+  // engine/energy.ts `settleCost`), so the printed `cost.energy` is NOT what this card costs
+  // you. With most of the pool now priced as pips — and some cards at 0 energy outright — the
+  // printed number reads "free" for a card you may be paying full price for. When we know the
+  // player's bank, show what they will ACTUALLY be charged, and mark each pip as covered
+  // (their bank pays it) or short (it falls back to energy).
+  const { effective, pips, shortfall } = costBreakdown(def, bank, costMod);
+  const discounted = Boolean(bank) && effective < def.cost.energy + reqs.reduce((s, r) => s + r.amount, 0);
+  // An enhanced copy is a clone of the printed card with its upgrades already folded into
+  // the numbers, so nothing on the face said it had been worked on — the only tell was a
+  // "+" quietly appended to the name. Marked here, on the shared face, so the hand, the
+  // deck lists, the shop grids and the detail panel all agree.
+  const enhanced = isEnhancedCardId(def.id);
+  const plusCount = enhanced ? (def.name.match(/\+/g) ?? []).length : 0;
+
+>>>>>>> Stashed changes
   return (
-    <span className="card__frame">
+    <span className={`card__frame${enhanced ? ' card__frame--enhanced' : ''}`}>
+      {enhanced && (
+        <span className="card__enhmark" title={`Enhanced ${plusCount} time(s)`}>
+          ✧{plusCount > 1 ? plusCount : ''}
+        </span>
+      )}
       <span className="card__top">
         <span className="card__cost" title="Energy cost">{def.cost.energy}</span>
         {pips.length > 0 && (
@@ -1554,7 +2303,7 @@ function LogPanel({ log, game, pov }: { log: GameEvent[]; game: GameState; pov: 
           .slice(-200)
           .map((e, i) => (
             <div key={i} className={`logline logline--${e.t} ${DETAIL_EVENTS.has(e.t) ? 'logline--detail' : 'logline--head'}`}>
-              {fmt(e, resolve, cardName)}
+              {fmt(e, resolve, cardName, pov)}
             </div>
           ))
           .reverse()}
@@ -1866,13 +2615,16 @@ function fmt(
   e: GameEvent,
   name: (iid: string) => string = (iid) => iid,
   cardName: (cardId: string) => string = (id) => id,
+  pov: number = 0,
 ): string {
   const P = (p: number): string => `Player ${p + 1}`;
   const L = (l: LaneId): string => LANE_LABEL[l];
   const I = '  '; // indent for nested detail lines
   switch (e.t) {
     case 'turnStart': return `▶ ${P(e.player)} — Round ${e.round}`;
-    case 'draw': return `${P(e.player)} drew ${cardName(e.cardId)}`;
+    case 'draw': return e.player === pov
+      ? `${P(e.player)} drew ${cardName(e.cardId)}`
+      : `${P(e.player)} drew a card`;
     case 'deckOut': return `${P(e.player)} decked out`;
     case 'drawNull': return `${P(e.player)} decked out — drew a Null (404)`;
     case 'foundationPlaced': return `${P(e.player)} placed foundation ${cardName(e.cardId)}`;

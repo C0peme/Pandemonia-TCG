@@ -1,3 +1,4 @@
+import { LANES } from '@engine/constants';
 import { describe, expect, it } from 'vitest';
 import { chooseAction, endTurnChoices, greedyAction, planTurn } from '@engine/ai';
 import { applyAction } from '@engine/engine';
@@ -10,6 +11,12 @@ const withHand = (energy: number, cardIds: string[]): GameState => {
   const s = blankState();
   s.players[0].energy = energy;
   s.players[0].hand = cardIds.map((cardId, i) => ({ iid: `h${i}`, cardId }));
+  // Both players need SOMETHING to draw. `blankState` decks are empty, so without this every
+  // projected draw in the AI's look-ahead is a deck-out Null and the search is really reasoning
+  // about a deck-out spiral rather than about the board question each test is asking.
+  for (const p of [0, 1] as const) {
+    s.players[p].deck = Array.from({ length: 8 }, (_, i) => ({ iid: `d${p}${i}`, cardId: 'v1' }));
+  }
   return s;
 };
 
@@ -26,7 +33,7 @@ describe('chooseAction — board development', () => {
     const s = withHand(1, ['v0']);
     s.players[0].heroPowerUsed = true; // no free face-ping available, so the only plays are drown-or-pass
     // Fill every non-Water lane so the only open slot is Water (where a vanilla would drown).
-    for (const lane of ['heights', 'ground1', 'ground2'] as const) place(s, 0, lane, unit({ owner: 0 }));
+    for (const lane of LANES.filter((l) => l !== 'water')) place(s, 0, lane, unit({ owner: 0 }));
     expect(chooseAction(testRegistry, s).type).toBe('endTurn');
   });
 });
@@ -106,9 +113,23 @@ describe('chooseAction — engine valuation', () => {
   it('removes a Producer over an equal-statline vanilla (the recurring engine is worth more)', () => {
     const s = blankState({ round: 3 });
     s.players[0].energy = 1;
+<<<<<<< Updated upstream
     s.players[0].hand = [{ iid: 'h0', cardId: 'firebolt' }]; // 3 damage — kills either 0/3 body
     const producer = unit({ owner: 1, attack: 0, hp: 3, cardId: 'kiln', keywords: { producer: { amount: 1, element: 'fire' } } });
     const vanilla = unit({ owner: 1, attack: 0, hp: 3 });
+=======
+    // The hero power competes for the same single energy, and which of the two opens the turn
+    // is a different question from the one under test. Disable it so this measures ONLY the
+    // removal's choice of target (same idiom as the drowning test above).
+    s.players[0].heroPowerUsed = true;
+    s.players[0].hand = [{ iid: 'h0', cardId: 'firebolt' }]; // 3 damage — kills either 3/3 body
+    // Both bodies ATTACK, so casting now is clearly right and the only open question is which
+    // one to hit — the comparison this test exists to make. With two 0/3 walls and a real deck
+    // to draw from, the search correctly prefers to hold the removal for a future threat, and
+    // the test could never reach its actual assertion.
+    const producer = unit({ owner: 1, attack: 3, hp: 3, cardId: 'kiln', keywords: { producer: { amount: 1 } } });
+    const vanilla = unit({ owner: 1, attack: 3, hp: 3 });
+>>>>>>> Stashed changes
     place(s, 1, 'ground1', producer);
     place(s, 1, 'ground2', vanilla);
     const action = chooseAction(testRegistry, s);

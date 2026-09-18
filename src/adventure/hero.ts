@@ -14,7 +14,7 @@
  * live on the hero power, so they are collected by `heroStateMods` and applied to the
  * opening GameState alongside relic mods (see CombatView).
  */
-import type { Card, Effect, Element, Leader } from '@cards/schema';
+import type { Card, Effect, EffectGrantKeywords, Element, Keywords, Leader } from '@cards/schema';
 import type { GameState, PlayerId, PlayerState } from '@engine/types';
 import type { HeroUpgrade } from '@adventure/schema';
 
@@ -127,23 +127,49 @@ export const LEADER_UPGRADES: Record<string, LeaderUpgrade> = {
       effects: hp.effects.map((e) => (e.kind === 'buff' && e.stat ? { ...e, stat: { ...e.stat, attack: (e.stat.attack ?? 0) + 1 } } : e)),
     }),
   },
-  // A blade she never needed to sharpen.
+  // Stale upgrade removed: this used to read "Exploit also Poisons the target", from back when
+  // her power was a targeted damage effect. Call in a Favour is a SUMMON — appending a targeted
+  // applyStatus to it would have consumed a target the power never asks for.
+  //
+  // The right axis for her is the network itself. Call in a Favour is gated entirely by its
+  // discount (1 per card played), so doubling the rate she calls in debts is both the strongest
+  // upgrade available to her and the only one that touches her actual engine.
   eksana: {
-    name: 'Poisoned Blade',
-    icon: '🗡',
-    desc: 'Exploit also Poisons the target.',
-    power: also({ kind: 'applyStatus', target: 'enemy', status: 'poison' }),
+    name: 'The Network',
+    icon: '🕸',
+    desc: 'Call in a Favour costs 2 less per card played, instead of 1.',
+    power: (hp) => ({ ...hp, costStep: (hp.costStep ?? 1) * 2 }),
   },
   // The curse she carries, she can now lend out.
+  //
+  // Rewritten when Tinkerer became COCOON. The original mapped over the power's `buff` effect
+  // to add Zombified, and Cocoon has no `buff` — it is two `applyStatus` effects — so the
+  // upgrade had silently become a no-op the moment the skill changed.
+  //
+  // It does two things, because an upgrade to a skill should make the SKILL better rather than
+  // only bolt a second ability onto it:
+  //
+  //  1. DEEPENS the cocoon — the sleep heals twice as much. This edits the existing effect in
+  //     place, so it costs no extra target picks, and it scales the half of Cocoon that is
+  //     pure upside (the heal) rather than the half that disables the unit.
+  //  2. ADDS the curse. Scoped `all-ally` deliberately: Cocoon already consumes TWO target refs
+  //     (one per status), the most of any power in the game, and a third targeted effect would
+  //     mean clicking the same body three times to fire one ability. An AOE scope is
+  //     self-resolving (`SELF_RESOLVING_SCOPES`), so it costs no extra picks — and it still
+  //     covers the cocooned unit, which is an ally like any other. Zombified does not stack, so
+  //     re-granting it to a board that already has it is a no-op rather than a compounding one.
   noctua: {
     name: 'Curse Bound',
     icon: '💀',
-    desc: 'Tinkerer also grants Zombified (the unit revives once at 1 HP).',
+    desc: 'The cocoon heals 6 instead of 3, and ALL your units gain Zombified (each revives once at 1 HP).',
     power: (hp) => ({
       ...hp,
-      effects: hp.effects.map((e) =>
-        e.kind === 'buff' ? { ...e, keywords: { ...e.keywords, zombified: true } } : e,
-      ),
+      effects: [
+        ...hp.effects.map((e) =>
+          e.kind === 'applyStatus' && e.status === 'sleep' ? { ...e, amount: (e.amount ?? 0) * 2 } : e,
+        ),
+        { kind: 'applyStatus', target: 'all-ally', status: 'zombified' },
+      ],
     }),
   },
   // The shell network moves his own as readily as the enemy — and anchors the ground.
@@ -188,6 +214,7 @@ export const applyHeroUpgrades = (leader: Leader, upgrades: readonly HeroUpgrade
 /**
  * A permanent upgrade to the leader's SIGNATURE card, awarded by the act 2 boss.
  *
+<<<<<<< Updated upstream
  * One per leader, keyed by leader id. `card` rewrites the signature card definition;
  * `runRegistry` swaps the rewritten def in, so the buffed signature is what gets
  * delivered to hand when the leader crosses the Signature threshold.
@@ -195,6 +222,19 @@ export const applyHeroUpgrades = (leader: Leader, upgrades: readonly HeroUpgrade
  * NOTE: the per-leader effects are not yet authored — this is the delivery framework.
  * Add entries here (same shape as LEADER_UPGRADES) and they take effect immediately;
  * a leader with no entry simply keeps their base signature.
+=======
+ * One per leader, keyed by leader id -- all 13 are authored below. `card` rewrites
+ * the signature card definition; `runRegistry` swaps the rewritten def in, so the
+ * buffed signature is what gets delivered to hand when the leader crosses the
+ * Signature threshold.
+ *
+ * A leader with NO entry is not offered the unlock at all: `bossUnlock` (run.ts) reads
+ * this table, so the act 2 boss grants that leader a bonus relic instead of a reward
+ * screen promising an empowered Signature that does nothing. Adding a new leader
+ * without an entry here degrades gracefully to that fallback rather than a dead unlock
+ * -- authoring an entry (same shape as LEADER_UPGRADES) is the only step needed to
+ * turn the real unlock on for one.
+>>>>>>> Stashed changes
  */
 export interface SignatureUpgrade {
   name: string;
@@ -203,8 +243,222 @@ export interface SignatureUpgrade {
   card: (c: Card) => Card;
 }
 
+/**
+ * Small typed helpers so each upgrade stays a one-liner instead of repeating the
+ * discriminated-union narrowing. A transform that does not match its card's type is a
+ * no-op rather than a crash — an authoring mistake degrades to "no buff", never to a
+ * broken run.
+ */
+const spellFx = (fn: (effects: Effect[]) => Effect[]) => (c: Card): Card =>
+  c.type === 'spell' ? { ...c, effects: fn(c.effects) } : c;
+
+/** Rewrite the keywords a Foundation grants to the unit bonded above it. */
+const grantKw = (extra: Keywords) => (c: Card): Card =>
+  c.type === 'foundation'
+    ? { ...c, grants: { ...c.grants, keywords: { ...c.grants?.keywords, ...extra } } }
+    : c;
+
+/**
+ * Rewrite the keywords a SPELL's `buff` effect grants. The twin of `grantKw` for a signature
+ * that hands its keywords out directly rather than through ground beneath a unit.
+ *
+ * Typed `EffectGrantKeywords`, not `Keywords`: a `buff` merges with a shallow `Object.assign`,
+ * so only the keywords a bare merge fully wires up may be granted this way. That is not a
+ * technicality here — it is why Noctua's upgrade no longer grants Countdown.
+ */
+const buffKw = (extra: EffectGrantKeywords) => (c: Card): Card =>
+  c.type === 'spell'
+    ? { ...c, effects: c.effects.map((e) => (e.kind === 'buff' ? { ...e, keywords: { ...e.keywords, ...extra } } : e)) }
+    : c;
+
+/** Rewrite a unit card's own keywords. */
+const unitKw = (extra: Keywords) => (c: Card): Card =>
+  c.type === 'unit' ? { ...c, keywords: { ...c.keywords, ...extra } } : c;
+
+/** Re-describe a card alongside whatever structural change it just received. */
+const retext = (text: string, fn: (c: Card) => Card) => (c: Card): Card => ({ ...fn(c), text });
+
 export const SIGNATURE_UPGRADES: Record<string, SignatureUpgrade> = {
-  // Intentionally empty until the per-leader buffs are authored.
+  // Steam Bath clears the board that exists; the conjured Veil taxes everything played
+  // into it afterwards. Two cards rather than one, both because a single card doing an
+  // AOE status and an on-hit grant reads badly, and because the second half wants to be
+  // held and timed rather than spent the instant the Signature lands.
+  kedou: {
+    name: 'Boiling Point', icon: '♨',
+    desc: 'Steam Bath also conjures Scalding Veil — your units gain On-Hit Burn 2.',
+    card: retext(
+      'Signature: inflict Burn 2 on all enemy units, and conjure Scalding Veil.',
+      spellFx((fx) => [...fx, { kind: 'conjure', target: 'self', cardId: 'sig-scalding-veil' }]),
+    ),
+  },
+
+  // A free body that damage and status both fail to remove.
+  cleath: {
+    name: 'Bedrock', icon: '⛰',
+    desc: 'Living Mountain gains Tough 3 and Immunity.',
+    card: retext(
+      'Signature: a massive free defender — Taunt, Tough 3, Immunity.',
+      unitKw({ tough: 3, immunity: true }),
+    ),
+  },
+
+  // Aggro's finisher: the same alpha strike, hitting harder.
+  orsyric: {
+    name: 'Total Commitment', icon: '⚔',
+    desc: 'Overexert grants +2/0 instead of +1/0.',
+    card: retext(
+      'Signature: all allies gain +2/0 and a bonus attack.',
+      spellFx((fx) => fx.map((e) => (e.kind === 'buff' ? { ...e, stat: { attack: 2 } } : e))),
+    ),
+  },
+
+  // -9 attack disarms essentially anything, and the Poison it comes with means the
+  // opponent cannot buff the unit back up: Poison blocks stat gains. The disable is
+  // permanent rather than a tempo hit, which is the point of the upgraded version.
+  aleph: {
+    name: 'Total Reflection', icon: '☯',
+    desc: 'Reflections of Omniscience strips 9 attack instead of 2.',
+    card: retext(
+      'Signature: every enemy unit loses 9 attack and is Poisoned.',
+      spellFx((fx) => fx.map((e) => (e.kind === 'debuff' ? { ...e, stat: { attack: 9 } } : e))),
+    ),
+  },
+
+  // The chosen ally survives the turn it wins on.
+  phantom: {
+    name: 'Perfect Mask', icon: '\u{1f3ad}',
+    desc: 'Masking also grants the chosen ally Immunity and Zombified.',
+    card: retext(
+      'Signature: freeze all enemy units; give one of your units Pierce, Double Strike, Immunity and Zombified.',
+      spellFx((fx) =>
+        fx.map((e) =>
+          e.kind === 'buff' ? { ...e, keywords: { ...e.keywords, immunity: true, zombified: true } } : e,
+        ),
+      ),
+    ),
+  },
+
+  // A Foundation grants through the FULL keyword schema rather than the runtime-grantable
+  // subset, so this can hand out the entire defensive toolkit at once — including Shield
+  // and Countdown, which no spell's `buff` is able to grant.
+  screyera: {
+    name: 'Certain Future', icon: '\u{1f52e}',
+    desc: 'Fortune Foretold also grants Immunity, True Shield, Shield 1, Zombified and Tough 2.',
+    card: retext(
+      'Signature Foundation: grants Taunt, Tough 2, Spike 2, Immunity, True Shield, Shield 1 and Zombified to the unit above it.',
+      grantKw({ tough: 2, immunity: true, trueShield: true, shield: 1, zombified: true }),
+    ),
+  },
+
+  // Spike on the leader-unit is deliberate and Adventure-only: SIGNATURE_UPGRADES is read
+  // solely by `buildRunRegistry` inside a run, so it can never reach constructed play.
+  ringleader: {
+    name: 'Load-Bearing', icon: '⚙',
+    desc: 'Core Component grants Shield 2 and adds Spike 1.',
+    card: retext(
+      'Signature: your leader-unit gains Shield 2, Bloodlust +0/+1, Pierce and Spike 1.',
+      spellFx((fx) =>
+        fx.map((e) =>
+          e.kind === 'applyStatus' && e.status === 'shield'
+            ? { ...e, amount: 2 }
+            : e.kind === 'buff'
+              ? { ...e, keywords: { ...e.keywords, spike: 1 } }
+              : e,
+        ),
+      ),
+    ),
+  },
+
+  // Deck Out's finisher: clear the board, then bury the hand it would rebuild from.
+  // `conjure` reaches a HAND, never a deck (there is no deck-insert effect in the engine),
+  // which suits this better anyway — the hand cap means the overflow is forgotten outright.
+  johnpork: {
+    name: 'Last Call', icon: '\u{1f37a}',
+    desc: 'Happy Hour also forces five Dead Weights into the enemy hand and mills two cards.',
+    card: retext(
+      'Signature: expel every enemy unit to the opponent’s hand, add five Dead Weights to it, and make them forget 2 cards.',
+      spellFx((fx) => [
+        ...fx,
+        ...Array.from({ length: 5 }, (): Effect => ({ kind: 'conjure', target: 'enemy', cardId: 'dead-weight' })),
+        { kind: 'forget', amount: 2, target: 'enemy' },
+      ]),
+    ),
+  },
+
+  // Double Team is a lane-capacity flag and is absent from the grantable subset, so the
+  // summons are re-pointed at a token that already carries it rather than granting it.
+  autopus: {
+    name: 'Parallel Process', icon: '\u{1f419}',
+    desc: 'The summoned Techtacles gain Double Team, so every lane can hold a second unit.',
+    card: retext(
+      'Signature: summon a Twinned Techtacle (Lethal, True Shield, Airborne, Double Team) in every lane.',
+      spellFx((fx) => fx.map((e) => (e.kind === 'summon' ? { ...e, cardId: 'critter-elite-pair' } : e))),
+    ),
+  },
+
+  // Two strikes, each able to start its own Loose Ends chain.
+  eksana: {
+    name: 'Double Contract', icon: '\u{1f5e1}',
+    desc: 'Swift Kill strikes twice — each kill starts its own chain.',
+    card: retext(
+      'Signature: deal 5 to an enemy, twice. Each kill adds Loose Ends to your hand.',
+      spellFx((fx) => [...fx, ...fx.filter((e) => e.kind === 'damage')]),
+    ),
+  },
+
+  // Restored to its original design once COUNTDOWN was made grantable (see the keyword's own
+  // comment in schema.ts). It had to be dropped when Death Goddess' Will became a spell,
+  // because a `buff` merges only the grantable subset and Countdown was outside it — not for
+  // any runtime reason, it turns out, but because naming `effectSchema` from the grantable
+  // shape created a type cycle. Countdown itself is stateless (`resolveEndOfTurn` drives it
+  // off `turnsInPlay`), so a bare merge always did wire it up correctly.
+  //
+  // `repeat: true` is REQUIRED for a granted countdown, not decoration: the clock is the
+  // unit's AGE, so a one-shot would need the unit to be exactly `turns` old at the moment it
+  // is granted, and would silently never fire on anything older.
+  noctua: {
+    name: 'Eternal Vigil', icon: '\u{1f989}',
+    desc: 'Death Goddess’ Will also grants Countdown 2: Shield 1, refreshing forever.',
+    card: retext(
+      'Signature: an ally gains Immunity, Zombified, Growth +2/+2 and Countdown 2: Shield 1.',
+      buffKw({
+        countdown: {
+          turns: 2,
+          repeat: true,
+          effects: [{ kind: 'applyStatus', amount: 1, target: 'self', status: 'shield' }],
+        },
+      }),
+    ),
+  },
+
+  // The cascade, made free to ride. `discountHand` attaches the discount to the copies in
+  // hand at that instant and to nothing else — a player-level `costMod` would also cheapen
+  // everything drawn for the rest of the turn, and `costBase` everything for the rest of
+  // the fight. Combined with the conjure trigger this is deliberately the strongest
+  // Signature in Adventure; the per-turn conjure cap (RULES.CONJURE_ON_PLAY_PER_TURN) is
+  // what keeps "play a card, get a card, play it" from being a literal infinite loop.
+  corpselock: {
+    name: 'Terminal Bloom', icon: '\u{1f9ec}',
+    desc: 'Stage 4 also drops every card in your hand to 0 energy — permanently, for those copies.',
+    card: retext(
+      'Signature: fill every element bank to its cap. Every card in your hand costs 0 energy from now on, and every card you play conjures a random card into your hand.',
+      spellFx((fx) => [...fx, { kind: 'discountHand', amount: -99 }]),
+    ),
+  },
+
+  // Lane Control's finisher: the whole board becomes untouchable, and the environments to
+  // reshape it arrive free.
+  naife: {
+    name: 'Rewritten Ground', icon: '\u{1f30a}',
+    desc: 'Guardian of Ruins protects ALL allies and conjures two Tundras.',
+    card: retext(
+      'Signature: give every ally Immunity and Pierce. All environments cost 0 energy this turn. Conjure two Tundras.',
+      spellFx((fx) => [
+        ...fx.map((e) => (e.kind === 'buff' ? { ...e, target: 'all-ally' as const } : e)),
+        { kind: 'conjure', target: 'self', cardId: 'tundra' },
+      ]),
+    ),
+  },
 };
 
 export const signatureUpgrade = (leaderId: string): SignatureUpgrade | undefined => SIGNATURE_UPGRADES[leaderId];

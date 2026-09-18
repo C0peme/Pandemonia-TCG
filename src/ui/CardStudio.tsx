@@ -7,6 +7,7 @@ import { useMemo, useState, useRef } from 'react';
 import { ELEMENTS, type Element } from '@engine/constants';
 import { formatCost, ABILITY_INFO } from '@cards/abilities';
 import { ElementRune } from '@ui/ElementRune';
+import { Legend } from '@ui/Legend';
 import { cardAbilityLine, effectLine, MiniCard } from '@ui/App';
 import type {
   Card,
@@ -55,7 +56,6 @@ const SCOPES: TargetScope[] = [
   'killer',
 ];
 // Triggers a Healer can fire on (the ones the engine honours for the healer keyword).
-const HEALER_TRIGGERS = ['onPlay', 'endOfTurn', 'startOfTurn'] as const;
 const EFFECT_KINDS = ['damage', 'heal', 'draw', 'buff', 'debuff', 'setStats', 'summon', 'conjure', 'applyStatus', 'energy', 'move', 'expel', 'forget', 'cleanse', 'extraAction', 'costMod', 'custom'] as const;
 const EFFECT_STATUSES = ['burn', 'poison', 'sleep', 'freeze', 'shield', 'zombified', 'trueShield', 'taunt'] as const;
 /** Keywords a `buff` effect can grant to its target (matches effectGrantKeywordsSchema). */
@@ -303,12 +303,23 @@ const compactOnHit = (o: OnHit): OnHit | undefined => {
 // =============================================================================
 // --- Source export serializer -------------------------------------------------
 
+/**
+ * Escape a string for a single-quoted TS literal. Backslash MUST go first — escaping it
+ * after the others would double-escape the backslashes those steps just introduced.
+ * Newlines need their own escape: a raw one inside a single-quoted string is a syntax
+ * error, and `text`/`heroPowerText` are edited in a `<textarea>` that accepts them (a
+ * rules-text card typed with a line break, then exported, produced source that failed
+ * to parse — the string literal ran off the end of its own line).
+ */
+const escapeTSString = (s: string): string =>
+  s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+
 /** Serialize a value into a compact inline TypeScript literal (matching starter.ts style). */
-function compactTS(val: unknown, depth = 0): string {
+export function compactTS(val: unknown, depth = 0): string {
   if (val === null) return 'null';
   if (typeof val === 'boolean') return String(val);
   if (typeof val === 'number') return String(val);
-  if (typeof val === 'string') return `'${val.replace(/'/g, "\\'")}'`;
+  if (typeof val === 'string') return `'${escapeTSString(val)}'`;
   if (Array.isArray(val)) {
     if (val.length === 0) return '[]';
     const items = val.map((v) => compactTS(v, depth + 1)).join(', ');
@@ -374,8 +385,8 @@ export function CardStudio() {
   const [editing, setEditing] = useState<EditTarget | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [section, setSection] = useState<'leaders' | 'cards'>('cards');
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [section, setSection] = useState<'leaders' | 'cards' | 'legend'>('cards');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [query, setQuery] = useState('');
   const [filterElem, setFilterElem] = useState<'all' | Element>('all');
   const [filterType, setFilterType] = useState<'all' | CardType>('all');
@@ -468,6 +479,13 @@ export function CardStudio() {
           <button className={section === 'cards' ? 'studio__segtab studio__segtab--active' : 'studio__segtab'} onClick={() => setSection('cards')}>
             Cards <span className="studio__segtab-count">{allCards.length}</span>
           </button>
+          <button
+            className={section === 'legend' ? 'studio__segtab studio__segtab--active' : 'studio__segtab'}
+            onClick={() => setSection('legend')}
+            title="What every symbol on the board means"
+          >
+            Legend
+          </button>
         </div>
 
         <span style={{ flex: 1 }} />
@@ -499,6 +517,9 @@ export function CardStudio() {
           </div>
         )}
       </div>
+
+      {/* ── LEGEND ── */}
+      {section === 'legend' && <Legend />}
 
       {/* ── LEADERS ── */}
       {section === 'leaders' && (
@@ -603,7 +624,14 @@ function StudioRow({ card, onEdit, onDup }: { card: Card; onEdit: () => void; on
   );
 }
 
-function LeaderCard({ leader, registry, onEdit }: { leader: Leader; registry: import('@cards/registry').Registry; onEdit: () => void }) {
+/**
+ * The rich leader card — element-tinted header, HP, banking caps, hero power, signature.
+ *
+ * Exported because Adventure's leader picker shows this same choice at the one moment it
+ * decides a whole run, and was rendering a text chip with name/HP/power-name instead.
+ * `onEdit` is optional: outside the Card Studio there is nothing to edit.
+ */
+export function LeaderCard({ leader, registry, onEdit }: { leader: Leader; registry: import('@cards/registry').Registry; onEdit?: () => void }) {
   const overridden = store.isOverriddenLeader(leader.id);
   const sig = registry.cards.get(leader.signatureCardId);
   const skillText = leader.heroPower.text ?? leader.heroPower.effects.map(effectLine).join('; ');
@@ -614,14 +642,17 @@ function LeaderCard({ leader, registry, onEdit }: { leader: Leader; registry: im
         <span className="leadercard__icon"><ElementRune element={leader.element} size={20} /></span>
         <span className="leadercard__name">{leader.name}</span>
         {overridden && <span className="tag tag--edited">edited</span>}
-        <button className="leadercard__editbtn" onClick={onEdit}>Edit</button>
-        {overridden && <button className="leadercard__revertbtn" onClick={() => store.resetLeader(leader.id)}>Revert</button>}
+        {onEdit && <button className="leadercard__editbtn" onClick={onEdit}>Edit</button>}
+        {onEdit && overridden && <button className="leadercard__revertbtn" onClick={() => store.resetLeader(leader.id)}>Revert</button>}
       </div>
 
       <div className="leadercard__body">
         <div className="leadercard__stats">
           <span className="leadercard__hp">{leader.hp} HP</span>
-          <span className="leadercard__sig-unlock">Sig @ ≤15 HP</span>
+          {/* Half the leader's OWN max HP — not a fixed 15. Adventure's reduced-HP
+              enemies and any future non-30-HP leader scale with it (damage.ts
+              `signatureThreshold`), so a hardcoded 15 was wrong for all of them. */}
+          <span className="leadercard__sig-unlock">Sig @ ≤{Math.floor(leader.hp / 2)} HP</span>
         </div>
 
         {/* Element banking caps */}
@@ -955,7 +986,7 @@ function CardEditor({ initial, isEditExisting, onClose }: { initial: Form; isEdi
             <div className="subhead">Stat bonus</div>
             <StatModFields value={f.grantStat} onChange={(v) => set('grantStat', v)} />
             <div className="subhead">Granted keywords &amp; abilities</div>
-            <KeywordsEditor kw={f.grantKeywords} onChange={setGrantKw} passives />
+            <KeywordsEditor kw={f.grantKeywords} onChange={setGrantKw} />
           </Section>
         )}
 
@@ -986,7 +1017,7 @@ function CardEditor({ initial, isEditExisting, onClose }: { initial: Form; isEdi
             {f.type === 'environment' && (
               <>
                 <div className="subhead" style={{ marginTop: 12 }}>Granted keywords (persist on every unit in the lane)</div>
-                <KeywordsEditor kw={f.grantKeywords} onChange={(v) => set('grantKeywords', v)} passives />
+                <KeywordsEditor kw={f.grantKeywords} onChange={(v) => set('grantKeywords', v)} />
               </>
             )}
           </Section>
@@ -1058,7 +1089,7 @@ function TagsEditor({ value, onChange }: { value: string[]; onChange: (v: string
 
 // --- Keyword editor -----------------------------------------------------------
 
-function KeywordsEditor({ kw, onChange, passives }: { kw: Keywords; onChange: (k: Keywords) => void; passives?: boolean }) {
+function KeywordsEditor({ kw, onChange }: { kw: Keywords; onChange: (k: Keywords) => void }) {
   const toggleFlag = (key: keyof Keywords) => {
     const next = { ...kw };
     if (next[key]) delete next[key];
@@ -1111,12 +1142,12 @@ function KeywordsEditor({ kw, onChange, passives }: { kw: Keywords; onChange: (k
         })}
       </div>
 
-      <SpecialKeywords kw={kw} setKey={setKey} passives={passives} />
+      <SpecialKeywords kw={kw} setKey={setKey} />
     </div>
   );
 }
 
-function SpecialKeywords({ kw, setKey, passives }: { kw: Keywords; setKey: (k: keyof Keywords, v: unknown) => void; passives?: boolean }) {
+function SpecialKeywords({ kw, setKey }: { kw: Keywords; setKey: (k: keyof Keywords, v: unknown) => void }) {
   const { registry } = useContent();
   const unitCards = useMemo(
     () => [...registry.cards.values()].filter((c) => c.type === 'unit' && c.id !== '__null__').sort((a, b) => a.name.localeCompare(b.name)),
@@ -1126,9 +1157,13 @@ function SpecialKeywords({ kw, setKey, passives }: { kw: Keywords; setKey: (k: k
   const bloodlust = kw.bloodlust;
   const polish = kw.polish;
   const meta = kw.metamorphosis;
+<<<<<<< Updated upstream
   const smelt = kw.smelt;
   const healer = kw.healer;
   const producer = kw.producer;
+=======
+  const countdown = kw.countdown;
+>>>>>>> Stashed changes
 
   return (
     <div className="kwspecial">
@@ -1225,23 +1260,11 @@ function SpecialKeywords({ kw, setKey, passives }: { kw: Keywords; setKey: (k: k
         )}
       </ToggleBlock>
 
-      {/* Passive abilities — only meaningful as keywords on a body or a grant (Healer/Producer). */}
-      {passives && (
-        <>
-          <ToggleBlock
-            label="Healer (heals on a trigger)"
-            on={Boolean(healer)}
-            onToggle={(on) => setKey('healer', on ? { amount: 2, target: 'leader', trigger: 'endOfTurn' } : undefined)}
-          >
-            {healer && (
-              <div className="fldrow">
-                <Num label="Amount" value={healer.amount} min={1} onChange={(n) => setKey('healer', { ...healer, amount: Math.max(1, n) })} />
-                <Sel label="Target" value={healer.target} options={SCOPES} onChange={(v) => setKey('healer', { ...healer, target: v })} />
-                <Sel label="Trigger" value={healer.trigger as (typeof HEALER_TRIGGERS)[number]} options={HEALER_TRIGGERS} onChange={(v) => setKey('healer', { ...healer, trigger: v })} />
-              </div>
-            )}
-          </ToggleBlock>
+      {/*
+        Healer/Producer are deliberately NOT offered here, on a GRANT (a Foundation's
+        `grants.keywords` or an Environment's `grantKeywords`).
 
+<<<<<<< Updated upstream
           <ToggleBlock
             label="Producer (banks element energy each turn)"
             on={Boolean(producer)}
@@ -1256,6 +1279,27 @@ function SpecialKeywords({ kw, setKey, passives }: { kw: Keywords; setKey: (k: k
           </ToggleBlock>
         </>
       )}
+=======
+        Both are pure authoring SHORTHAND: `expandKeywordEffects` (registry.ts) is the
+        only thing that ever turns `keywords.healer`/`producer` into a working effect,
+        and it runs once, at registry-build time, on a UNIT's own `keywords` — never on
+        a foundation/environment, and never on a live unit instance. `applyFoundation`/
+        `applyEnvKeywords` (the code that actually resolves a grant) just merge the raw
+        keyword onto the host's live `keywords`, which the engine then never reads as
+        anything (testkit.ts documents this exact invariant: "the effect-keywords
+        become trigger effects, never live keywords"). A Foundation/Environment card
+        saved with Healer/Producer checked here would pass schema validation, preview
+        with a Healer/Producer badge, and do NOTHING at runtime.
+
+        The real shipped Producer foundations (Smuggler's Cache, Mana Geyser) work by
+        hand-authoring BOTH the cosmetic `keywords.producer` label AND an explicit
+        `grants.endOfTurn: [{ kind: 'energyNext', amount: N }]` — a combination this
+        editor has no field for (foundations have no "grant a triggered effect" section
+        at all, and an Environment's schema has no per-turn grant channel whatsoever, so
+        Producer/Healer are structurally impossible to grant from one). Re-offering
+        these here needs that authoring surface built first, not just the checkbox back.
+      */}
+>>>>>>> Stashed changes
     </div>
   );
 }
@@ -1466,15 +1510,13 @@ function EffectRow({ effect, onChange, onRemove, hideRemove }: { effect: Effect;
 
 // --- Leader editor ------------------------------------------------------------
 
-const ELEMENTS_ALL = ['fire', 'water', 'nature', 'earth'] as const;
-
 function ElementCapsEditor({ value, onChange }: { value: ElementCaps; onChange: (v: ElementCaps) => void }) {
   const total = value.fire + value.water + value.nature + value.earth;
   const ok = total === RULES.ELEMENT_CAP_TOTAL;
   return (
     <div>
       <div className="fldrow">
-        {ELEMENTS_ALL.map((el) => (
+        {ELEMENTS.map((el) => (
           <Num
             key={el}
             label={el[0]!.toUpperCase() + el.slice(1)}
@@ -1494,7 +1536,7 @@ function ElementCapsEditor({ value, onChange }: { value: ElementCaps; onChange: 
 interface LeaderForm {
   id: string;
   name: string;
-  element: typeof ELEMENTS_ALL[number];
+  element: Element;
   elementCaps: ElementCaps;
   heroPowerName: string;
   heroPowerText: string;
@@ -1509,13 +1551,13 @@ interface LeaderForm {
 const leaderToForm = (l: Leader): LeaderForm => ({
   id: l.id,
   name: l.name,
-  element: l.element as typeof ELEMENTS_ALL[number],
+  element: l.element as Element,
   elementCaps: { ...l.elementCaps },
   heroPowerName: l.heroPower.name,
   heroPowerText: l.heroPower.text ?? '',
   heroPowerCostEnergy: l.heroPower.cost.energy,
   heroPowerCostElements: l.heroPower.cost.elements
-    ? l.heroPower.cost.elements.map((e) => ({ type: e.type as typeof ELEMENTS_ALL[number], amount: e.amount }))
+    ? l.heroPower.cost.elements.map((e) => ({ type: e.type as Element, amount: e.amount }))
     : [],
   heroPowerHpCost: l.heroPower.hpCost ?? 0,
   heroPowerEffects: structuredClone(l.heroPower.effects),
@@ -1571,7 +1613,7 @@ function LeaderEditor({ leader, onClose }: { leader: Leader; onClose: () => void
         <h4>Identity</h4>
         <div className="fldrow">
           <Text label="Name" value={f.name} onChange={(v) => set('name', v)} />
-          <Sel label="Element" value={f.element} options={ELEMENTS_ALL} onChange={(v) => set('element', v)} />
+          <Sel label="Element" value={f.element} options={ELEMENTS} onChange={(v) => set('element', v)} />
         </div>
       </section>
 

@@ -3,11 +3,12 @@
  * a client, so a player can never learn the opponent's hand, deck order, or RNG seed.
  *
  * What is public (kept): the board, both leaders' HP/energy/bank, discard piles, hand and deck
- * COUNTS, and every event except the opponent's private draws. What is hidden (redacted):
+ * COUNTS, and every event except the opponent's private hidden-zone reveals. What is hidden
+ * (redacted):
  *  - the OTHER seat's hand card ids  → blanked (count + facedown placeholders preserved)
  *  - the OTHER seat's deck contents  → blanked to same-length placeholders (count is public)
  *  - the RNG seed                    → replaced with a dummy (removes the deck-order oracle)
- *  - `draw` events for the OTHER seat → dropped (they carry the drawn cardId)
+ *  - hidden-zone-revealing events for the OTHER seat → dropped (see `HAND_REVEAL_EVENTS`)
  *
  * The recipient's OWN hand/deck/draws are sent in full so they can see and play their cards.
  */
@@ -32,9 +33,30 @@ export const redactStateFor = (state: GameState, seat: PlayerId): GameState => {
 };
 
 /**
- * Redact an event list for a recipient seat: drop the opponent's `draw` events (which reveal a
- * cardId). Deck-out `drawNull` events carry no card identity, so they stay. All other events are
- * public (played/cast cards are visible to everyone).
+ * Event types that reveal the identity of a card sitting in a HIDDEN zone (a hand or a
+ * deck) in plaintext `cardId`, the same leak shape as `draw`:
+ *  - `draw`    — a card leaves the deck into a hand.
+ *  - `conjure` — a card is created directly in a hand (`conjureOnKill`, the `conjure`
+ *    effect, Corpselock's `conjureOnPlay` engine trigger). Every one of these can target
+ *    the CASTER's own hand, so a player conjuring for themselves used to broadcast the
+ *    identity straight to their opponent over the event stream — even though the
+ *    (separately redacted) GameState correctly hid the resulting card as facedown.
+ *  - `forget`  — a card is removed from a hand OR milled off the top of a deck
+ *    (`hand.ts`'s `forgetCard`/`millCards`). The `forget` EFFECT's most ordinary use is
+ *    `target: 'enemy'` — milling the OPPONENT's deck is the whole point of the card — so
+ *    this was the most exploitable of the three: casting a completely normal removal/
+ *    mill spell against your opponent handed you their deck order for free.
+ *
+ * Deck-out `drawNull` carries no card identity and is deliberately excluded. Every other
+ * `cardId`-bearing event (`playUnit`, `castSpell`, `summon`, `expel`, …) is about a card
+ * already PUBLIC on the board, so revealing it again is not a new leak.
+ */
+const HAND_REVEAL_EVENTS = new Set<GameEvent['t']>(['draw', 'conjure', 'forget']);
+
+/**
+ * Redact an event list for a recipient seat: drop the opponent's hand-revealing events
+ * (see `HAND_REVEAL_EVENTS`). All other events are public (played/cast cards are visible
+ * to everyone).
  */
 export const redactEventsFor = (events: GameEvent[], seat: PlayerId): GameEvent[] =>
-  events.filter((e) => !(e.t === 'draw' && e.player !== seat));
+  events.filter((e) => !(HAND_REVEAL_EVENTS.has(e.t) && 'player' in e && e.player !== seat));

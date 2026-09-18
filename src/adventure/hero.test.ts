@@ -9,6 +9,7 @@ import { ADVENTURE_STARTERS } from '@adventure/data/starters';
 import { initGame } from '@engine/setup';
 import { starterDecks } from '@cards/data/starter';
 import type { Leader } from '@cards/schema';
+import { targetRefsNeeded } from '@engine/effects';
 
 const base = buildRegistry(starterCards, starterLeaders);
 const leader = (id: string): Leader => base.leaders.get(id)!;
@@ -88,10 +89,21 @@ describe('applyHeroUpgrades', () => {
     expect(up.heroPower.effects.find((e) => e.kind === 'buff')?.stat).toEqual({ hp: 1, attack: 1 });
   });
 
-  it('Noctua — Curse Bound keeps Growth and adds Zombified', () => {
-    const buff = applyHeroUpgrades(leader('noctua'), [{ kind: 'unique' }]).heroPower.effects.find((e) => e.kind === 'buff');
-    expect(buff?.keywords?.growth).toEqual({ attack: 1, hp: 1 });
-    expect(buff?.keywords?.zombified).toBe(true);
+  it('Noctua — Curse Bound deepens the cocoon AND adds board-wide Zombified', () => {
+    // The upgrade must ADD to the power, not replace it: the two cocoon statuses are the
+    // ability, and an earlier version of this upgrade mapped over a `buff` effect that Cocoon
+    // does not have, which made it do nothing at all.
+    const base = leader('noctua').heroPower.effects;
+    const up = applyHeroUpgrades(leader('noctua'), [{ kind: 'unique' }]).heroPower.effects;
+    expect(up.filter((e) => e.kind === 'applyStatus').map((e) => e.status).sort())
+      .toEqual(['freeze', 'sleep', 'zombified']);
+    // 1. It deepens the skill itself — the sleep heal doubles, edited in place.
+    const heal = (fx: typeof base) => fx.find((e) => e.status === 'sleep')?.amount;
+    expect(heal(up)).toBe((heal(base) ?? 0) * 2);
+    // 2. ...and adds the curse AOE-scoped, so it costs no extra target ref on a power that
+    //    already needs two — the most of any power in the game.
+    expect(up.find((e) => e.status === 'zombified')?.target).toBe('all-ally');
+    expect(targetRefsNeeded(up), 'still two picks, not three').toBe(targetRefsNeeded(base));
   });
 
   it('Naife — Shell Network keeps the enemy move and adds an ally move', () => {

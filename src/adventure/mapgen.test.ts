@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { TRIAL_TWIST_CHOICES, trialById } from '@adventure/trials';
 import { generateMap } from '@adventure/mapgen';
 import type { RunMap } from '@adventure/schema';
 
@@ -54,13 +55,30 @@ describe('generateMap', () => {
         const n = map.nodes[id]!;
         for (const t of n.next) expect(map.nodes[t]!.layer).toBe(n.layer + 1);
       }
-      // At least one store and one enhance per map.
-      expect(ids.some((id) => map.nodes[id]!.kind === 'store'), `no store (seed ${seed})`).toBe(true);
-      expect(ids.some((id) => map.nodes[id]!.kind === 'enhance'), `no enhance (seed ${seed})`).toBe(true);
-      // Trials always carry a twist id; Elites never do (their edge is HP/deck, not a twist).
+      // Every guaranteed kind appears on EVERY map. Rest and event were added to this
+      // guarantee after measurement showed 22.6% of act-1 maps had no Rest Site on any
+      // route (and 32.2% no event) — in an attrition run where Rest is the only source of
+      // temporary HP, a quarter of runs had no access to the healing system at all.
+      for (const kind of ['store', 'enhance', 'rest', 'event'] as const) {
+        expect(ids.some((id) => map.nodes[id]!.kind === kind), `no ${kind} (seed ${seed})`).toBe(true);
+      }
+      // A Trial carries a SHORTLIST of twists to choose between, and no twist yet — the
+      // condition is the player's decision, made on entering the node. Elites still carry
+      // none on the node at all (their own twist, if any, comes from `data/elites.ts`).
       for (const id of ids) {
         const n = map.nodes[id]!;
-        if (n.kind === 'trial') expect(n.twistId, `${id} missing twist`).toBeTruthy();
+        if (n.kind === 'trial') {
+          expect(n.twistChoices, `${id} missing twist shortlist`).toBeTruthy();
+          expect(n.twistChoices!.length, `${id} shortlist too short`).toBe(TRIAL_TWIST_CHOICES);
+          expect(new Set(n.twistChoices).size, `${id} shortlist repeats a twist`).toBe(n.twistChoices!.length);
+          for (const t of n.twistChoices!) {
+            const twist = trialById(t);
+            expect(twist, `${id} offers unknown twist ${t}`).toBeTruthy();
+            // A Trial must never offer a boss signature.
+            expect(twist!.bossOnly, `${id} offers boss-only ${t}`).toBeFalsy();
+          }
+          expect(n.twistId, `${id} should have no twist until one is chosen`).toBeUndefined();
+        }
         if (n.kind === 'elite') expect(n.twistId, `${id} elite should have no twist`).toBeUndefined();
       }
       // Elites never appear on layer 0 or the pre-boss/boss layers.

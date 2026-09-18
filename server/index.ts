@@ -16,6 +16,7 @@ import type { PlayerId } from '@engine/types';
 import { Match } from '@net/match';
 import { redactEventsFor, redactStateFor } from '@net/redact';
 import { MP_PORT, parseMsg, type ClientMsg, type ServerMsg } from '@net/protocol';
+import { parseSnapshot } from '@cards/snapshot';
 
 const match = new Match();
 /** Live sockets by seat (a seat may be temporarily empty between disconnect/reconnect). */
@@ -73,8 +74,14 @@ const handle = (ws: WebSocket, msg: ClientMsg): void => {
     }
     case 'content': {
       if (seatOf.get(ws) !== 0) { send(ws, { t: 'error', message: 'Only the host can share content' }); return; }
-      match.setContent(msg.snapshot);
-      send(sockets[1], { t: 'content', snapshot: msg.snapshot }); // relay to the player if present
+      // `parseMsg` is a JSON.parse plus a type ASSERTION — it validates nothing. This is the
+      // trust boundary, so the snapshot is schema-checked here before it can reach
+      // `registryFromSnapshot`, where a non-object card throws inside `expandKeywordEffects`
+      // and takes the server process down. Malformed entries are dropped, not fatal.
+      const snapshot = parseSnapshot(msg.snapshot);
+      match.setContent(snapshot);
+      send(sockets[1], { t: 'content', snapshot }); // relay the SANITIZED copy, so both sides
+      // build their registry from exactly the content the server did
       broadcastLobby();
       return;
     }

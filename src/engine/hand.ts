@@ -7,8 +7,8 @@
  * Null still bleeds its owner's leader, exactly as if it had died in play (see special.ts).
  */
 import { RULES } from '@engine/constants';
-import { NULL_CARD_ID, NULL_KAMIKAZE_DAMAGE } from '@cards/special';
-import { damageLeader } from '@engine/damage';
+import { NULL_CARD_ID } from '@cards/special';
+import { nullBleed } from '@engine/damage';
 import type { GameEvent } from '@engine/events';
 import type { CardInstance, GameState, PlayerId } from '@engine/types';
 
@@ -24,7 +24,7 @@ export const forgetCard = (
 ): void => {
   s.players[player].discard.push(card);
   events.push({ t: 'forget', player, iid: card.iid, cardId: card.cardId });
-  if (card.cardId === NULL_CARD_ID) damageLeader(s, player, NULL_KAMIKAZE_DAMAGE, events);
+  if (card.cardId === NULL_CARD_ID) nullBleed(s, player, events);
 };
 
 /**
@@ -48,8 +48,10 @@ export const millCards = (
 };
 
 /**
- * Add a card to a player's hand, honoring the hand cap. A full hand (HAND_CAP) forgets
- * the incoming card instead of holding it. Returns true if it entered the hand.
+ * Add a card to a player's hand, honoring the hand cap. A full hand forgets the incoming
+ * card instead of holding it. Returns true if it entered the hand.
+ *
+ * The cap is `player.handCap` when set, else `RULES.HAND_CAP` — relics may raise it.
  */
 export const addCardToHand = (
   s: GameState,
@@ -57,7 +59,7 @@ export const addCardToHand = (
   card: CardInstance,
   events: GameEvent[],
 ): boolean => {
-  if (s.players[player].hand.length >= RULES.HAND_CAP) {
+  if (s.players[player].hand.length >= (s.players[player].handCap ?? RULES.HAND_CAP)) {
     forgetCard(s, player, card, events);
     return false;
   }

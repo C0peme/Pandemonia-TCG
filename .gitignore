@@ -17,3 +17,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# balance-tuning scratch workspace: regenerated per investigation, never imported by the app
+.tuning/
+__pycache__/
+*.pyc

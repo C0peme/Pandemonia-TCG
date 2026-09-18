@@ -96,6 +96,22 @@ export type TargetScope = z.infer<typeof targetScopeSchema>;
  *   - polish / kamikaze / bloodlust-with-effects — carry `Effect[]` (authoring-only).
  * (Sable's Pathmaker grants Immunity + Undershot; sig-incarnate seeds Spike.)
  */
+/**
+ * Runtime-only hook back to `effectSchema`, for the one grantable keyword that carries effects.
+ *
+ * It exists purely to break a TYPE cycle. `grantableKeywordsShape` is referenced by
+ * `effectSchema` (a `buff` grants keywords), and Countdown's payload is itself `Effect[]` — so
+ * naming `effectSchema` anywhere inside the shape, even inside an arrow body or behind an
+ * `as` cast, makes TypeScript trace a circular definition and silently resolve the whole
+ * keyword type to `any`. That is not hypothetical: it degraded every keyword type in the
+ * codebase (183 downstream errors) twice while this was being written.
+ *
+ * The explicit annotation is what cuts the trace — TS takes the declared type and never looks
+ * at what is later assigned. The assignment happens below, immediately after `effectSchema`
+ * exists, and long before any card is parsed, so validation is exact at runtime.
+ */
+let validateEffect: (value: unknown) => boolean = () => true;
+
 const grantableKeywordsShape = {
   lethal: z.boolean().optional(),
   overshot: z.boolean().optional(),
@@ -117,10 +133,62 @@ const grantableKeywordsShape = {
   growth: statModSchema.optional(), // stat gain per turn
   // Bloodlust: only the stat buff is grantable (the Effect[] form is authoring-only).
   bloodlust: z.object({ buff: statModSchema.optional() }).strict().optional(),
+  /**
+   * COUNTDOWN — the ONE effect-carrying keyword that IS grantable, and the exception proves the
+   * rule stated above. The test is whether a bare `Object.assign` fully wires the keyword up,
+   * and Countdown passes it because it holds NO PER-UNIT STATE: `resolveEndOfTurn` drives it
+   * from `u.turnsInPlay`, which every unit already counts, and nothing is seeded at creation.
+   * (Contrast `shield`, whose live counter is `unit.shield` — that one really does need
+   * `applyStatus`.) Polish and Kamikaze stay out for the ordinary reason: they carry effects
+   * AND are read from paths that a merge does not reach.
+   *
+   * `effects` is typed `unknown[]` HERE and only here. This object is referenced by
+   * `effectSchema` (a `buff` carries it), while the effects inside it are Effects — a type
+   * cycle TypeScript resolves to `any`, which silently degraded every keyword type in the
+   * codebase when it was written the obvious way. The `z.lazy` keeps RUNTIME validation exact
+   * (it really does parse each entry against `effectSchema`); only the static type is widened,
+   * and only at this authoring boundary. `keywordsSchema` below re-declares Countdown with a
+   * precise `Effect[]`, which is what the engine actually reads.
+   *
+   * CAVEAT for granting one: the clock is the unit's AGE, not the time since the grant.
+   * `turnsInPlay === turns` fires on an exact turn, so a one-shot Countdown 2 granted to a unit
+   * that has already lived 5 turns never fires at all. Grants want `repeat: true`, which is due
+   * whenever `turnsInPlay % turns === 0`.
+   */
+  countdown: z
+    .object({
+      turns: z.number().int().min(1),
+      // Wrapped in an arrow rather than passed directly: `z.custom` captures the function
+      // VALUE at construction time, which here is still the permissive stub declared above —
+      // passing the binding itself meant every granted payload validated as fine.
+      effects: z.array(z.custom<unknown>((v) => validateEffect(v), 'not a valid Effect')).min(1),
+      repeat: z.boolean().optional(),
+      consume: z.boolean().optional(),
+    })
+    .strict()
+    .optional(),
 };
 
 export const effectGrantKeywordsSchema = z.object(grantableKeywordsShape).strict();
+/**
+ * Runtime-grantable keyword keys, as a plain list. `applyFoundation` uses it to decide which
+ * of a Foundation's OWN live keywords (base + anything buffed onto it while standalone) pass
+ * up to the host — the same blocklist the `buff` effect obeys.
+ */
+export const GRANTABLE_KEYWORD_KEYS = Object.keys(grantableKeywordsShape);
 export type EffectGrantKeywords = z.infer<typeof effectGrantKeywordsSchema>;
+
+/** Statuses a unit applies to what it hits. */
+export const onHitSchema = z
+  .object({
+    burn: z.number().int().min(1).optional(),
+    poison: z.union([z.boolean(), z.number().int().min(1)]).optional(), // true = default level; number = custom level
+
+    sleep: z.number().int().min(0).optional(), // heal X per turn while asleep
+    freeze: z.boolean().optional(),
+  })
+  .strict();
+export type OnHit = z.infer<typeof onHitSchema>;
 
 /**
  * A generic, card-authored effect (used by spells, environments, hero powers,
@@ -144,6 +212,19 @@ export const effectSchema = z
       'cleanse',
       'extraAction',
       'costMod',
+      /**
+       * Permanently reduce the cost of every card CURRENTLY in the caster's hand, by
+       * writing a per-copy `costDelta` on each. Distinct from `costMod`, which applies to
+       * a card TYPE for as long as it is set and so would also discount everything drawn
+       * later — this one travels with the specific copies it touched and nothing else.
+       */
+      'discountHand',
+      /**
+       * Arm a persistent trigger: every card this player plays from now on conjures a
+       * random card into their hand (Corpselock's Signature). Bounded per turn, because
+       * "play a card, get a card" is an infinite loop once cards are cheap enough.
+       */
+      'conjureOnPlay',
       'setStats',
       'custom',
     ]),
@@ -155,7 +236,7 @@ export const effectSchema = z
     /** Card id to create — for `conjure` (into a hand) and `summon` (a unit onto the board). */
     cardId: z.string().optional(),
     /** Destination lane for `summon` when the card fixes it; omit to let the player choose. */
-    lane: z.enum(['heights', 'ground1', 'ground2', 'water']).optional(),
+    lane: z.enum(['heights', 'ground1', 'water', 'ground2', 'heights2']).optional(),
     /** For `damage`: if this hit destroys its target, deal this much to another enemy unit. */
     chain: z.number().int().min(1).optional(),
     /**
@@ -164,10 +245,52 @@ export const effectSchema = z
      * fails to kill or the damage reaches 0. (Attrition signature.)
      */
     chainDiminish: z.boolean().optional(),
+<<<<<<< Updated upstream
+=======
+    /**
+     * For `damage`: if this damage DESTROYED the target, conjure this card into the caster's
+     * hand. Mirrors how `chain` tests `target.hp <= 0`. Powers a chain spread across CARDS
+     * rather than resolved inside one cast, so each link is a card the player must actually
+     * play — which is what lets Eksana's chain recharge her hero power as it runs.
+     */
+    conjureOnKill: z.string().min(1).optional(),
+    /**
+     * For `damage`: pierce the target's protective defences — Freeze, Shield, Tough and True
+     * Shield — the same promise the `pierce` KEYWORD makes for a unit's attack. Immunity still
+     * stops it, as it stops the keyword.
+     *
+     * The keyword additionally ignores Taunt and Spike; this flag does not, because neither
+     * exists on this path rather than by any deliberate exception — a damage effect names its
+     * own target (so there is no Taunt redirect to ignore) and provokes no retaliation (so
+     * there is no Spike to bypass). Same promise, fewer things in scope.
+     *
+     * Card damage is a HIT, so by default it wakes its target and Freeze absorbs it. This flag
+     * is how a card is allowed to answer something it has just frozen.
+     */
+    pierce: z.boolean().optional(),
+    /**
+     * For `damage`: derive the amount from the TARGET instead of a fixed `amount`.
+     * `targetAttack` deals damage equal to the target's current attack.
+     *
+     * This is how removal is differentiated by CONDITION rather than by price. Energy equals
+     * the round number and is uncapped, so a costlier answer is barely a worse answer after
+     * round ~5 — measured: +2 energy on 5 of a deck's 30 cards moved it 1.6pp, inside noise.
+     * A conditional answer, by contrast, is genuinely good against some boards and dead
+     * against others no matter how much energy you have.
+     */
+    amountFrom: z.enum(['targetAttack']).optional(),
+>>>>>>> Stashed changes
     /** For `costMod`: which card type's costs are modified. Defaults to 'spell' if omitted. */
     cardType: z.enum(['unit', 'spell', 'foundation', 'environment', 'all']).optional(),
     /** For `buff`: keywords granted to the target unit (e.g. Immunity, Undershot). */
     keywords: effectGrantKeywordsSchema.optional(),
+    /**
+     * For `buff`: an on-hit status package granted to the target unit, mirroring what a
+     * Foundation's `grants.onHit` does (see `applyFoundation`). Like that path it only
+     * applies when the target has no on-hit of its OWN — a unit's printed rider always
+     * wins over a granted one, so granting can never quietly overwrite authored behaviour.
+     */
+    onHit: onHitSchema.optional(),
     /**
      * For `energy`: the player chooses which element to bank at cast time (an `element`
      * target ref is consumed). Used by Golun's Cultivate. Ignored in non-interactive
@@ -179,17 +302,9 @@ export const effectSchema = z
   .strict();
 export type Effect = z.infer<typeof effectSchema>;
 
-/** Statuses a unit applies to what it hits. */
-export const onHitSchema = z
-  .object({
-    burn: z.number().int().min(1).optional(),
-    poison: z.union([z.boolean(), z.number().int().min(1)]).optional(), // true = default level; number = custom level
-
-    sleep: z.number().int().min(0).optional(), // heal X per turn while asleep
-    freeze: z.boolean().optional(),
-  })
-  .strict();
-export type OnHit = z.infer<typeof onHitSchema>;
+// Close the loop declared above: from here on, a granted Countdown's effects are validated
+// against the real `effectSchema`, exactly as a printed one's are.
+validateEffect = (value: unknown): boolean => effectSchema.safeParse(value).success;
 
 /**
  * Intrinsic keywords a unit (or foundation) carries. Flags are booleans; keywords
@@ -262,8 +377,40 @@ export const keywordsSchema = z
       })
       .strict()
       .optional(),
+<<<<<<< Updated upstream
     smelt: z
       .object({ hpCost: z.number().int().min(1), effect: effectSchema })
+=======
+    /**
+     * COUNTDOWN — a timer the OWNER sets, firing after `turns` of their own turns.
+     *
+     * The distinction from the game's other delayed mechanics is who controls the clock.
+     * Kamikaze fires on death, so the OPPONENT chooses when by choosing whether to kill it.
+     * Metamorphosis is a timer that upgrades the unit. Countdown is a timer the opponent must
+     * play AROUND: answer it early, or clear the lane before it lands.
+     *
+     * Deliberately general — `effects` is any Effect[], so the same keyword covers a delayed
+     * bomb, a recurring tick (`repeat`), or a payoff that hands its controller an extra action.
+     * `consume` destroys the unit when it fires, which is the bomb flavour; without it the unit
+     * survives and (with `repeat`) keeps ticking.
+     *
+     * RE-DECLARED here even though `grantableKeywordsShape` is spread in above, and that is
+     * deliberate rather than redundant. This declaration sits AFTER `effectSchema`, so it can
+     * name it directly and give `effects` a precise `Effect[]` — which is what the engine reads
+     * (`resolveEndOfTurn` hands it straight to `applyTriggeredEffects`). The grantable copy has
+     * to type the same field `unknown[]` to avoid a schema cycle; see the comment there. Both
+     * validate identically at runtime; only the static types differ.
+     */
+    countdown: z
+      .object({
+        turns: z.number().int().min(1),
+        effects: z.array(effectSchema).min(1),
+        /** Fire every `turns` turns instead of once. */
+        repeat: z.boolean().optional(),
+        /** Destroy this unit when the timer fires. */
+        consume: z.boolean().optional(),
+      })
+>>>>>>> Stashed changes
       .strict()
       .optional(),
   })
@@ -286,6 +433,39 @@ const cardBase = {
   wip: z.boolean().default(false), // true = mechanic not yet fully implemented
 };
 
+/**
+ * A unit sitting in Water or Heights with no Airborne/Aquatic answer in the opposing lane
+ * cannot be traded with in combat at all — only a same-domain unit or a removal spell can
+ * touch it. High HP on top of that evasion compounds two advantages the formula prices
+ * independently (the keyword cost, the HP cost) into a body that is disproportionately hard
+ * to ever remove. Capped, not priced up: this is a DESIGN LINE (per the game's author), not a
+ * cost-formula parameter — a body this evasive should not exist at high HP no matter what it
+ * paid for it.
+ *
+ * The current pool's tallest ordinary evasive body is Emerald Drake at 5 HP (6 energy); this
+ * cap matches that observed ceiling rather than inventing a new number.
+ *
+ * LIMITATION, not fully closed by this check: it only sees a card's OWN `keywords.aquatic`/
+ * `airborne`. A grounded, high-HP unit that gains Aquatic or Airborne at RUNTIME — via a
+ * Foundation grant (Fred's Boat, Tidal Dock) or an Environment's `grantKeywords` — is
+ * invisible to static schema validation, since neither card's own definition violates the
+ * rule in isolation. Authors granting evasion onto an existing body must apply this same
+ * ceiling by hand; the engine cannot catch that combination for you.
+ */
+export const EVASIVE_HP_CAP = 5;
+
+const checkEvasiveHpCap = (card: { hp: number; keywords?: { aquatic?: unknown; airborne?: boolean }; leaderUnit?: boolean }, ctx: z.RefinementCtx): void => {
+  if (card.leaderUnit) return;
+  const evasive = Boolean(card.keywords?.aquatic) || Boolean(card.keywords?.airborne);
+  if (evasive && card.hp > EVASIVE_HP_CAP) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Airborne/Aquatic units cannot exceed ${EVASIVE_HP_CAP} HP (got ${card.hp}) — they occupy a lane only a same-domain unit or removal can contest. Set leaderUnit: true if this is a leader-unit avatar.`,
+      path: ['hp'],
+    });
+  }
+};
+
 export const unitCardSchema = z
   .object({
     ...cardBase,
@@ -303,8 +483,16 @@ export const unitCardSchema = z
     endOfTurn: z.array(effectSchema).optional(),
     /** Effects that fire at the start of this unit's owner's turn. */
     startOfTurn: z.array(effectSchema).optional(),
+    /**
+     * Marks the one card per leader that IS the leader-unit avatar (referenced by that
+     * leader's `leaderUnitCardId`). The only exemption from `EVASIVE_HP_CAP` below — a
+     * leader-unit's HP is the leader's own HP by design (Immunity/Taunt/"if it dies you
+     * lose" already govern it), not a stat a card author is choosing freely.
+     */
+    leaderUnit: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine(checkEvasiveHpCap);
 
 export const foundationCardSchema = z
   .object({
@@ -331,7 +519,8 @@ export const foundationCardSchema = z
       .strict()
       .default({}),
   })
-  .strict();
+  .strict()
+  .superRefine(checkEvasiveHpCap);
 
 export const spellCardSchema = z
   .object({
@@ -384,6 +573,23 @@ export const heroPowerSchema = z
     cost: costSchema,
     /** Optional HP paid from the caster's own leader in addition to the energy cost. */
     hpCost: z.number().int().min(1).optional(),
+    /**
+     * Extra HP added to `hpCost` for each PREVIOUS activation this game (1 -> 1,2,3...).
+     * OPT-IN, because it only makes sense where a power's value is CUMULATIVE. Modification
+     * grants +1 attack permanently, so activation k adds attack to every remaining turn and
+     * its total value is quadratic in game length, while a flat HP price is linear — cost
+     * loses that race outright. Screyera's Scry also costs HP but draws 2 cards, which is
+     * linear, so it must NOT escalate. A global rule would nerf the wrong power.
+     */
+    hpCostStep: z.number().int().min(0).optional(),
+    /**
+     * ENERGY discount per card played since this power was last activated — the inverse of
+     * `hpCostStep`. Lets a power be printed at a cost no game ever naturally reaches (energy
+     * equals the round number, so ~17 is the practical ceiling) and made castable only by
+     * PLAYING CARDS. Activating resets the counter, so it is a rechargeable ultimate rather
+     * than a one-way unlock: see Eksana's Call in a Favour.
+     */
+    costStep: z.number().int().min(0).optional(),
     effects: z.array(effectSchema).min(1),
     text: z.string().optional(),
   })

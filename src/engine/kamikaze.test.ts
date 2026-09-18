@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveCombat } from '@engine/combat';
-import { blankState, place, unit } from '@engine/testkit';
+import { blankState, place, testRegistry, unit } from '@engine/testkit';
 import type { GameState } from '@engine/types';
 
 const run = (s: GameState) => resolveCombat(s).state;
@@ -100,5 +100,17 @@ describe('Kamikaze variants', () => {
     expect(revived.hp).toBe(1);           // revived at 1 HP
     expect(revived.status.burn).toBeUndefined();    // cleansed
     expect(revived.status.freeze).toBeUndefined();  // cleansed
+  });
+
+  // --- Hive Spawn: summon-type Kamikaze lands back in the lane it died in ---
+  it('Hive Spawn (summon): the replacement spawns into the lane where it died, not elsewhere', () => {
+    const s = blankState();
+    // Hive Spawn is alone in ground1 — a single-occupant lane with no open slot until it dies.
+    place(s, 1, 'ground1', unit({ owner: 1, attack: 0, hp: 1, keywords: { kamikaze: { kind: 'summon', cardId: 'eel' } } }));
+    place(s, 0, 'ground1', unit({ owner: 0, attack: 5, hp: 5 }));
+    const r = resolveCombat(s, undefined, testRegistry).state;
+    // If the dying unit's slot weren't cleared before the trigger fired, the summon would see
+    // ground1 as full and either fall through to another lane or be skipped outright.
+    expect(r.players[1].lanes.ground1.front?.cardId).toBe('eel');
   });
 });

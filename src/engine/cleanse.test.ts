@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { testRegistry, blankState, unit } from '@engine/testkit';
+import { starterRegistry } from '@cards/data/starter';
 import { applyEffects } from '@engine/effects';
 import { reconcileDrowning } from '@engine/drowning';
 import { resolveStartOfTurn } from '@engine/endOfTurn';
@@ -26,15 +27,18 @@ describe('cleanse targeting', () => {
     expect(u.status.poisoned).toBeUndefined();
   });
 
-  it('Purify as authored in the card pool is castable', () => {
-    const purify = testRegistry.cards.get('purify');
-    // Guard: if Purify is ever re-authored, this test should be revisited with it.
-    if (!purify || purify.type !== 'spell') return;
+  it('a cleanse spell as authored in the card pool is castable', () => {
+    // Was written against Purify and `testRegistry` — which is built from testkit's own tiny
+    // card list and has never contained a starter card, so the guard below silently made the
+    // whole test a no-op. Pointed at the real pool and at Rejuvenate, which absorbed Purify's
+    // niche when the duplicate was cut (cleanse + heal 2 for one energy, vs cleanse alone).
+    const purify = starterRegistry.cards.get('rejuvenate');
+    if (!purify || purify.type !== 'spell') throw new Error('rejuvenate missing from the pool');
     const s = blankState();
     const u = unit({ owner: 0, attack: 2, hp: 5, status: { burn: 2 } });
     s.players[0].lanes.ground1.front = u;
     const events: GameEvent[] = [];
-    expect(applyEffects(s, 0, purify.effects, [{ kind: 'unit', iid: u.iid }] as TargetRef[], undefined, events, testRegistry)).toBeNull();
+    expect(applyEffects(s, 0, purify.effects, [{ kind: 'unit', iid: u.iid }, { kind: 'unit', iid: u.iid }] as TargetRef[], undefined, events, starterRegistry)).toBeNull();
     expect(u.status.burn).toBeUndefined();
   });
 });

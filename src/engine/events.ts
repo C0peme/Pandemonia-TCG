@@ -11,6 +11,7 @@ export type GameEvent =
   | { t: 'draw'; player: PlayerId; iid: string; cardId: string }
   | { t: 'deckOut'; player: PlayerId }
   | { t: 'drawNull'; player: PlayerId }
+  | { t: 'nullHold'; player: PlayerId; held: number }
   | { t: 'foundationPlaced'; player: PlayerId; cardId: string; hostIid: string }
   | { t: 'foundationBonded'; player: PlayerId; foundationCardId: string; hostIid: string }
   | { t: 'foundationDestroyed'; iid: string; hostIid: string }
@@ -52,6 +53,10 @@ export type GameEvent =
   | { t: 'expel'; iid: string; cardId: string; victim?: PlayerId }
   | { t: 'forget'; player: PlayerId; cardId: string; iid?: string }
   | { t: 'summon'; player: PlayerId; cardId: string; lane?: LaneId }
+  /** A boss rule destroyed this player's biggest unit outright (Ring Leader's Execution). */
+  | { t: 'execute'; player: PlayerId; iid: string; cardId: string }
+  /** A boss rule took a card from this player's hand into the other side's (Behind the Mask). */
+  | { t: 'stolen'; from: PlayerId; cardId: string }
   | { t: 'conjure'; player: PlayerId; cardId: string }
   | { t: 'cleanse'; iid: string }
   /** A keyword-backed status wore off on its own (distinct from being applied or cleansed). */

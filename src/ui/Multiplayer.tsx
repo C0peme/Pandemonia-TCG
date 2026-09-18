@@ -12,7 +12,7 @@ import type { GameState, PlayerId } from '@engine/types';
 import { validateDeck, type Registry } from '@cards/registry';
 import type { Deck } from '@cards/schema';
 import { snapshotContent } from '@cards/store';
-import { registryFromSnapshot, type ContentSnapshot } from '@cards/snapshot';
+import { registryFromSnapshot, parseSnapshot, type ContentSnapshot } from '@cards/snapshot';
 import type { Phase, Role, SeatInfo } from '@net/protocol';
 import { NetClient } from '@ui/net/NetClient';
 import { useGame } from '@ui/useGame';
@@ -78,7 +78,10 @@ function MultiplayerSession({ client, role, onLeave }: { client: NetClient; role
           if (role === 'host') client.shareContent(snapshotContent());
           break;
         case 'lobby': setSeats(msg.seats); setPhase(msg.phase); break;
-        case 'content': setSnapshot(msg.snapshot); break;
+        // Schema-checked at the boundary for the same reason the server does it: nothing
+        // between the socket and `registryFromSnapshot` validates, and an unparseable card
+        // throws there rather than being ignored.
+        case 'content': setSnapshot(parseSnapshot(msg.snapshot)); break;
         case 'state': setPhase(msg.phase); setInitialState((s) => s ?? msg.state); break;
         case 'error': setError(msg.message); break;
         case 'peerLeft': setError('Your opponent disconnected.'); break;

@@ -9,8 +9,13 @@
  *   Defense:    Shield, True Shield, Taunt, Spike, Tough, Immunity, Lethal.
  *
  * Retaliation is a full counter-attack by ALL acting defenders in the struck lane
- * (their keywords apply), happening once per attacker even under Double Strike. A
- * unit only provokes retaliation when it strikes a unit in its OWN lane.
+ * (their keywords apply). A unit only provokes retaliation when it strikes a unit in
+ * its OWN lane. Two rules govern it:
+ *   - WHO TAKES IT: the front slot of the ATTACKING lane, not whoever swung. A
+ *     Double-Team back unit is shielded by its front partner — that exposure is what
+ *     the front slot is for.
+ *   - HOW OFTEN: a defending lane retaliates at most ONCE per combat phase, however
+ *     many times it is struck (Double Strike, or both slots of an attacking Double Team).
  *
  * Modeling notes (documented decisions, refined in later waves):
  * - Sniper auto-targets the first enemy lane with a unit (manual targeting arrives
@@ -19,7 +24,7 @@
  * - True Shield is treated as "block all damage" while present on a unit.
  * - Lane retaliation is a single combined damage instance (one Shield blocks it).
  */
-import { LANES, type LaneId } from '@engine/constants';
+import { LANES, type LaneId, isHeights, isWater } from '@engine/constants';
 import { applyOnHitStatuses } from '@engine/board';
 import { damageLeader, reconcileLeaderUnit } from '@engine/damage';
 import { applyTriggeredEffects, applyEffects, processDeaths, dealUnitDamage, fireBloodlust } from '@engine/effects';
@@ -104,10 +109,23 @@ const findTaunt = (s: GameState, p: PlayerId, requireAirborne: boolean): UnitIns
   return undefined;
 };
 
-const chooseSniperLane = (s: GameState, defender: PlayerId, fallback: LaneId, override?: LaneId): LaneId => {
+/**
+ * Where a Sniper fires when nothing chose its lane for it — the UI's End Turn flow asks the
+ * player for `override`, but a bonus attack (`resolveExtraAction`, from Adrenaline Rush,
+ * Overexert, etc.) resolves synchronously mid-effect with no chance to prompt anyone, so it
+ * always lands here. Mirrors the AI's own `planSnipers` heuristic (a lane it can kill into,
+ * else the biggest threat) rather than blindly taking the first lane with a body in it, so an
+ * un-aimed shot is at least a sensible one.
+ */
+const chooseSniperLane = (s: GameState, source: UnitInstance, defender: PlayerId, fallback: LaneId, override?: LaneId): LaneId => {
   if (override) return override;
-  for (const lane of LANES) if (frontOf(s, defender, lane)) return lane;
-  return fallback;
+  const enemyLanes = LANES.filter((l) => frontOf(s, defender, l));
+  if (enemyLanes.length === 0) return fallback;
+  const killable = enemyLanes.filter((l) => (frontOf(s, defender, l)?.hp ?? 0) <= source.attack);
+  const pool = killable.length ? killable : enemyLanes;
+  return pool.reduce((a, b) =>
+    (frontOf(s, defender, a)?.attack ?? 0) >= (frontOf(s, defender, b)?.attack ?? 0) ? a : b,
+  );
 };
 
 /**
@@ -224,49 +242,63 @@ const hitLeaderOrTaunt = (
   }
 };
 
-/** Combined retaliation from a set of defenders against the attacker. */
+/**
+ * Combined retaliation from a set of defenders, struck back into the attacking lane.
+ *
+ * The blow lands on whatever unit holds the FRONT slot of the attacker's own lane — NOT
+ * necessarily the unit that swung. A Double-Team back-row attacker is shielded by its front
+ * partner, which is what makes the back slot worth occupying: the front unit is the one
+ * exposed to the counter-swing. `source` still decides WHETHER retaliation happens (a dead
+ * attacker provokes none) and Lethal/Bloodlust resolve against whoever actually takes it.
+ */
 const retaliateFrom = (
   s: GameState,
   source: UnitInstance,
+  attackerLane: LaneId,
   retaliators: UnitInstance[],
   events: GameEvent[],
   registry?: Registry,
   noRetaliateIids?: Set<string>,
 ): void => {
   if (source.hp <= 0) return;
+  // The front slot tanks it; fall back to the attacker itself when it IS the front unit, or
+  // when it fights from outside the lane grid (a standalone Foundation has no front/back slot).
+  const victim = frontOf(s, source.owner, attackerLane) ?? source;
+  if (victim.hp <= 0) return;
   // Burn already resolved as the lane activated (a unit that died to Burn is gone before this).
   // A unit slain by the attack itself still retaliates — combat is simultaneous.
   // Units that were asleep when struck cannot retaliate (they just woke up).
   const able = retaliators.filter(u => canAct(u) && !noRetaliateIids?.has(u.iid));
   const total = able.reduce((sum, u) => sum + u.attack, 0);
   if (total <= 0) return;
-  const landed = dealUnitDamage(s, source, total, {}, events, registry, (amount) => {
-    events.push({ t: 'retaliate', unit: able[0]!.iid, target: source.iid, amount });
-    events.push({ t: 'damageUnit', iid: source.iid, amount, hpAfter: source.hp, victim: source.owner });
+  const landed = dealUnitDamage(s, victim, total, {}, events, registry, (amount) => {
+    events.push({ t: 'retaliate', unit: able[0]!.iid, target: victim.iid, amount });
+    events.push({ t: 'damageUnit', iid: victim.iid, amount, hpAfter: victim.hp, victim: victim.owner });
   });
   if (landed > 0) {
     for (const u of able) {
-      if (u.keywords.lethal && !source.keywords.immunity) {
-        source.hp = 0;
-        events.push({ t: 'lethal', source: u.iid, target: source.iid });
+      if (u.keywords.lethal && !victim.keywords.immunity) {
+        victim.hp = 0;
+        events.push({ t: 'lethal', source: u.iid, target: victim.iid });
       }
     }
   }
-  // Bloodlust — a retaliator that destroys the attacker triggers.
-  if (source.hp <= 0) {
-    for (const u of able) fireBloodlust(s, u, source, events, registry);
+  // Bloodlust — a retaliator that destroys what it struck triggers.
+  if (victim.hp <= 0) {
+    for (const u of able) fireBloodlust(s, u, victim, events, registry);
   }
 };
 
 const retaliateFromLane = (
   s: GameState,
   source: UnitInstance,
+  attackerLane: LaneId,
   defender: PlayerId,
   lane: LaneId,
   events: GameEvent[],
   registry?: Registry,
   noRetaliateIids?: Set<string>,
-): void => retaliateFrom(s, source, unitsInLane(s, defender, lane), events, registry, noRetaliateIids);
+): void => retaliateFrom(s, source, attackerLane, unitsInLane(s, defender, lane), events, registry, noRetaliateIids);
 
 /** Which lane (on `p`'s side) the given unit iid currently occupies, if any. */
 const laneOfUnit = (s: GameState, p: PlayerId, iid: string): LaneId | undefined =>
@@ -298,12 +330,21 @@ const resolveAttacker = (
   sniperChoice?: LaneId,
   opts?: { noRetaliation?: boolean },
   registry?: Registry,
+  retaliated?: Set<string>,
 ): void => {
   const strikes = source.keywords.doubleStrike ? 2 : 1;
   // Extra Action attacks (and other bonus actions) take no retaliation.
   // noRetaliateIids: units that were asleep when struck this sequence — they cannot retaliate.
   const retaliate = (s2: GameState, src: UnitInstance, def: PlayerId, ln: LaneId, ev: GameEvent[], noRet?: Set<string>): void => {
-    if (!opts?.noRetaliation) retaliateFromLane(s2, src, def, ln, ev, registry, noRet);
+    if (opts?.noRetaliation) return;
+    // A defending lane strikes back at most ONCE per combat phase, however many times it is
+    // hit. Double Strike already took only one counter; this extends the same rule to a lane
+    // struck by both slots of an attacking Double Team, which previously ate two full
+    // retaliations and made attacking into a defended lane with two bodies strictly awful.
+    const once = `${def}:${ln}`;
+    if (retaliated?.has(once)) return;
+    retaliated?.add(once);
+    retaliateFromLane(s2, src, lane, def, ln, ev, registry, noRet);
   };
 
   // Retaliation rule (unified): a lane strikes back only when the attacker is directly
@@ -316,8 +357,8 @@ const resolveAttacker = (
   // Overshot, Undershot, Strike Through) aim at the chosen lane. Requires the Heights lane
   // or the Airborne keyword; a grounded Sniper outside Heights just strikes straight across.
   let targetLane = lane;
-  if (source.keywords.sniper && (lane === 'heights' || source.keywords.airborne)) {
-    targetLane = chooseSniperLane(s, defender, lane, sniperChoice);
+  if (source.keywords.sniper && (isHeights(lane, s.laneTypes) || source.keywords.airborne)) {
+    targetLane = chooseSniperLane(s, source, defender, lane, sniperChoice);
   }
   // ── Per-shot primitive ─────────────────────────────────────────────────────────────────────
   // A single shot from `source` at one lane. Attack TYPES (Branch, Splash, plain) decide WHICH
@@ -427,25 +468,42 @@ const resolveAttacker = (
     if (across) retaliate(s, source, defender, tl, events, laneSleepingIids.size > 0 ? laneSleepingIids : undefined);
   };
 
+  // Splash's collateral: a cross-lane hit on each lane adjacent to the target lane. When a
+  // lane holds a front unit, that unit takes the hit; an empty lane is not skipped — the shot
+  // carries through to the leader (redirected to a Taunt unit if one is eligible), same as any
+  // other cross-lane shot that finds no body in its way. No retaliation either way (cross-lane).
+  const resolveSplashCollateral = (): void => {
+    for (const l of adjacentLanes(targetLane)) {
+      const front = frontOf(s, defender, l);
+      if (front) dealAttack(s, source, front, {}, events, registry);
+      else hitLeaderOrTaunt(s, source, defender, false, events, registry);
+    }
+  };
+
   // ── Attack-type dispatch ───────────────────────────────────────────────────────────────────
   // Branch Shot — one shot into each lane adjacent to the target lane (never the target lane
   // itself). Each wing is a full shot carrying the unit's attributes, so Branch composes with
   // Overshot, Undershot, Strike Through, on-hit, etc. Wings are cross-lane, so they retaliate only
   // in the rare case a wing lands on the attacker's own lane (a Sniper-redirected target).
   if (source.keywords.branchShot) {
+    // Branch Shot + Splash Damage COMPOSE — Branch used to return here, so a unit with
+    // both simply never splashed and one of its two keywords was dead weight. They are
+    // different questions: Splash says "the target lane and its neighbours are hit",
+    // Branch says "the neighbours take a full shot instead of the target lane". Running
+    // both means the neighbours are hit TWICE (Splash's collateral plus Branch's full
+    // shot) and the target lane once (Splash's own shot).
+    if (source.keywords.splashDamage) {
+      resolveSplashCollateral();
+      resolveShotAtLane(targetLane);
+    }
     for (const adjLane of adjacentLanes(targetLane)) resolveShotAtLane(adjLane);
     return;
   }
 
-  // Splash — a full shot at the target lane (which retaliates when across) plus collateral on the
-  // adjacent lanes' front units. The collateral is cross-lane (no retaliation) and lands only on
-  // units that are actually there — it is what distinguishes Splash from Branch, so it is not a
-  // full shot (an empty adjacent lane is skipped rather than reaching the leader).
+  // Splash — a full shot at the target lane (which retaliates when across) plus collateral on
+  // the adjacent lanes: their front unit if one is there, else the leader.
   if (source.keywords.splashDamage) {
-    const collateral = adjacentLanes(targetLane)
-      .map((l) => frontOf(s, defender, l))
-      .filter((u): u is UnitInstance => Boolean(u));
-    for (const t of collateral) dealAttack(s, source, t, {}, events, registry);
+    resolveSplashCollateral();
     resolveShotAtLane(targetLane);
     return;
   }
@@ -496,13 +554,14 @@ const resolveFoundationAttacker = (
   events: GameEvent[],
   sniperChoice: LaneId | undefined,
   registry: Registry | undefined,
+  retaliated?: Set<string>,
 ): 'continue' | 'ended' => {
   const laneObj = draft.players[attacker].lanes[lane];
   const sf = laneObj.standaloneFoundation;
   if (!sf) return 'continue';
   if (sf.justPlaced || sf.attack <= 0) return 'continue'; // summoning-sick or non-combatant
   const waterCompatible = Boolean(sf.keywords.aquatic) || Boolean(sf.keywords.airborne);
-  if (lane === 'water' && !waterCompatible) return 'continue'; // drowning — 0 attack
+  if (isWater(lane, draft.laneTypes) && !waterCompatible) return 'continue'; // drowning — 0 attack
 
   // Burn procs before it attacks, exactly like a unit — a Foundation that burns to death never swings.
   procBurn(draft, sf, events, registry);
@@ -510,7 +569,7 @@ const resolveFoundationAttacker = (
 
   // The Foundation IS a full unit — it swings through the shared `resolveAttacker` path directly.
   events.push({ t: 'attack', attacker: sf.iid, lane, amount: sf.attack });
-  resolveAttacker(draft, sf, lane, defender, events, sniperChoice, undefined, registry);
+  resolveAttacker(draft, sf, lane, defender, events, sniperChoice, undefined, registry, retaliated);
   if (sf.hp <= 0) {
     laneObj.standaloneFoundation = undefined;
     events.push({ t: 'foundationDestroyed', iid: sf.iid, hostIid: '' });
@@ -530,12 +589,13 @@ const resolveOneAttacker = (
   events: GameEvent[],
   sniperChoice?: LaneId,
   registry?: Registry,
+  retaliated?: Set<string>,
 ): 'continue' | 'ended' => {
   const source = findUnit(draft, attacker, iid);
   if (!source) {
     // Not a front/back unit — it may be a standalone Foundation attacking as a full unit.
     const sf = draft.players[attacker].lanes[lane].standaloneFoundation;
-    if (sf && sf.iid === iid) return resolveFoundationAttacker(draft, attacker, defender, lane, events, sniperChoice, registry);
+    if (sf && sf.iid === iid) return resolveFoundationAttacker(draft, attacker, defender, lane, events, sniperChoice, registry, retaliated);
     return 'continue';
   }
   if (!canAct(source)) return 'continue';
@@ -557,7 +617,7 @@ const resolveOneAttacker = (
   if (source.hp <= 0) { processDeaths(draft, events, undefined, registry); return 'continue'; }
 
   events.push({ t: 'attack', attacker: source.iid, lane, amount: source.attack });
-  resolveAttacker(draft, source, lane, defender, events, sniperChoice, undefined, registry);
+  resolveAttacker(draft, source, lane, defender, events, sniperChoice, undefined, registry, retaliated);
 
   // Brittle: the unit destroys itself after it attacks.
   if (source.keywords.brittle && source.hp > 0) {
@@ -626,43 +686,83 @@ export const resolveCombat = (
   const events: GameEvent[] = [];
   const { attacker, defender, order } = setupCombat(draft, registry);
   applyEnvironmentEffects(draft, registry, events); // environments activate the lane each combat
+  // One per COMBAT PHASE, shared by every attacker: a defending lane counter-swings once.
+  const retaliated = new Set<string>();
 
   for (const { iid, lane } of order) {
-    const result = resolveOneAttacker(draft, attacker, defender, iid, lane, events, sniperChoices?.[iid] as LaneId | undefined, registry);
+    const result = resolveOneAttacker(draft, attacker, defender, iid, lane, events, sniperChoices?.[iid] as LaneId | undefined, registry, retaliated);
     if (result === 'ended') break;
+  }
+
+  // CHARGE (a boss rule, never a Trial twist): this side's whole Declare Attack step
+  // repeats once more, in the same order, before the turn ends. A second full combat
+  // PHASE gets its own retaliation allowance (`retaliated` is per-phase by design, so a
+  // defending lane counter-swings once per phase rather than once per unit) — that is
+  // "attacks twice", not "attacks twice as hard".
+  if (draft.bossRules?.doubleCombat === attacker && draft.phase !== 'ended') {
+    const second = setupCombat(draft, registry);
+    const retaliated2 = new Set<string>();
+    for (const { iid, lane } of second.order) {
+      const result = resolveOneAttacker(draft, second.attacker, second.defender, iid, lane, events, undefined, registry, retaliated2);
+      if (result === 'ended') break;
+    }
   }
 
   return { state: draft, events };
 };
 
+/** Locate a unit anywhere on the board, with its owner and lane. */
+const locateAny = (s: GameState, iid: string): { owner: PlayerId; lane: LaneId; unit: UnitInstance } | undefined => {
+  for (const p of [0, 1] as PlayerId[]) {
+    for (const l of LANES) {
+      const u = unitsInLane(s, p, l).find((x) => x.iid === iid);
+      if (u) return { owner: p, lane: l, unit: u };
+    }
+  }
+  return undefined;
+};
+
+/**
+ * Whether a queued extra action (`GameState.extraActions[0]`) needs the player to aim it before
+ * it can resolve: a Sniper currently eligible to redirect (Heights, or Airborne anywhere) that
+ * can otherwise act. `resolveExtraAction`'s own early-exit conditions (asleep/frozen/drowning/no
+ * attack) are checked first so a queued action that's about to be a no-op never demands a prompt.
+ * The main End Turn declare has a UI step to ask the player which lane each Sniper hits; a bonus
+ * attack from an `extraAction` effect (Adrenaline Rush, a signature like Overexert) used to skip
+ * that step entirely and fall back to an automatic pick — this is what lets the engine instead
+ * pause (`drainExtraActions` in engine.ts) and let the UI ask, exactly as it does for combat.
+ */
+export const extraActionNeedsAim = (s: GameState, iid: string): boolean => {
+  const found = locateAny(s, iid);
+  if (!found) return false;
+  const { lane, unit } = found;
+  if (unit.status.sleep || unit.status.freeze || unit.status.drowning || unit.attack <= 0) return false;
+  return Boolean(unit.keywords.sniper) && (isHeights(lane, s.laneTypes) || Boolean(unit.keywords.airborne));
+};
+
 /**
  * Resolve a single bonus attack for one unit (from an `extraAction` effect), mutating
  * `draft`. The unit strikes the lane across from it exactly as in normal combat, but takes
- * NO retaliation. Deaths are processed afterwards. Safe to call mid-action.
+ * NO retaliation. Deaths are processed afterwards. Safe to call mid-action. `sniperChoice`
+ * carries the lane the player aimed at, if this attacker needed aiming
+ * (`extraActionNeedsAim`) — the caller is responsible for having collected it first.
  */
 export const resolveExtraAction = (
   draft: GameState,
   unitIid: string,
   registry: Registry | undefined,
   events: GameEvent[],
+  sniperChoice?: LaneId,
 ): void => {
-  let owner: PlayerId | undefined;
-  let lane: LaneId | undefined;
-  let source: UnitInstance | undefined;
-  for (const p of [0, 1] as PlayerId[]) {
-    for (const l of LANES) {
-      const u = unitsInLane(draft, p, l).find((x) => x.iid === unitIid);
-      if (u) { owner = p; lane = l; source = u; break; }
-    }
-    if (source) break;
-  }
-  if (!source || owner === undefined || !lane) return;
+  const found = locateAny(draft, unitIid);
+  if (!found) return;
+  const { owner, lane, unit: source } = found;
   // A granted bonus action ignores summoning sickness, but a unit that physically cannot
   // act (asleep / frozen / drowning) or has no attack still does nothing.
   if (source.status.sleep || source.status.freeze || source.status.drowning || source.attack <= 0) return;
   // Emit the attack event so the UI's buildAttackFx can find this strike and animate it.
   events.push({ t: 'attack', attacker: source.iid, lane, amount: source.attack });
-  resolveAttacker(draft, source, lane, opponentOf(owner), events, undefined, { noRetaliation: true }, registry);
+  resolveAttacker(draft, source, lane, opponentOf(owner), events, sniperChoice, { noRetaliation: true }, registry);
   processDeaths(draft, events, source.iid, registry);
 };
 
@@ -691,6 +791,8 @@ export const resolveCombatByLane = (
   const events: GameEvent[] = [];
   const { attacker, defender, order } = setupCombat(draft, registry);
   applyEnvironmentEffects(draft, registry, events); // environments activate the lane each combat
+  // One per COMBAT PHASE, shared by every attacker: a defending lane counter-swings once.
+  const retaliated = new Set<string>();
 
   const steps: LaneCombatStep[] = [];
   let ended = false;
@@ -700,7 +802,7 @@ export const resolveCombatByLane = (
     if (!ended) {
       for (const entry of order.filter((o) => o.lane === lane)) {
         const before = laneEvents.length;
-        const result = resolveOneAttacker(draft, attacker, defender, entry.iid, lane, laneEvents, sniperChoices?.[entry.iid] as LaneId | undefined, registry);
+        const result = resolveOneAttacker(draft, attacker, defender, entry.iid, lane, laneEvents, sniperChoices?.[entry.iid] as LaneId | undefined, registry, retaliated);
         if (laneEvents.some((e, i) => i >= before && e.t === 'attack')) acted = true;
         if (result === 'ended') { ended = true; break; }
       }
