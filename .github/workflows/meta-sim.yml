@@ -23,7 +23,23 @@ on:
         default: '1'
   push:
     branches: ['claude/**']
-    paths: ['.github/workflows/meta-sim.yml']
+    # A balance change should measure itself. The trigger used to be this workflow file alone,
+    # which meant taking a reading required an unrelated edit to the workflow — so the natural
+    # thing to do was skip the reading. The card data and the cost formula ARE the inputs this
+    # workflow exists to measure, so a push that changes them takes one.
+    #
+    # Deliberately limited to claude/** working branches, never the default branch, and the
+    # concurrency group below is per-ref so parallel branches do not cancel each other. Note
+    # the cost: every such push spends 20 runners for ~30 minutes. Batch balance edits into one
+    # commit rather than pushing them one at a time.
+    #
+    # META_SEED is left at its default of 1 on a push, so consecutive runs are directly
+    # comparable and `scripts/meta-diff.mjs` can attribute a moved win rate to the change
+    # rather than to a different shuffle.
+    paths:
+      - '.github/workflows/meta-sim.yml'
+      - 'src/cards/data/**'
+      - 'src/cards/budget.ts'
 
 concurrency:
   group: meta-sim-${{ github.ref }}

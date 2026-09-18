@@ -24,7 +24,11 @@ describe('leader budget', () => {
     const deckFor: Record<string, string> = {};
     for (const d of starterDecks) deckFor[d.leaderId] = d.name;
 
-    const out: Record<string, unknown> = {};
+    interface LeaderRow {
+      deck: string; power: string; value: number; cost: number; ratio: number;
+      sig: string; sigId: string | undefined; sigValue: number | null; caps: string;
+    }
+    const out: Record<string, LeaderRow> = {};
     for (const l of starterLeaders) {
       const sig = starterCards.find((c) => c.id === l.signatureCardId);
       const caps = l.elementCaps as Record<string, number>;
@@ -42,13 +46,13 @@ describe('leader budget', () => {
     }
     writeFileSync('leader-budget.json', JSON.stringify(out, null, 1));
 
-    const rows = Object.entries(out).map(([id, v]) => ({ id, ...(v as Record<string, never>) }));
-    rows.sort((a, b) => Number(b.ratio) - Number(a.ratio));
+    const rows = Object.entries(out).map(([id, v]) => ({ id, ...v }));
+    rows.sort((a, b) => b.ratio - a.ratio);
     console.log('\nleader'.padEnd(13) + 'deck'.padEnd(13) + 'power'.padEnd(20) + 'val  cost ratio   sig'.padEnd(30) + 'sigval');
     for (const r of rows) {
-      console.log(String(r.id).padEnd(13) + String(r.deck).padEnd(13) + String(r.power).padEnd(20) +
+      console.log(r.id.padEnd(13) + r.deck.padEnd(13) + r.power.padEnd(20) +
         String(r.value).padStart(4) + String(r.cost).padStart(6) + String(r.ratio).padStart(6) + '   ' +
-        String(r.sig).padEnd(27) + String(r.sigValue).padStart(6));
+        r.sig.padEnd(27) + String(r.sigValue).padStart(6));
     }
   });
 });

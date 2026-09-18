@@ -48,13 +48,19 @@ describe('simulateRun', () => {
   });
 
   it('carries leader HP between fights rather than resetting it', () => {
-    const r = simulateRun(base, 'cleath', 5, fast);
-    const won = r.fights.filter((f) => f.won);
-    expect(won.length).toBeGreaterThan(1);
+    // Carry-over is only OBSERVABLE across two won fights, so the run needs at least two —
+    // but which seed delivers that depends on the whole card pool, so pinning one seed made
+    // this fail on any balance change (a leader recost elsewhere in the pool was enough).
+    // Same fix as the dead-run test above: search seeds for a run that can show the property,
+    // rather than asserting a particular run has it.
+    const r = [5, 1, 2, 3, 4, 6, 7, 8]
+      .map((seed) => simulateRun(base, 'cleath', seed, fast))
+      .find((run) => run.fights.filter((f) => f.won).length > 1);
+    expect(r, 'no sampled seed won two fights — cannot observe HP carry-over').toBeDefined();
     // Every fight opens at the run's carried HP, never above the leader's max.
-    for (const f of r.fights) expect(f.hpBefore).toBeLessThanOrEqual(r.maxHp);
+    for (const f of r!.fights) expect(f.hpBefore).toBeLessThanOrEqual(r!.maxHp);
     // At least one fight starts below max, i.e. damage actually persisted.
-    expect(r.fights.some((f) => f.hpBefore < r.maxHp)).toBe(true);
+    expect(r!.fights.some((f) => f.hpBefore < r!.maxHp)).toBe(true);
   });
 
   it('respects maxActs', () => {
