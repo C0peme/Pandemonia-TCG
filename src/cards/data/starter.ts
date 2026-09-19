@@ -568,18 +568,28 @@ export const deckSwarm = parseDeck({ name: 'Swarm', leaderId: 'autopus', cards: 
 // Wither and Wilt grind attackers down. Poison/on-hit is a supplement, not the main plan.
 // Granite Ox is the closer once the enemy board has bled itself out.
 export const deckAttrition = parseDeck({ name: 'Attrition', leaderId: 'eksana', cards: [
-  { cardId: 'mud-crab', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 }, { cardId: 'whistle-blower', count: 1 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'void-caller', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'barbed-sentinel', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 },
-  // REACH (2, replacing spike-wall — its weakest card at ~75% play). Attrition's whole plan
-  // is punishing attacks into a wall, which is exactly the shape of deck that can't finish a
-  // stalled board itself. Crag Hawk (Sniper) fits Eksana's water1/nature1 caps exactly.
+  { cardId: 'mud-crab', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 }, { cardId: 'whistle-blower', count: 1 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'void-caller', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'barbed-sentinel', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 }, { cardId: 'spike-wall', count: 1 },
+  // REACH (1, not 2 — replacing one of two spike-wall, its weakest card at ~75% play).
+  // Attrition's whole plan is punishing attacks into a wall, exactly the shape of deck
+  // that can't finish a stalled board itself. Crag Hawk (Sniper) fits Eksana's
+  // water1/nature1 caps exactly.
   //
-  // NOT Branch Shot (Split Arrow, tried first): measured 47.6% -> 72.2%, a bigger outlier
-  // than any deck in the field, Combo included. Branch Shot fires a FULL shot into BOTH
-  // lanes adjacent to its target — each one reaches the leader outright if that lane is
+  // NOT Branch Shot (Split Arrow, tried first): measured 47.6% -> 72.2%, the single
+  // biggest outlier of the whole pass. Branch Shot fires a FULL shot into BOTH lanes
+  // adjacent to its target — either one reaches the leader outright if that lane is
   // empty — so on a board this deck already keeps thin it behaves like two Overshots at
-  // once, not one reach card. Sniper (a single redirected shot) is the level of reach the
-  // other four decks got; swapped to it and re-measured, see the commit for both numbers.
-  { cardId: 'crag-hawk', count: 2 },
+  // once, not one reach card.
+  //
+  // Swapped to crag-hawk x2 (Sniper, the level of reach the other four decks got) and
+  // re-measured: 47.6% -> 64.6% — fixed the Branch Shot catastrophe, but still pushed
+  // Attrition to the highest field win rate of any deck this pass, above Combo, the
+  // format's long-standing ceiling. Per-card data shows crag-hawk itself isn't overtuned
+  // (94% play/64% win, in line with the rest of the deck) — the swing is concentrated in
+  // Attrition's own worst matchups (Stall 8%->46%, Swarm 33%->83%), the exact "stuck
+  // behind an unbroken board" matchups the fix targeted. So cut to a single copy: enough
+  // to give the deck a way through a board that never opens, without doubling as a second
+  // finisher on top of the wall-and-grind plan already winning those grindy matchups.
+  { cardId: 'crag-hawk', count: 1 },
 ] });
 
 export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', cards: [
