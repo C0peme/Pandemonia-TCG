@@ -47,12 +47,15 @@ describe('simulateRun', () => {
     expect(dead!.fights[dead!.fights.length - 1]!.won).toBe(false);
   });
 
+  // Carry-over is only OBSERVABLE across two won fights, so the run needs at least two —
+  // but which seed delivers that depends on the whole card pool, so pinning one seed made
+  // this fail on any balance change (a leader recost elsewhere in the pool was enough).
   // Searched rather than pinned (see the dead-run test above), and searched LAZILY with
   // room to breathe: a healthier run is a longer run, so simulating every candidate seed
   // eagerly is what pushed this past the default 5 s budget.
   it('carries leader HP between fights rather than resetting it', { timeout: 60_000 }, () => {
     let r: RunSimResult | undefined;
-    for (const seed of [5, 6, 7, 8, 9]) {
+    for (const seed of [5, 1, 2, 3, 4, 6, 7, 8, 9]) {
       const x = simulateRun(base, 'cleath', seed, fast);
       if (x.fights.filter((f) => f.won).length > 1) { r = x; break; }
     }

@@ -305,7 +305,7 @@ const rawCards = [
   { id: 'sig-swarm-call', name: '8Bits', element: 'nature', text: 'Signature: summon a Techtacle (Lethal, True Shield, Airborne) in every lane.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'summon', cardId: 'critter-elite', lane: 'heights' }, { kind: 'summon', cardId: 'critter-elite', lane: 'ground1' }, { kind: 'summon', cardId: 'critter-elite', lane: 'ground2' }, { kind: 'summon', cardId: 'critter-elite', lane: 'water' }] },
   { id: 'sig-thornburst', name: 'Swift Kill', element: 'earth', text: 'Signature: deal 5 to an enemy; on a kill, chain 4, 3, 2… to the next-weakest enemy.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'damage', amount: 5, target: 'enemy', chainDiminish: true }] },
   { id: 'sig-equalize', name: 'Reflections of Omniscience', element: 'nature', text: 'Signature: reduce every enemy unit by -2/-2.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'debuff', target: 'all-enemy', stat: { attack: 2, hp: 2 } }] },
-  { id: 'sig-keystone', name: 'Fortune Foretold', element: 'earth', text: 'Signature Foundation: grants +1/+3, Taunt, Tough 1 and Spike 2 to the unit above it.', tags: ['signature'], wip: false, type: 'foundation', cost: { energy: 0 }, attack: 3, hp: 5, keywords: {}, grants: { keywords: { taunt: true, spike: 2, tough: 1 } } },
+  { id: 'sig-keystone', name: 'Fortune Foretold', element: 'earth', text: 'Signature Foundation: grants +1/+2, Taunt, Tough 1 and Spike 2 to the unit above it.', tags: ['signature'], wip: false, type: 'foundation', cost: { energy: 0 }, attack: 3, hp: 5, keywords: {}, grants: { keywords: { taunt: true, spike: 2, tough: 1 } } }, // Text corrected +1/+3 -> +1/+2 (Copers 2026-09-19): registry.ts derives the stat grant as floor(attack/2)/floor(hp/2) for every foundation, so this 3/5 body always granted +1/+2 — the text was wrong by 1 HP, not the numbers. Copers chose to fix the text rather than buff the number, since Combo is already the field's strongest deck.
   { id: 'sig-ascension', name: 'Death Goddess\' Will', element: 'nature', text: 'Signature Foundation: grants Immunity, Zombified and Growth +2/+2 to the unit above it.', tags: ['signature'], wip: false, type: 'foundation', cost: { energy: 0 }, attack: 3, hp: 4, keywords: {}, grants: { keywords: { immunity: true, zombified: true, growth: { attack: 2, hp: 2 } } } },
   { id: 'sig-pathmaker', name: 'Guardian of Ruins', element: 'water', text: 'Signature: give an ally Immunity and Pierce. All environments cost 0 energy this turn. Conjure a Tundra.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'buff', target: 'ally', keywords: { immunity: true, pierce: true } }, { kind: 'costMod', amount: -99, cardType: 'environment' }, { kind: 'conjure', target: 'self', cardId: 'tundra' }] },
   { id: 'ringleader-avatar', name: 'Ring Leader, Incarnate', element: 'nature', text: 'Leader-unit. Airborne, Taunt, Immunity. If it dies, you lose.', tags: ['signature'], wip: false, type: 'unit', cost: { energy: 0 }, attack: 0, hp: 30, keywords: { airborne: true, taunt: true, immunity: true } },
@@ -324,12 +324,12 @@ const rawLeaders = [
   { id: 'cleath', name: 'Cleath', element: 'earth', elementCaps: { earth: 4, water: 2, fire: 1, nature: 1 }, heroPower: { name: 'Fortify', cost: { energy: 1 }, effects: [{ kind: 'buff', stat: { hp: 2 }, keywords: { taunt: true }, target: 'ally' }], text: 'Give an allied unit +2 HP and Taunt.' }, signatureCardId: 'sig-living-mountain' }, // Stall — Fortify was +1 HP for 1e (0.6 budget value) against Eksana's 2.4 for the same cost, the weakest power in the pool. +2 HP and Taunt brings it to ~2.4 and gives Stall the tool its plan actually needs: forcing attacks INTO the wall rather than past it.
   // --- One leader per archetype ---
   { id: 'orsyric', name: 'Orsyric', element: 'fire', elementCaps: { fire: 3, water: 1, nature: 3, earth: 1 }, heroPower: { name: 'Mind Whip', cost: { energy: 2 }, effects: [{ kind: 'damage', amount: 1, target: 'any' }], text: 'Deal 1 damage to any unit.' }, signatureCardId: 'sig-final-charge' }, // Aggro — nerfed Mind Whip 2→1 dmg (was 93% field). Target 'any' so it can hit allies too (combo/kamikaze enablement).
-  { id: 'aleph', name: 'Aleph', element: 'nature', elementCaps: { nature: 2, earth: 2, fire: 2, water: 2 }, heroPower: { name: 'Disciplinary Power', cost: { energy: 2 }, effects: [{ kind: 'applyStatus', target: 'enemy', status: 'poison' }], text: 'Poison an enemy unit (it can no longer be buffed).' }, signatureCardId: 'sig-equalize' }, // Midrange
+  { id: 'aleph', name: 'Aleph', element: 'nature', elementCaps: { nature: 2, earth: 2, fire: 2, water: 2 }, heroPower: { name: 'Disciplinary Power', cost: { energy: 1 }, effects: [{ kind: 'applyStatus', target: 'enemy', status: 'poison' }], text: 'Poison an enemy unit (it can no longer be buffed).' }, signatureCardId: 'sig-equalize' }, // Midrange — Disciplinary Power 2e -> 1e. Midrange measured 42.7% field, second-worst, on the second-worst hero power in the pool (0.55 value-per-cost; only Orsyric and Ring Leader rate lower, and both of their decks sit above 50%). Midrange is deliberately the vanilla baseline and is MEANT to lose to ability decks that play well, so the deck itself is left alone; what is not deliberate is paying 2e every turn for a 1.09-value effect. The power is already cast ~11x per game, so this is not about making it fire more often — it is about the 1 energy per turn a curve-out deck was handing over for it.
   { id: 'phantom', name: 'Phantom', element: 'water', elementCaps: { water: 4, earth: 2, nature: 1, fire: 1 }, heroPower: { name: 'Subdue', cost: { energy: 2 }, effects: [{ kind: 'applyStatus', amount: 1, target: 'enemy', status: 'sleep' }], text: 'Put an enemy unit to Sleep.' }, signatureCardId: 'sig-deep-freeze' }, // Control
   { id: 'screyera', name: 'Screyera', element: 'earth', elementCaps: { earth: 3, nature: 3, fire: 1, water: 1 }, heroPower: { name: 'Scry', cost: { energy: 2 }, hpCost: 1, effects: [{ kind: 'draw', amount: 2 }], text: 'Pay 1 HP: draw 2 cards.' }, signatureCardId: 'sig-keystone' }, // Combo — Scry 1e→2e, then the HP cost RESTORED (it was dropped when Combo sat at the 35% field floor; Combo now leads at 67%). Measured against four alternatives, hpCost 1 was the best trim per unit of change (-3.6 vs -1.6 for a flat 3e) because it is SELF-SCALING: leader HP is worth 1/point while healthy but 4x at or below the Signature threshold (ai.ts convex life), so the cost is trivial when Combo is comfortably ahead and prohibitive in exactly the close games where it most wants to dig. Usage halves, 2.60 -> 1.35 casts/game. The Signature-acceleration refund (engine.ts routes hpCost through damageLeader deliberately) is real but swamped by that convexity.
   { id: 'ringleader', name: 'Ring Leader', element: 'nature', elementCaps: { nature: 2, water: 3, fire: 1, earth: 2 }, heroPower: { name: 'Modification', cost: { energy: 1 }, hpCost: 1, effects: [{ kind: 'buff', target: 'leaderUnit', stat: { attack: 1 } }], text: 'Pay 1 HP: your leader-unit gains +1 attack.' }, signatureCardId: 'sig-incarnate', leaderUnitCardId: 'ringleader-avatar' }, // Guardian
   { id: 'corpselock', name: 'Corpselock', element: 'nature', elementCaps: { nature: 4, earth: 2, fire: 1, water: 1 }, heroPower: { name: 'Cancerous Growth', cost: { energy: 0 }, effects: [{ kind: 'energy', amount: 3 }, { kind: 'energyNext', amount: -2 }], text: 'Gain 3 energy now; start next round with 2 less.' }, signatureCardId: 'sig-overflow' }, // Ramp — BORROWS from the future rather than saving for it. Energy equals the round number (turn.ts), so it grows automatically and is scarcest EARLY: moving energy forward in time takes from a lean turn and gives to a rich one, which is why the save-for-later version measured a 0.0 contribution across 384 games (it was cast 8.2x/game and never once mattered). Reversed, the same trade is positive in TEMPO — and borrowing is the one direction banking cannot go. It also PROFITS (borrow 3, repay 2) rather than merely shifting timing: a net-zero shift settles at `round - 2 + 2 = round` if cast every turn, i.e. exactly nothing, which is why the break-even version was worth 0 in both directions.
-  { id: 'johnpork', name: 'John Pork', element: 'water', elementCaps: { water: 4, nature: 1, fire: 1, earth: 2 }, heroPower: { name: 'Sweet Liquor', cost: { energy: 1 }, effects: [{ kind: 'forget', amount: 2, target: 'enemy' }], text: 'The opponent forgets 2 cards from their deck.' }, signatureCardId: 'sig-oblivion' }, // Deck Out
+  { id: 'johnpork', name: 'John Pork', element: 'water', elementCaps: { water: 4, nature: 1, fire: 1, earth: 2 }, heroPower: { name: 'Sweet Liquor', cost: { energy: 0 }, effects: [{ kind: 'forget', amount: 2, target: 'enemy' }, { kind: 'heal', amount: 1, target: 'leader' }], text: 'The opponent forgets 2 cards from their deck. Heal your leader +1.' }, signatureCardId: 'sig-oblivion' }, // Deck Out — Sweet Liquor 1e -> 0e -> +1 self-heal. Rework (big bodies + Overshot, see decklist comment) took the deck 18.4% -> 24.3% field, closing all three of its 0/24 matchups, but left it 20pp below the healthy band with three losses: 0% Midrange, 4% Control, 4% DoT (Aggro's loss Copers accepted as fine). Diagnosed with the same probe that found the original clock misread: in all three losses the opponent decks out (24/24 games) same as the wins, and Deck Out's OWN leader HP ends negative (dead) while it never decks itself out. This is not a mill or a closing problem, it is a RACE — the deck's own survival, not the opponent's. Midrange and DoT hit through/around the wall (stats and burn respectively) faster than Deck Out's beaters return the favor, and Control's removal strips the wall outright. A closer package doesn't help a deck that's already dead. Adding a heal to the power already cast 7-10x/game is the direct lever: it doesn't touch the mill or the clock, it buys the turns needed for the beaters/Overshot to land. Measured next.
   { id: 'autopus', name: 'Autopus', element: 'nature', elementCaps: { nature: 4, fire: 2, earth: 1, water: 1 }, heroPower: { name: 'Fallback Code', cost: { energy: 1 }, effects: [{ kind: 'summon', cardId: 'critter-token' }], text: 'Summon a Mechanical Failure.' }, signatureCardId: 'sig-swarm-call' }, // Swarm
   { id: 'eksana', name: 'Eksana', element: 'earth', elementCaps: { earth: 4, nature: 2, water: 1, fire: 1 }, heroPower: { name: 'Exploit', cost: { energy: 1 }, effects: [{ kind: 'debuff', stat: { attack: 1 }, target: 'enemy' }], text: 'Debuff an enemy unit −1 attack.' }, signatureCardId: 'sig-thornburst' }, // Attrition
   { id: 'noctua', name: 'Noctua', element: 'nature', elementCaps: { nature: 4, earth: 2, fire: 1, water: 1 }, heroPower: { name: 'Tinkerer', cost: { energy: 2 }, effects: [{ kind: 'buff', target: 'ally', keywords: { growth: { attack: 1, hp: 1 } } }], text: 'Give an ally Growth: +1/+1 each turn.' }, signatureCardId: 'sig-ascension' }, // Snowball — Tinkerer replaces Nurture: grants permanent Growth (+1/+1/turn) for 2E rather than a one-time +1/+1 for 3E. More thematic snowball engine; requires unit survival to pay off.
@@ -424,10 +424,15 @@ export const deckCombo = parseDeck({ name: 'Combo', leaderId: 'screyera', cards:
   // Bodies (22) — front-loaded curve with real-attack beaters to power the clock.
   { cardId: 'pebble-pup', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'mud-crab', count: 3 },
   { cardId: 'gravel-hound', count: 3 }, { cardId: 'reprisal', count: 2 }, { cardId: 'war-beast', count: 2 },
-  { cardId: 'oak-sentry', count: 3 }, { cardId: 'ridge-walker', count: 2 }, { cardId: 'mountain-bull', count: 3 },
+  { cardId: 'oak-sentry', count: 3 }, { cardId: 'mountain-bull', count: 3 },
   // Grant-foundations (8) — three clean lines: launch-ramp (Overshot, face clock),
   // twin-fang-mount (Double Strike, burst), fertile-mound (Growth, snowball).
   { cardId: 'whetstone-altar', count: 2 }, { cardId: 'twin-fang-mount', count: 3 }, { cardId: 'fertile-mound', count: 2 },
+  // REACH (2, replacing ridge-walker — its weakest body at 72% play). Combo had zero cards
+  // that get past a held lane, same gap Deck Out had. Venom Sniper doubles as reach AND a
+  // Lethal carrier, so it fits the deck's own Whetstone Altar/Crag-Hawk lethal idea rather
+  // than being a bolt-on.
+  { cardId: 'venom-sniper', count: 2 },
 ] });
 
 // Guardian plan: survive early (Ring Leader starts at 0 attack — purely a sponge), stack attack via
@@ -465,16 +470,63 @@ export const deckRamp = parseDeck({ name: 'Ramp', leaderId: 'corpselock', cards:
   { cardId: 'verdant-cataclysm', count: 3 }, { cardId: 'apex-predator', count: 2 }, { cardId: 'worldheart-wyrm', count: 1 },
 ] });
 
-// Deck Out plan: never let the opponent attack freely while John Pork's Sweet Liquor hero power and
-// Cursed Gift fill their deck with Dead Weights and burn through their cards. Cold Spell /
-// Hypnotic Patterns / Peel Back neutralise individual threats; Sleep Walker and Fog Creature
-// put attackers to Sleep on-hit; Lullaby Spirit (Double Team + on-hit Sleep) and Frost Wall
-// (Double Team) wall every lane. Tundra + Lullaby Grove environments freeze or sleep every
-// new unit that enters. Mind Leech is the double-threat: on-hit Sleep buys turns, and on-
-// death it plants another Dead Weight in the opponent's hand. The win is pure attrition:
-// once the opponent's deck runs out, Null cards deal damage to their own leader on death.
+// Deck Out plan: wall every lane, heal through the chip, and let John Pork's free Sweet Liquor
+// mill the opponent's library dry. Their draws then become Null cards, which deal damage to
+// their OWN leader when they die — Null bleed plus a modest board is how this deck closes.
+//
+// REBUILT after the meta measured the old list at 17.7% field, twenty-five points below the
+// next-worst deck. Two rounds of diagnosis, because the first was wrong:
+//
+// 1. The obvious read was a clock problem — the deck dying before the mill finished. It is not.
+//    Instrumenting the games (`finalDeck` on GameResult) settled it: against the three decks the
+//    old list lost 0 of 24 to, the OPPONENT DECKS OUT IN EVERY SINGLE GAME, and the games run
+//    27-33 turns. The mill was never the bottleneck.
+// 2. What actually happened is that decking the opponent out does not kill them. They sat at
+//    15-20 HP of 30 when the game ended, bleeding 4 a time off Null draws, while Deck Out — a
+//    list of 13 small bodies and 17 spells whose biggest body was a 2/4 — had no way to convert
+//    that into a kill and lost the race it had already won on cards.
+//
+// So this list is built to do two things the old one could not: hold the board long enough for
+// the mill to land, and then actually finish. Twenty-one bodies instead of thirteen, eight of
+// them Taunt (galatian-spirit, barbed-sentinel, brackish-warden) so attacks are forced into a
+// body rather than the leader, and Spike on Mud Crab and Barbed Sentinel to tax the attacker.
+// Crucially the walls now HIT BACK — the old list's best blockers were 0-attack, which is why
+// its opponents could be milled out and still stroll home. Abyss Warden (4/5) and Granite Ox
+// (3/5) are the finishers that turn a decked-out opponent into a dead one, and neither costs a
+// pip, so John Pork casts both off-element for free.
+//
+// Salt Golem x3 is the sustain: a 2/5 that heals the leader 1 at end of turn, also pipless.
+// Three on board is +3 HP a turn against exactly the chip that was ending these games.
+//
+// Kept deliberately thin on card draw — Brackish Warden replaces itself and that is all. This
+// deck must not outrace its own library, because it wins by the opponent emptying first.
+//
+// Cut: river-turtle (a 0/1 for 4e and two pips), tidecaller-adept, sleep-walker, river-minnow
+// and ironroot-ward (bodies too small to block or to close), whistle-blower, lullaby-grove,
+// cold-spell, and displacement-wave — which is the same card as peel-back, identical cost and
+// identical effect under a different id, so the old list was really running four copies of one
+// spell.
 export const deckDeckOut = parseDeck({ name: 'Deck Out', leaderId: 'johnpork', cards: [
-  { cardId: 'cursed-gift', count: 3 }, { cardId: 'river-minnow', count: 2 }, { cardId: 'cold-spell', count: 3 }, { cardId: 'hypnotic-patterns', count: 2 }, { cardId: 'peel-back', count: 2 }, { cardId: 'whistle-blower', count: 2 }, { cardId: 'displacement-wave', count: 2 }, { cardId: 'river-turtle', count: 2 }, { cardId: 'tidecaller-adept', count: 2 }, { cardId: 'sleep-walker', count: 2 }, { cardId: 'lull', count: 2 }, { cardId: 'ironroot-ward', count: 2 }, { cardId: 'mind-leech', count: 3 }, { cardId: 'lullaby-grove', count: 1 },
+  // Cheap denial to survive the opening, and the clog package. The hero power does the
+  // milling; Cursed Gift jams a capped hand so the mill bites sooner.
+  { cardId: 'hypnotic-patterns', count: 2 }, { cardId: 'cursed-gift', count: 3 },
+  { cardId: 'mud-crab', count: 2 },
+  // The wall — Taunt bodies that carry attack, unlike the 0-attack blockers this replaces.
+  { cardId: 'galatian-spirit', count: 2 }, { cardId: 'barbed-sentinel', count: 3 },
+  { cardId: 'brackish-warden', count: 3 },
+  // Sustain and the one board reset kept as a panic button.
+  { cardId: 'salt-golem', count: 3 }, { cardId: 'lull', count: 1 },
+  // THE CLOSER. Decking the opponent out does not kill them: they sit behind a full board
+  // at 15-20 HP bleeding 4 per Null draw, and the old list had nothing that could finish
+  // that. Eight pipless 3/5-4/5 bodies are the bulk of the answer — they are castable on
+  // curve under any of John Pork's caps and they trade up against the blockers in the way.
+  { cardId: 'granite-ox', count: 2 }, { cardId: 'abyss-warden', count: 3 },
+  { cardId: 'mountain-bull', count: 3 },
+  // Three Overshot bodies for the last few points. Overshot is the only keyword here that
+  // puts damage on a leader standing behind a full board — a plain attack always hits the
+  // front unit instead. Kept to three: an all-reach package was tried and measured WORSE,
+  // because the reach bodies in this pool are 2/1s and 3/1s that die before they shoot.
+  { cardId: 'frost-imp', count: 3 },
 ] });
 
 // Stall plan: wall every lane and let Cleath's Fortify (+2 HP/turn) make the walls
@@ -482,7 +534,13 @@ export const deckDeckOut = parseDeck({ name: 'Deck Out', leaderId: 'johnpork', c
 // raw endgame bodies — Mountain Bull and especially Colossal Worm, which becomes
 // near-impossible to remove once it starts killing (Bloodlust: shield + burrow).
 export const deckStall = parseDeck({ name: 'Stall', leaderId: 'cleath', cards: [
-  { cardId: 'target-spell', count: 2 }, { cardId: 'mend', count: 2 }, { cardId: 'trench-turtle', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'spike-wall', count: 3 }, { cardId: 'frost-wall', count: 2 }, { cardId: 'bulwark-toad', count: 3 }, { cardId: 'iron-mantis', count: 2 }, { cardId: 'stone-footing', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'aegis-ancient', count: 1 }, { cardId: 'colossal-worm', count: 1 }, { cardId: 'ridge-walker', count: 3 },
+  { cardId: 'mend', count: 2 }, { cardId: 'trench-turtle', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'spike-wall', count: 3 }, { cardId: 'frost-wall', count: 2 }, { cardId: 'bulwark-toad', count: 3 }, { cardId: 'iron-mantis', count: 2 }, { cardId: 'stone-footing', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'aegis-ancient', count: 1 }, { cardId: 'colossal-worm', count: 1 }, { cardId: 'ridge-walker', count: 3 },
+  // REACH (2, replacing target-spell — its weakest card at 75% play). Stall's whole plan is
+  // walling every lane, which means no other deck can break IT either — and it has no way
+  // to close its own games. Watchtowers is free (0e) and turns every existing wall body into
+  // a Sniper while it sits in Heights, so the fix is zero decklist compromise: same bodies,
+  // now able to reach.
+  { cardId: 'watchtowers', count: 2 },
 ] });
 
 // Swarm plan: flood every lane faster than the opponent can clear, then win with anthem
@@ -496,9 +554,13 @@ export const deckStall = parseDeck({ name: 'Stall', leaderId: 'cleath', cards: [
 export const deckSwarm = parseDeck({ name: 'Swarm', leaderId: 'autopus', cards: [
   { cardId: 'field-mouse', count: 3 },
   { cardId: 'spore-bat', count: 3 }, { cardId: 'hive-spawn', count: 3 }, { cardId: 'swift-falcon', count: 2 }, { cardId: 'hivemind-surge', count: 2 },
-  { cardId: 'goreivyne', count: 2 }, { cardId: 'war-beast', count: 1 }, { cardId: 'rally-banner', count: 2 }, { cardId: 'pyre-fiend', count: 2 }, { cardId: 'powder-monkey', count: 2 },
+  { cardId: 'goreivyne', count: 2 }, { cardId: 'war-beast', count: 1 }, { cardId: 'rally-banner', count: 2 }, { cardId: 'pyre-fiend', count: 2 },
   { cardId: 'brood-mother', count: 3 },
   { cardId: 'brood-warlord', count: 2 }, { cardId: 'pocket-dimension', count: 1 }, { cardId: 'firebolt', count: 2 },
+  // REACH (2, replacing powder-monkey — its weakest card at 79% play). Swarm floods lanes but
+  // had nothing that gets past a lane someone else fills first. Craftbee is airborne on top of
+  // Branch Shot, so it fits the deck's existing evasive-body idea (Spore Bat, Swift Falcon).
+  { cardId: 'craftbee', count: 2 },
 ] });
 
 // Attrition plan: wall the board with Spike/Taunt bodies the enemy must attack into,
@@ -506,13 +568,22 @@ export const deckSwarm = parseDeck({ name: 'Swarm', leaderId: 'autopus', cards: 
 // Wither and Wilt grind attackers down. Poison/on-hit is a supplement, not the main plan.
 // Granite Ox is the closer once the enemy board has bled itself out.
 export const deckAttrition = parseDeck({ name: 'Attrition', leaderId: 'eksana', cards: [
-  { cardId: 'mud-crab', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 }, { cardId: 'whistle-blower', count: 1 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'spike-wall', count: 2 }, { cardId: 'void-caller', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'barbed-sentinel', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 },
+  { cardId: 'mud-crab', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 }, { cardId: 'whistle-blower', count: 1 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'void-caller', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'barbed-sentinel', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 },
+  // REACH (2, replacing spike-wall — its weakest card at ~75% play). Attrition's whole plan
+  // is punishing attacks into a wall, which is exactly the shape of deck that can't finish a
+  // stalled board itself. Split Arrow is cheap (1 nature pip, well under Eksana's cap of 2).
+  { cardId: 'split-arrow', count: 2 },
 ] });
 
 export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', cards: [
   { cardId: 'mend', count: 2 }, { cardId: 'field-mouse', count: 3 }, { cardId: 'briar-colt', count: 3 }, { cardId: 'iron-seed', count: 2 }, { cardId: 'strangleroot', count: 2 }, { cardId: 'bloom-elk', count: 3 },
   { cardId: 'war-beast', count: 2 }, { cardId: 'surge-sprite', count: 2 }, { cardId: 'goreivyne', count: 2 }, { cardId: 'mush-room', count: 2 }, { cardId: 'fertile-mound', count: 2 },
-  { cardId: 'rally-banner', count: 1 }, { cardId: 'chrysalis-grub', count: 2 }, { cardId: 'emerald-drake', count: 1 }, { cardId: 'grove-elder', count: 1 },
+  { cardId: 'chrysalis-grub', count: 2 }, { cardId: 'emerald-drake', count: 1 },
+  // REACH (2, replacing rally-banner and grove-elder — the deck's two weakest singletons at
+  // 46% and 53% play). Snowball's engine needs units to survive to pay off, which is exactly
+  // what dies to a stalled board with no way through. Chemister is cheap (1e) so it never
+  // competes with the growth curve for a turn.
+  { cardId: 'chemister', count: 2 },
 ] });
 
 // Lane Control plan: dictate WHERE the enemy's units stand. Naife's Misdirect plus Wind Redirect,

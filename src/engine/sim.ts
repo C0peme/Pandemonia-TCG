@@ -26,6 +26,9 @@ export interface GameResult {
   finalHp: [number, number];
   /** Cards in hand at game end for each player. */
   finalHandSize: [number, number];
+  /** Cards left in each player's library at game end. Zero means that player decked out and
+   *  has been drawing self-damaging Null cards — the thing a mill deck is actually racing to. */
+  finalDeck: [number, number];
   /** Sum of all element bank values at game end for each player. */
   finalBanked: [number, number];
 }
@@ -97,6 +100,7 @@ export function playOutGame(registry: Registry, initial: GameState, usePlan = tr
     winner: state.winner ?? 0, turns, played, damageByCard, heroPowers,
     finalHp: [state.players[0].leaderHp, state.players[1].leaderHp],
     finalHandSize: [state.players[0].hand.length, state.players[1].hand.length],
+    finalDeck: [state.players[0].deck.length, state.players[1].deck.length],
     finalBanked: [
       Object.values(state.players[0].bank).reduce((s, v) => s + v, 0),
       Object.values(state.players[1].bank).reduce((s, v) => s + v, 0),
@@ -112,7 +116,7 @@ export function playHeroGame(
   heroSide: PlayerId,
   seed: number,
   usePlan = true,
-): { heroWon: boolean; heroPlayed: Record<string, number>; heroDamage: Record<string, number>; heroPowers: number; turns: number; finalHp: [number, number]; finalHandSize: [number, number]; finalBanked: [number, number] } {
+): { heroWon: boolean; heroPlayed: Record<string, number>; heroDamage: Record<string, number>; heroPowers: number; turns: number; finalHp: [number, number]; finalHandSize: [number, number]; finalDeck: [number, number]; finalBanked: [number, number] } {
   const decks: [Deck, Deck] = heroSide === 0 ? [hero, opp] : [opp, hero];
   const r = simulateGame(registry, decks, seed, usePlan);
   return {
@@ -123,6 +127,7 @@ export function playHeroGame(
     turns: r.turns,
     finalHp: r.finalHp,
     finalHandSize: r.finalHandSize,
+    finalDeck: r.finalDeck,
     finalBanked: r.finalBanked,
   };
 }
