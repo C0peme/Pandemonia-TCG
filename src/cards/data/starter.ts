@@ -329,7 +329,7 @@ const rawLeaders = [
   { id: 'screyera', name: 'Screyera', element: 'earth', elementCaps: { earth: 3, nature: 3, fire: 1, water: 1 }, heroPower: { name: 'Scry', cost: { energy: 2 }, hpCost: 1, effects: [{ kind: 'draw', amount: 2 }], text: 'Pay 1 HP: draw 2 cards.' }, signatureCardId: 'sig-keystone' }, // Combo — Scry 1e→2e, then the HP cost RESTORED (it was dropped when Combo sat at the 35% field floor; Combo now leads at 67%). Measured against four alternatives, hpCost 1 was the best trim per unit of change (-3.6 vs -1.6 for a flat 3e) because it is SELF-SCALING: leader HP is worth 1/point while healthy but 4x at or below the Signature threshold (ai.ts convex life), so the cost is trivial when Combo is comfortably ahead and prohibitive in exactly the close games where it most wants to dig. Usage halves, 2.60 -> 1.35 casts/game. The Signature-acceleration refund (engine.ts routes hpCost through damageLeader deliberately) is real but swamped by that convexity.
   { id: 'ringleader', name: 'Ring Leader', element: 'nature', elementCaps: { nature: 2, water: 3, fire: 1, earth: 2 }, heroPower: { name: 'Modification', cost: { energy: 1 }, hpCost: 1, effects: [{ kind: 'buff', target: 'leaderUnit', stat: { attack: 1 } }], text: 'Pay 1 HP: your leader-unit gains +1 attack.' }, signatureCardId: 'sig-incarnate', leaderUnitCardId: 'ringleader-avatar' }, // Guardian
   { id: 'corpselock', name: 'Corpselock', element: 'nature', elementCaps: { nature: 4, earth: 2, fire: 1, water: 1 }, heroPower: { name: 'Cancerous Growth', cost: { energy: 0 }, effects: [{ kind: 'energy', amount: 3 }, { kind: 'energyNext', amount: -2 }], text: 'Gain 3 energy now; start next round with 2 less.' }, signatureCardId: 'sig-overflow' }, // Ramp — BORROWS from the future rather than saving for it. Energy equals the round number (turn.ts), so it grows automatically and is scarcest EARLY: moving energy forward in time takes from a lean turn and gives to a rich one, which is why the save-for-later version measured a 0.0 contribution across 384 games (it was cast 8.2x/game and never once mattered). Reversed, the same trade is positive in TEMPO — and borrowing is the one direction banking cannot go. It also PROFITS (borrow 3, repay 2) rather than merely shifting timing: a net-zero shift settles at `round - 2 + 2 = round` if cast every turn, i.e. exactly nothing, which is why the break-even version was worth 0 in both directions.
-  { id: 'johnpork', name: 'John Pork', element: 'water', elementCaps: { water: 4, nature: 1, fire: 1, earth: 2 }, heroPower: { name: 'Sweet Liquor', cost: { energy: 0 }, effects: [{ kind: 'forget', amount: 2, target: 'enemy' }], text: 'The opponent forgets 2 cards from their deck.' }, signatureCardId: 'sig-oblivion' }, // Deck Out — Sweet Liquor 1e -> 0e. Deck Out measured 17.7% field, 25pp below the next-worst deck and the only deck outside a 21pp band, losing 0/24 to Aggro, Guardian and Lane Control. It is not a pricing problem: at 1e the power already rates 2.4 value-per-cost, top third of the pool. It is a CLOCK problem. The deck deals almost no combat damage, so decking the opponent out is its only win condition, and at 1e the power fired 6.6x per game instead of every turn — energy equals the round number, so 1e is most of turn 1-3, exactly the turns the mill clock cannot afford to skip. 6.6 casts is ~13 cards milled against a 30-card deck: the plan never completes. MEASURED AT 0e, AND IT DID NOT FIX THE DECK: 17.7% -> 18.4%, inside the noise on 288 games. Kept anyway, because the change did do what it promised mechanically (casts 6.6 -> 8.1 per game) and the deck's plan needs it; it is just not the binding constraint. The re-run identified what is. A 0e power is free and always has a legal target, so the AI fires it every turn it is alive — 8.1 casts means Deck Out survives about EIGHT of its own turns, where Stall gets 14.0 out of a power that still costs 1e. Milling 30 cards at 2 per turn needs ~15 turns. The deck is dead long before any clock speed could matter, which is why it still loses 0 of 24 to Aggro, Guardian and Lane Control. The remaining lever is survival or a cheaper win condition — a decklist change, not a recost — so do not spend another pass recosting this power. NOTE for whoever fixes survival: at 0e the clock is already about twice as fast as it was, so a survivability buff will land harder than the old numbers suggest.
+  { id: 'johnpork', name: 'John Pork', element: 'water', elementCaps: { water: 4, nature: 1, fire: 1, earth: 2 }, heroPower: { name: 'Sweet Liquor', cost: { energy: 0 }, effects: [{ kind: 'forget', amount: 2, target: 'enemy' }], text: 'The opponent forgets 2 cards from their deck.' }, signatureCardId: 'sig-oblivion' }, // Deck Out — Sweet Liquor 1e -> 0e. Deck Out measured 17.7% field, 25pp below the next-worst deck and the only deck outside a 21pp band, losing 0/24 to Aggro, Guardian and Lane Control. It is not a pricing problem: at 1e the power already rates 2.4 value-per-cost, top third of the pool. It is a CLOCK problem. The deck deals almost no combat damage, so decking the opponent out is its only win condition, and at 1e the power fired 6.6x per game instead of every turn — energy equals the round number, so 1e is most of turn 1-3, exactly the turns the mill clock cannot afford to skip. 6.6 casts is ~13 cards milled against a 30-card deck: the plan never completes. MEASURED AT 0e, AND IT DID NOT FIX THE DECK: 17.7% -> 18.4%, inside the noise on 288 games. Kept anyway, because the change did do what it promised mechanically (casts 6.6 -> 8.1 per game) and the deck's plan needs it; it is just not the binding constraint. The re-run identified what is. CORRECTION to an earlier reading of that number: 8.1 casts was taken to mean the deck survives only eight of its own turns, and that was wrong — `turns` counts turnStart events for BOTH players, so a 27-35 turn game is ~14 own turns, and instrumenting the library (`finalDeck` in sim.ts) showed the opponent decks out in 18 of 18 probed games. The mill COMPLETES. It just does not win: decking an opponent out leaves them alive at 15-20 HP behind a full board, bleeding 4 per Null draw, and the old list had no way to convert that. Taunt only redirects attacks at an empty lane, and a plain attack always hits the front unit, so a deck with no reach cannot touch a leader behind a full board at all. The fix is in the decklist — closers — not in this power, so do not spend another pass recosting it.
   { id: 'autopus', name: 'Autopus', element: 'nature', elementCaps: { nature: 4, fire: 2, earth: 1, water: 1 }, heroPower: { name: 'Fallback Code', cost: { energy: 1 }, effects: [{ kind: 'summon', cardId: 'critter-token' }], text: 'Summon a Mechanical Failure.' }, signatureCardId: 'sig-swarm-call' }, // Swarm
   { id: 'eksana', name: 'Eksana', element: 'earth', elementCaps: { earth: 4, nature: 2, water: 1, fire: 1 }, heroPower: { name: 'Exploit', cost: { energy: 1 }, effects: [{ kind: 'debuff', stat: { attack: 1 }, target: 'enemy' }], text: 'Debuff an enemy unit −1 attack.' }, signatureCardId: 'sig-thornburst' }, // Attrition
   { id: 'noctua', name: 'Noctua', element: 'nature', elementCaps: { nature: 4, earth: 2, fire: 1, water: 1 }, heroPower: { name: 'Tinkerer', cost: { energy: 2 }, effects: [{ kind: 'buff', target: 'ally', keywords: { growth: { attack: 1, hp: 1 } } }], text: 'Give an ally Growth: +1/+1 each turn.' }, signatureCardId: 'sig-ascension' }, // Snowball — Tinkerer replaces Nurture: grants permanent Growth (+1/+1/turn) for 2E rather than a one-time +1/+1 for 3E. More thematic snowball engine; requires unit survival to pay off.
@@ -465,16 +465,63 @@ export const deckRamp = parseDeck({ name: 'Ramp', leaderId: 'corpselock', cards:
   { cardId: 'verdant-cataclysm', count: 3 }, { cardId: 'apex-predator', count: 2 }, { cardId: 'worldheart-wyrm', count: 1 },
 ] });
 
-// Deck Out plan: never let the opponent attack freely while John Pork's Sweet Liquor hero power and
-// Cursed Gift fill their deck with Dead Weights and burn through their cards. Cold Spell /
-// Hypnotic Patterns / Peel Back neutralise individual threats; Sleep Walker and Fog Creature
-// put attackers to Sleep on-hit; Lullaby Spirit (Double Team + on-hit Sleep) and Frost Wall
-// (Double Team) wall every lane. Tundra + Lullaby Grove environments freeze or sleep every
-// new unit that enters. Mind Leech is the double-threat: on-hit Sleep buys turns, and on-
-// death it plants another Dead Weight in the opponent's hand. The win is pure attrition:
-// once the opponent's deck runs out, Null cards deal damage to their own leader on death.
+// Deck Out plan: wall every lane, heal through the chip, and let John Pork's free Sweet Liquor
+// mill the opponent's library dry. Their draws then become Null cards, which deal damage to
+// their OWN leader when they die — Null bleed plus a modest board is how this deck closes.
+//
+// REBUILT after the meta measured the old list at 17.7% field, twenty-five points below the
+// next-worst deck. Two rounds of diagnosis, because the first was wrong:
+//
+// 1. The obvious read was a clock problem — the deck dying before the mill finished. It is not.
+//    Instrumenting the games (`finalDeck` on GameResult) settled it: against the three decks the
+//    old list lost 0 of 24 to, the OPPONENT DECKS OUT IN EVERY SINGLE GAME, and the games run
+//    27-33 turns. The mill was never the bottleneck.
+// 2. What actually happened is that decking the opponent out does not kill them. They sat at
+//    15-20 HP of 30 when the game ended, bleeding 4 a time off Null draws, while Deck Out — a
+//    list of 13 small bodies and 17 spells whose biggest body was a 2/4 — had no way to convert
+//    that into a kill and lost the race it had already won on cards.
+//
+// So this list is built to do two things the old one could not: hold the board long enough for
+// the mill to land, and then actually finish. Twenty-one bodies instead of thirteen, eight of
+// them Taunt (galatian-spirit, barbed-sentinel, brackish-warden) so attacks are forced into a
+// body rather than the leader, and Spike on Mud Crab and Barbed Sentinel to tax the attacker.
+// Crucially the walls now HIT BACK — the old list's best blockers were 0-attack, which is why
+// its opponents could be milled out and still stroll home. Abyss Warden (4/5) and Granite Ox
+// (3/5) are the finishers that turn a decked-out opponent into a dead one, and neither costs a
+// pip, so John Pork casts both off-element for free.
+//
+// Salt Golem x3 is the sustain: a 2/5 that heals the leader 1 at end of turn, also pipless.
+// Three on board is +3 HP a turn against exactly the chip that was ending these games.
+//
+// Kept deliberately thin on card draw — Brackish Warden replaces itself and that is all. This
+// deck must not outrace its own library, because it wins by the opponent emptying first.
+//
+// Cut: river-turtle (a 0/1 for 4e and two pips), tidecaller-adept, sleep-walker, river-minnow
+// and ironroot-ward (bodies too small to block or to close), whistle-blower, lullaby-grove,
+// cold-spell, and displacement-wave — which is the same card as peel-back, identical cost and
+// identical effect under a different id, so the old list was really running four copies of one
+// spell.
 export const deckDeckOut = parseDeck({ name: 'Deck Out', leaderId: 'johnpork', cards: [
-  { cardId: 'cursed-gift', count: 3 }, { cardId: 'river-minnow', count: 2 }, { cardId: 'cold-spell', count: 3 }, { cardId: 'hypnotic-patterns', count: 2 }, { cardId: 'peel-back', count: 2 }, { cardId: 'whistle-blower', count: 2 }, { cardId: 'displacement-wave', count: 2 }, { cardId: 'river-turtle', count: 2 }, { cardId: 'tidecaller-adept', count: 2 }, { cardId: 'sleep-walker', count: 2 }, { cardId: 'lull', count: 2 }, { cardId: 'ironroot-ward', count: 2 }, { cardId: 'mind-leech', count: 3 }, { cardId: 'lullaby-grove', count: 1 },
+  // Cheap denial to survive the opening, and the clog package. The hero power does the
+  // milling; Cursed Gift jams a capped hand so the mill bites sooner.
+  { cardId: 'hypnotic-patterns', count: 2 }, { cardId: 'cursed-gift', count: 3 },
+  { cardId: 'mud-crab', count: 2 },
+  // The wall — Taunt bodies that carry attack, unlike the 0-attack blockers this replaces.
+  { cardId: 'galatian-spirit', count: 2 }, { cardId: 'barbed-sentinel', count: 3 },
+  { cardId: 'brackish-warden', count: 3 },
+  // Sustain and the one board reset kept as a panic button.
+  { cardId: 'salt-golem', count: 3 }, { cardId: 'lull', count: 1 },
+  // THE CLOSER. Decking the opponent out does not kill them: they sit behind a full board
+  // at 15-20 HP bleeding 4 per Null draw, and the old list had nothing that could finish
+  // that. Eight pipless 3/5-4/5 bodies are the bulk of the answer — they are castable on
+  // curve under any of John Pork's caps and they trade up against the blockers in the way.
+  { cardId: 'granite-ox', count: 2 }, { cardId: 'abyss-warden', count: 3 },
+  { cardId: 'mountain-bull', count: 3 },
+  // Three Overshot bodies for the last few points. Overshot is the only keyword here that
+  // puts damage on a leader standing behind a full board — a plain attack always hits the
+  // front unit instead. Kept to three: an all-reach package was tried and measured WORSE,
+  // because the reach bodies in this pool are 2/1s and 3/1s that die before they shoot.
+  { cardId: 'frost-imp', count: 3 },
 ] });
 
 // Stall plan: wall every lane and let Cleath's Fortify (+2 HP/turn) make the walls
