@@ -305,7 +305,7 @@ const rawCards = [
   { id: 'sig-swarm-call', name: '8Bits', element: 'nature', text: 'Signature: summon a Techtacle (Lethal, True Shield, Airborne) in every lane.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'summon', cardId: 'critter-elite', lane: 'heights' }, { kind: 'summon', cardId: 'critter-elite', lane: 'ground1' }, { kind: 'summon', cardId: 'critter-elite', lane: 'ground2' }, { kind: 'summon', cardId: 'critter-elite', lane: 'water' }] },
   { id: 'sig-thornburst', name: 'Swift Kill', element: 'earth', text: 'Signature: deal 5 to an enemy; on a kill, chain 4, 3, 2… to the next-weakest enemy.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'damage', amount: 5, target: 'enemy', chainDiminish: true }] },
   { id: 'sig-equalize', name: 'Reflections of Omniscience', element: 'nature', text: 'Signature: reduce every enemy unit by -2/-2.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'debuff', target: 'all-enemy', stat: { attack: 2, hp: 2 } }] },
-  { id: 'sig-keystone', name: 'Fortune Foretold', element: 'earth', text: 'Signature Foundation: grants +1/+3, Taunt, Tough 1 and Spike 2 to the unit above it.', tags: ['signature'], wip: false, type: 'foundation', cost: { energy: 0 }, attack: 3, hp: 5, keywords: {}, grants: { keywords: { taunt: true, spike: 2, tough: 1 } } },
+  { id: 'sig-keystone', name: 'Fortune Foretold', element: 'earth', text: 'Signature Foundation: grants +1/+2, Taunt, Tough 1 and Spike 2 to the unit above it.', tags: ['signature'], wip: false, type: 'foundation', cost: { energy: 0 }, attack: 3, hp: 5, keywords: {}, grants: { keywords: { taunt: true, spike: 2, tough: 1 } } }, // Text corrected +1/+3 -> +1/+2 (Copers 2026-09-19): registry.ts derives the stat grant as floor(attack/2)/floor(hp/2) for every foundation, so this 3/5 body always granted +1/+2 — the text was wrong by 1 HP, not the numbers. Copers chose to fix the text rather than buff the number, since Combo is already the field's strongest deck.
   { id: 'sig-ascension', name: 'Death Goddess\' Will', element: 'nature', text: 'Signature Foundation: grants Immunity, Zombified and Growth +2/+2 to the unit above it.', tags: ['signature'], wip: false, type: 'foundation', cost: { energy: 0 }, attack: 3, hp: 4, keywords: {}, grants: { keywords: { immunity: true, zombified: true, growth: { attack: 2, hp: 2 } } } },
   { id: 'sig-pathmaker', name: 'Guardian of Ruins', element: 'water', text: 'Signature: give an ally Immunity and Pierce. All environments cost 0 energy this turn. Conjure a Tundra.', tags: ['signature'], wip: false, type: 'spell', cost: { energy: 0 }, effects: [{ kind: 'buff', target: 'ally', keywords: { immunity: true, pierce: true } }, { kind: 'costMod', amount: -99, cardType: 'environment' }, { kind: 'conjure', target: 'self', cardId: 'tundra' }] },
   { id: 'ringleader-avatar', name: 'Ring Leader, Incarnate', element: 'nature', text: 'Leader-unit. Airborne, Taunt, Immunity. If it dies, you lose.', tags: ['signature'], wip: false, type: 'unit', cost: { energy: 0 }, attack: 0, hp: 30, keywords: { airborne: true, taunt: true, immunity: true } },
@@ -424,10 +424,15 @@ export const deckCombo = parseDeck({ name: 'Combo', leaderId: 'screyera', cards:
   // Bodies (22) — front-loaded curve with real-attack beaters to power the clock.
   { cardId: 'pebble-pup', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'mud-crab', count: 3 },
   { cardId: 'gravel-hound', count: 3 }, { cardId: 'reprisal', count: 2 }, { cardId: 'war-beast', count: 2 },
-  { cardId: 'oak-sentry', count: 3 }, { cardId: 'ridge-walker', count: 2 }, { cardId: 'mountain-bull', count: 3 },
+  { cardId: 'oak-sentry', count: 3 }, { cardId: 'mountain-bull', count: 3 },
   // Grant-foundations (8) — three clean lines: launch-ramp (Overshot, face clock),
   // twin-fang-mount (Double Strike, burst), fertile-mound (Growth, snowball).
   { cardId: 'whetstone-altar', count: 2 }, { cardId: 'twin-fang-mount', count: 3 }, { cardId: 'fertile-mound', count: 2 },
+  // REACH (2, replacing ridge-walker — its weakest body at 72% play). Combo had zero cards
+  // that get past a held lane, same gap Deck Out had. Venom Sniper doubles as reach AND a
+  // Lethal carrier, so it fits the deck's own Whetstone Altar/Crag-Hawk lethal idea rather
+  // than being a bolt-on.
+  { cardId: 'venom-sniper', count: 2 },
 ] });
 
 // Guardian plan: survive early (Ring Leader starts at 0 attack — purely a sponge), stack attack via
@@ -529,7 +534,13 @@ export const deckDeckOut = parseDeck({ name: 'Deck Out', leaderId: 'johnpork', c
 // raw endgame bodies — Mountain Bull and especially Colossal Worm, which becomes
 // near-impossible to remove once it starts killing (Bloodlust: shield + burrow).
 export const deckStall = parseDeck({ name: 'Stall', leaderId: 'cleath', cards: [
-  { cardId: 'target-spell', count: 2 }, { cardId: 'mend', count: 2 }, { cardId: 'trench-turtle', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'spike-wall', count: 3 }, { cardId: 'frost-wall', count: 2 }, { cardId: 'bulwark-toad', count: 3 }, { cardId: 'iron-mantis', count: 2 }, { cardId: 'stone-footing', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'aegis-ancient', count: 1 }, { cardId: 'colossal-worm', count: 1 }, { cardId: 'ridge-walker', count: 3 },
+  { cardId: 'mend', count: 2 }, { cardId: 'trench-turtle', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'spike-wall', count: 3 }, { cardId: 'frost-wall', count: 2 }, { cardId: 'bulwark-toad', count: 3 }, { cardId: 'iron-mantis', count: 2 }, { cardId: 'stone-footing', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'aegis-ancient', count: 1 }, { cardId: 'colossal-worm', count: 1 }, { cardId: 'ridge-walker', count: 3 },
+  // REACH (2, replacing target-spell — its weakest card at 75% play). Stall's whole plan is
+  // walling every lane, which means no other deck can break IT either — and it has no way
+  // to close its own games. Watchtowers is free (0e) and turns every existing wall body into
+  // a Sniper while it sits in Heights, so the fix is zero decklist compromise: same bodies,
+  // now able to reach.
+  { cardId: 'watchtowers', count: 2 },
 ] });
 
 // Swarm plan: flood every lane faster than the opponent can clear, then win with anthem
@@ -543,9 +554,13 @@ export const deckStall = parseDeck({ name: 'Stall', leaderId: 'cleath', cards: [
 export const deckSwarm = parseDeck({ name: 'Swarm', leaderId: 'autopus', cards: [
   { cardId: 'field-mouse', count: 3 },
   { cardId: 'spore-bat', count: 3 }, { cardId: 'hive-spawn', count: 3 }, { cardId: 'swift-falcon', count: 2 }, { cardId: 'hivemind-surge', count: 2 },
-  { cardId: 'goreivyne', count: 2 }, { cardId: 'war-beast', count: 1 }, { cardId: 'rally-banner', count: 2 }, { cardId: 'pyre-fiend', count: 2 }, { cardId: 'powder-monkey', count: 2 },
+  { cardId: 'goreivyne', count: 2 }, { cardId: 'war-beast', count: 1 }, { cardId: 'rally-banner', count: 2 }, { cardId: 'pyre-fiend', count: 2 },
   { cardId: 'brood-mother', count: 3 },
   { cardId: 'brood-warlord', count: 2 }, { cardId: 'pocket-dimension', count: 1 }, { cardId: 'firebolt', count: 2 },
+  // REACH (2, replacing powder-monkey — its weakest card at 79% play). Swarm floods lanes but
+  // had nothing that gets past a lane someone else fills first. Craftbee is airborne on top of
+  // Branch Shot, so it fits the deck's existing evasive-body idea (Spore Bat, Swift Falcon).
+  { cardId: 'craftbee', count: 2 },
 ] });
 
 // Attrition plan: wall the board with Spike/Taunt bodies the enemy must attack into,
@@ -553,13 +568,22 @@ export const deckSwarm = parseDeck({ name: 'Swarm', leaderId: 'autopus', cards: 
 // Wither and Wilt grind attackers down. Poison/on-hit is a supplement, not the main plan.
 // Granite Ox is the closer once the enemy board has bled itself out.
 export const deckAttrition = parseDeck({ name: 'Attrition', leaderId: 'eksana', cards: [
-  { cardId: 'mud-crab', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 }, { cardId: 'whistle-blower', count: 1 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'spike-wall', count: 2 }, { cardId: 'void-caller', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'barbed-sentinel', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 },
+  { cardId: 'mud-crab', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 }, { cardId: 'whistle-blower', count: 1 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'void-caller', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'barbed-sentinel', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 },
+  // REACH (2, replacing spike-wall — its weakest card at ~75% play). Attrition's whole plan
+  // is punishing attacks into a wall, which is exactly the shape of deck that can't finish a
+  // stalled board itself. Split Arrow is cheap (1 nature pip, well under Eksana's cap of 2).
+  { cardId: 'split-arrow', count: 2 },
 ] });
 
 export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', cards: [
   { cardId: 'mend', count: 2 }, { cardId: 'field-mouse', count: 3 }, { cardId: 'briar-colt', count: 3 }, { cardId: 'iron-seed', count: 2 }, { cardId: 'strangleroot', count: 2 }, { cardId: 'bloom-elk', count: 3 },
   { cardId: 'war-beast', count: 2 }, { cardId: 'surge-sprite', count: 2 }, { cardId: 'goreivyne', count: 2 }, { cardId: 'mush-room', count: 2 }, { cardId: 'fertile-mound', count: 2 },
-  { cardId: 'rally-banner', count: 1 }, { cardId: 'chrysalis-grub', count: 2 }, { cardId: 'emerald-drake', count: 1 }, { cardId: 'grove-elder', count: 1 },
+  { cardId: 'chrysalis-grub', count: 2 }, { cardId: 'emerald-drake', count: 1 },
+  // REACH (2, replacing rally-banner and grove-elder — the deck's two weakest singletons at
+  // 46% and 53% play). Snowball's engine needs units to survive to pay off, which is exactly
+  // what dies to a stalled board with no way through. Chemister is cheap (1e) so it never
+  // competes with the growth curve for a turn.
+  { cardId: 'chemister', count: 2 },
 ] });
 
 // Lane Control plan: dictate WHERE the enemy's units stand. Naife's Misdirect plus Wind Redirect,
