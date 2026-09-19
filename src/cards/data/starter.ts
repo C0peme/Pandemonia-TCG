@@ -571,8 +571,15 @@ export const deckAttrition = parseDeck({ name: 'Attrition', leaderId: 'eksana', 
   { cardId: 'mud-crab', count: 3 }, { cardId: 'quarry-hand', count: 2 }, { cardId: 'ashen-bomber', count: 2 }, { cardId: 'gravel-hound', count: 2 }, { cardId: 'reprisal', count: 2 }, { cardId: 'thorn-beast', count: 2 }, { cardId: 'whistle-blower', count: 1 }, { cardId: 'spiked-base', count: 2 }, { cardId: 'void-caller', count: 2 }, { cardId: 'tremor', count: 2 }, { cardId: 'thornmail-beetle', count: 2 }, { cardId: 'barbed-sentinel', count: 2 }, { cardId: 'runestone-keeper', count: 2 }, { cardId: 'ironroot-ward', count: 2 },
   // REACH (2, replacing spike-wall — its weakest card at ~75% play). Attrition's whole plan
   // is punishing attacks into a wall, which is exactly the shape of deck that can't finish a
-  // stalled board itself. Split Arrow is cheap (1 nature pip, well under Eksana's cap of 2).
-  { cardId: 'split-arrow', count: 2 },
+  // stalled board itself. Crag Hawk (Sniper) fits Eksana's water1/nature1 caps exactly.
+  //
+  // NOT Branch Shot (Split Arrow, tried first): measured 47.6% -> 72.2%, a bigger outlier
+  // than any deck in the field, Combo included. Branch Shot fires a FULL shot into BOTH
+  // lanes adjacent to its target — each one reaches the leader outright if that lane is
+  // empty — so on a board this deck already keeps thin it behaves like two Overshots at
+  // once, not one reach card. Sniper (a single redirected shot) is the level of reach the
+  // other four decks got; swapped to it and re-measured, see the commit for both numbers.
+  { cardId: 'crag-hawk', count: 2 },
 ] });
 
 export const deckSnowball = parseDeck({ name: 'Snowball', leaderId: 'noctua', cards: [
