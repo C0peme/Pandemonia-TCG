@@ -15,12 +15,21 @@
  * always taking the first one, is willing to skip a reward and to sell/kindle its worst
  * cards instead of its cheapest, and opportunistically challenges the Copper Mech — which
  * costs nothing to attempt — once per act to record how the build is coming along.
+ *
+ * Two later additions, closing gaps the first pass didn't cover: it reinforces whatever
+ * keyword already shows up most in the deck it's actually built (there's no per-leader
+ * archetype table, so this reads the plan back out of the deck itself — a Snowball leader
+ * accumulates `growth`, a Stall leader `taunt`, and so on), and it gears up harder at
+ * Enhance/Store nodes specifically when the boss (a full curated deck, per the measured
+ * 43%-vs-75% win-rate gap) is one or two layers away rather than treating every healthy
+ * detour the same. Event choices are also ranked by expected value instead of picked at
+ * random among whatever's "safe".
  */
 import type { Card, Element } from '@cards/schema';
 import type { Registry } from '@cards/registry';
 import type { OwnedCard, RunState } from '@adventure/schema';
 import { relicById } from '@adventure/data/relics';
-import { eventForNode } from '@adventure/data/events';
+import { eventForNode, type EventOutcome } from '@adventure/data/events';
 import { HP_AVOID_RISK, HP_SEEK_REST, ROUTE_WEIGHT, nodeSeedFor, type RunPolicy } from '@adventure/runSim';
 
 /** Keywords that get an attack past a lane an opponent has fully occupied (see combat.ts
@@ -45,12 +54,43 @@ const deckReachCount = (registry: Registry, deck: readonly OwnedCard[]): number 
     return card ? cardHasReach(card) : false;
   }).length;
 
+/** The card's own keyword identity — a unit's `keywords`, a foundation's own keywords
+ *  PLUS what it grants (either one can carry its "growth"/"taunt"/etc. signature), an
+ *  environment's grant — or `undefined` for spells, which have neither. */
+const cardKeywords = (card: Card): Partial<Record<string, unknown>> | undefined => {
+  if (card.type === 'unit') return card.keywords;
+  if (card.type === 'foundation') return { ...card.keywords, ...card.grants?.keywords };
+  if (card.type === 'environment') return card.grantKeywords;
+  return undefined;
+};
+
+/**
+ * How many owned cards already carry each keyword — the run's own emergent identity.
+ * There is no per-leader archetype table to consult (a custom leader has none either),
+ * so this reads the plan back out of the deck the run has actually built: a Snowball
+ * leader's deck fills up with `growth`, a Stall leader's with `taunt`/`tough`, a Combo
+ * leader's foundations grant reach or lethal, and so on. Reinforcing whichever keyword
+ * is already most common keeps the policy building toward ONE plan instead of a grab bag
+ * of unrelated good stats.
+ */
+const deckKeywordCounts = (registry: Registry, deck: readonly OwnedCard[]): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  for (const c of deck) {
+    const card = registry.cards.get(c.cardId);
+    const kw = card && cardKeywords(card);
+    if (!kw) continue;
+    for (const [k, v] of Object.entries(kw)) if (v) counts[k] = (counts[k] ?? 0) + 1;
+  }
+  return counts;
+};
+
 /**
  * How well `cardId` fits the run's plan. Bigger effects (cost) still count — a strict
  * downgrade from "always take the biggest" would throw out real signal — but this adds
  * what cost alone misses: does it match the leader's own element (guaranteed playable,
  * already inside the cap budget), does it close a reach gap the deck actually has, does
- * it help survive right now, and are we already stacked on this exact card.
+ * it reinforce whatever keyword identity the deck has already committed to, does it help
+ * survive right now, and are we already stacked on this exact card.
  */
 export const cardFit = (registry: Registry, run: RunState, cardId: string): number => {
   const card = registry.cards.get(cardId);
@@ -59,6 +99,14 @@ export const cardFit = (registry: Registry, run: RunState, cardId: string): numb
   let score = cardCost(card);
   if (leader && card.element === leader.element) score += 3;
   if (cardHasReach(card)) score += deckReachCount(registry, run.deck) === 0 ? 8 : 2;
+  // Only once the deck has actually committed (3+ copies) — a single stray keyword on
+  // the opening hand shouldn't be read as "the plan" yet.
+  const kw = cardKeywords(card);
+  if (kw) {
+    const counts = deckKeywordCounts(registry, run.deck);
+    const [topKeyword, topCount] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] ?? [];
+    if (topKeyword && (topCount ?? 0) >= 3 && kw[topKeyword]) score += 3;
+  }
   if (card.type === 'unit' || card.type === 'foundation') {
     const hpFrac = run.hp / run.maxHp;
     if (hpFrac < 0.5) score += card.hp * 0.3; // bloodied: value staying alive over raw stats
@@ -116,15 +164,47 @@ const SKIP_BELOW = 2;
  *  matters more than any one card's fit. */
 const MIN_KEEP_DECK = 20;
 
+/** Map layers still ahead before the forced, single boss node at the final layer — the
+ *  boss itself is never a routing choice (mapgen.ts puts it alone at the top layer), but
+ *  knowing it's close is what should make a policy gear up rather than push forward. */
+const layersToBoss = (run: RunState): number => {
+  const lastLayer = run.map.layers.length - 1;
+  const currentLayer = run.currentNodeId ? (run.map.nodes[run.currentNodeId]?.layer ?? -1) : -1;
+  return lastLayer - currentLayer;
+};
+
+/**
+ * Rough expected value of an event outcome, for choosing between several rather than
+ * picking at random among whatever's "safe". A named card reuses `cardFit`; a random one
+ * and a relic get a flat estimate (their actual identity isn't knowable before landing);
+ * `sacrificeEnhance` is only worth it once the deck is bloated enough to afford losing 2
+ * cards for a buffed 1; `combat` gets a modest, not dominant, value — a free fight is a
+ * genuine bonus while healthy, but this is still a permadeath format, so it should never
+ * outweigh a guaranteed relic or card.
+ */
+export const eventOutcomeValue = (registry: Registry, run: RunState, outcome: EventOutcome): number => {
+  switch (outcome.kind) {
+    case 'coins': return outcome.amount * 0.05;
+    case 'relic': return 4;
+    case 'card': return outcome.cardId === 'random' ? 3 : cardFit(registry, run, outcome.cardId);
+    case 'sacrificeEnhance': return run.deck.length > 24 ? 3 : -2;
+    case 'combat': return 1.5;
+    case 'nothing': return 0;
+  }
+};
+
 export const SMART_POLICY: RunPolicy = {
   route: (run, reachable, roll) => {
     const frac = run.hp / run.maxHp;
+    const nearBoss = layersToBoss(run) <= 2;
     const score = (n: (typeof reachable)[number]): number => {
       let s = ROUTE_WEIGHT[n.kind];
       if (n.kind === 'rest') s += frac < HP_SEEK_REST ? 8 : 0;
       if ((n.kind === 'elite' || n.kind === 'trial') && frac < HP_AVOID_RISK) s -= 4;
-      // Chasing the plan: seek Enhance/Store harder while healthy enough to detour.
-      if ((n.kind === 'enhance' || n.kind === 'store') && frac >= HP_AVOID_RISK) s += 1;
+      // Chasing the plan: seek Enhance/Store harder while healthy enough to detour, and
+      // harder still with the boss (a full curated 30-card deck, per the boss-win-rate
+      // finding) coming up in the next layer or two.
+      if ((n.kind === 'enhance' || n.kind === 'store') && frac >= HP_AVOID_RISK) s += nearBoss ? 3 : 1;
       return s;
     };
     let best = reachable[0]!;
@@ -155,12 +235,17 @@ export const SMART_POLICY: RunPolicy = {
     if (frac < 0.35 && run.deck.length > 22) return 'kindle';
     return 'heal';
   },
-  event: (run, legal, roll) => {
+  event: (run, legal, roll, registry) => {
     // Same care DEFAULT_POLICY takes around a combat-outcome choice (a duel is a free
-    // fight when healthy and a run-ender when not), reusing the exact same lookup.
-    const safe = legal.filter((i) => eventForNode(nodeSeedFor(run)).choices[i]!.outcome.kind !== 'combat');
+    // fight when healthy and a run-ender when not), reusing the exact same lookup — but
+    // rank what's left by expected value instead of picking at random among it.
+    const event = eventForNode(nodeSeedFor(run));
+    const safe = legal.filter((i) => event.choices[i]!.outcome.kind !== 'combat');
     const pool = run.hp / run.maxHp < HP_AVOID_RISK && safe.length > 0 ? safe : legal;
-    return pool.length > 1 ? roll.pick(pool) : pool[0]!;
+    const scored = pool.map((i) => ({ i, s: eventOutcomeValue(registry, run, event.choices[i]!.outcome) })).sort((a, b) => b.s - a.s);
+    const bestScore = scored[0]?.s;
+    const tied = scored.filter((x) => x.s === bestScore);
+    return tied.length > 1 ? roll.pick(tied).i : scored[0]!.i;
   },
   cardScore: cardFit,
   copperMech: true,

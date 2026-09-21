@@ -117,7 +117,7 @@ export interface RunPolicy {
   /** What to do with a Rest Site's single visit. */
   rest: (run: RunState) => 'heal' | 'card' | 'kindle';
   /** Which event choice to take, by index into the event's `choices`. */
-  event: (run: RunState, legal: number[], roll: Roller) => number;
+  event: (run: RunState, legal: number[], roll: Roller, registry: Registry) => number;
   /**
    * Optional replacement for the "biggest cost wins" proxy (`cardWeight`), used for shop
    * buy/sell and Enhance targeting when supplied. Omitted (the default) keeps the old
@@ -392,7 +392,7 @@ export const simulateRun = (
           .map(({ i }) => i);
         if (legal.length === 0) { run = leaveNode(run); break; }
         const before = run;
-        run = settle(run, chooseEventOption(run, base, policy.event(run, legal, roll)));
+        run = settle(run, chooseEventOption(run, base, policy.event(run, legal, roll, base)));
         // An event that routed into a fight leaves the phase on 'combat'; one that
         // resolved returns to the map on its own. A no-op means the choice was refused.
         if (run === before) { run = leaveNode(run); }
