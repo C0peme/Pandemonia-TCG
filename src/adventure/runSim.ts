@@ -23,14 +23,18 @@
  */
 import type { Registry } from '@cards/registry';
 import type { Element } from '@cards/schema';
+import type { GameState } from '@engine/types';
 import type { MapNode, OwnedCard, RunState } from '@adventure/schema';
 import { playOutGame } from '@engine/sim';
 import { makeRoller, subSeed, type Roller } from '@adventure/seed';
-import { buildFight } from '@adventure/encounters';
+import { buildFight, buildCopperMechState, playerDeck } from '@adventure/encounters';
 import { buyPrice, rollStoreOffer, attuneCost } from '@adventure/economy';
 import { rollEnhanceOffer, canApply } from '@adventure/enhance';
-import { aggregateMods } from '@adventure/relics';
+import { aggregateMods, applyRelicsToState, applyDeckBuffs } from '@adventure/relics';
 import { eventForNode } from '@adventure/data/events';
+import { buildRunRegistry } from '@adventure/runRegistry';
+import { heroStateMods, applyHeroModsToState } from '@adventure/hero';
+import { COPPER_MECH_HP, copperMechLeader } from '@adventure/data/copperMech';
 import {
   startRun,
   reachableNodeIds,
@@ -42,6 +46,7 @@ import {
   skipRewardCard,
   leaveNode,
   buyCard,
+  sellCard,
   applyEnhancement,
   enhanceAttune,
   restHeal,
@@ -49,6 +54,9 @@ import {
   restTakeCard,
   restKindle,
   chooseEventOption,
+  startCopperMech,
+  resolveCopperMech,
+  leaveCopperMech,
 } from '@adventure/run';
 
 /** One fight as it happened, in run order. */
@@ -89,6 +97,9 @@ export interface RunSimResult {
   attunes: number;
   hasUnique: boolean;
   signatureBuff: boolean;
+  /** Best damage ever dealt to the Copper Mech this run (0 if never attempted). */
+  copperBest: number;
+  copperAttempts: number;
 }
 
 /**
@@ -102,15 +113,23 @@ export interface RunPolicy {
   /** Take the offered reward card, or skip it to keep the deck lean. */
   takeRewardCard: (run: RunState, choices: string[], registry: Registry) => string | null;
   /** Which of the offered relics to claim. */
-  pickRelic: (run: RunState, choices: string[]) => string;
+  pickRelic: (run: RunState, choices: string[], registry: Registry) => string;
   /** What to do with a Rest Site's single visit. */
   rest: (run: RunState) => 'heal' | 'card' | 'kindle';
   /** Which event choice to take, by index into the event's `choices`. */
   event: (run: RunState, legal: number[], roll: Roller) => number;
+  /**
+   * Optional replacement for the "biggest cost wins" proxy (`cardWeight`), used for shop
+   * buy/sell and Enhance targeting when supplied. Omitted (the default) keeps the old
+   * cost-only behaviour, so `DEFAULT_POLICY` is unchanged.
+   */
+  cardScore?: (registry: Registry, run: RunState, cardId: string) => number;
+  /** Take a free, no-downside shot at the Copper Mech once per act when true. */
+  copperMech?: boolean;
 }
 
 /** Card kinds a node offers, ranked by how much a healthy run wants to walk into them. */
-const ROUTE_WEIGHT: Record<MapNode['kind'], number> = {
+export const ROUTE_WEIGHT: Record<MapNode['kind'], number> = {
   elite: 5, // widest card pick + double coins
   trial: 4, // relic + double coins, at normal fight strength
   store: 3,
@@ -184,7 +203,7 @@ export const DEFAULT_POLICY: RunPolicy = {
 };
 
 /** The seed of the node the run is currently parked on (events read their content from it). */
-const nodeSeedFor = (run: RunState): number => {
+export const nodeSeedFor = (run: RunState): number => {
   const p = run.phase;
   if (p.t !== 'event') return 0;
   return run.map.nodes[p.nodeId]?.seed ?? 0;
@@ -209,6 +228,36 @@ export interface RunSimOptions {
 const STEP_GUARD = 4000;
 
 /**
+ * Take one Copper Mech attempt and fold the result back into the run. Mirrors what
+ * `CopperMechView.tsx` does for a real player: the run's full power (enhancements, relic
+ * deck buffs, hero upgrades, signature buff) rides along, because the whole point is
+ * measuring the deck the run has actually built. A loss changes nothing but the
+ * scoreboard (`copperBest`/`copperAttempts`, both already on `RunState`).
+ */
+const attemptCopperMech = (base: Registry, run: RunState, usePlan: boolean): RunState => {
+  const started = startCopperMech(run);
+  if (started === run || started.phase.t !== 'copper') return run;
+  const { fightSeed } = started.phase;
+  const mods = aggregateMods(started.relics);
+  const buffedDeck = applyDeckBuffs(base, started.deck, mods);
+  const registry = buildRunRegistry(base, {
+    deck: buffedDeck,
+    playerLeaderId: started.leaderId,
+    heroUpgrades: started.heroUpgrades,
+    signatureBuff: started.signatureBuff,
+    extraLeaders: [copperMechLeader(base)],
+  });
+  let initial: GameState = buildCopperMechState(registry, playerDeck(started.leaderId, buffedDeck), fightSeed);
+  initial = applyRelicsToState(registry, initial, mods, subSeed(started.seed, 'coppermech', started.copperAttempts));
+  applyHeroModsToState(initial, heroStateMods(started.leaderId, started.heroUpgrades));
+  const result = playOutGame(registry, initial, usePlan);
+  const mechHp = Math.max(0, result.finalHp[1] ?? 0);
+  const dealt = COPPER_MECH_HP - mechHp;
+  const resolved = resolveCopperMech(started, dealt, result.winner === 0);
+  return leaveCopperMech(resolved);
+};
+
+/**
  * Play one Adventure run to its end and report what happened.
  *
  * Deterministic: the same `leaderId`, `seed` and policy replay exactly, because every
@@ -231,6 +280,8 @@ export const simulateRun = (
   let coinsEarned = 0;
   let coinsSpent = 0;
   let outcome: RunSimResult['outcome'] = 'stalled';
+  /** The act `copperMech` last took its free shot in, so it fires at most once per act. */
+  let lastCopperAct = 0;
 
   /** Track spend/income across a transition, so the economy is measured, not assumed. */
   const settle = (before: RunState, after: RunState): RunState => {
@@ -246,6 +297,13 @@ export const simulateRun = (
 
     switch (run.phase.t) {
       case 'map': {
+        // A no-downside probe: a loss changes only the scoreboard (run.ts's own comment
+        // on it), so a policy that actually understands that takes one free shot per
+        // act rather than never trying at all.
+        if (policy.copperMech && run.act !== lastCopperAct) {
+          lastCopperAct = run.act;
+          run = attemptCopperMech(base, run, usePlan);
+        }
         const ids = reachableNodeIds(run);
         if (ids.length === 0) { outcome = 'stalled'; step = STEP_GUARD; break; }
         const nodes = ids.map((id) => run.map.nodes[id]!).filter(Boolean);
@@ -290,7 +348,7 @@ export const simulateRun = (
         // Each gate blocks `leaveNode` until resolved, so they are cleared in turn and
         // the loop re-enters this case until the phase is clean.
         if (p.unlock) { run = claimUnlock(run); break; }
-        if (p.relicChoices?.length) { run = pickRelic(run, policy.pickRelic(run, p.relicChoices)); break; }
+        if (p.relicChoices?.length) { run = pickRelic(run, policy.pickRelic(run, p.relicChoices, base)); break; }
         if (p.cardChoices?.length) {
           const take = policy.takeRewardCard(run, p.cardChoices, base);
           run = take ? pickRewardCard(run, take) : skipRewardCard(run);
@@ -303,13 +361,13 @@ export const simulateRun = (
       }
 
       case 'store': {
-        run = settle(run, shopAtStore(run, base));
+        run = settle(run, shopAtStore(run, base, policy));
         run = leaveNode(run);
         break;
       }
 
       case 'enhance': {
-        run = settle(run, upgradeAtEnhance(run, base));
+        run = settle(run, upgradeAtEnhance(run, base, policy));
         run = leaveNode(run);
         break;
       }
@@ -341,8 +399,9 @@ export const simulateRun = (
         break;
       }
 
-      // The Copper Mech is an optional side challenge entered from the map, never landed
-      // on, so a run driven by this policy cannot reach these phases.
+      // `attemptCopperMech` (called from the 'map' case above) starts, plays and resolves
+      // an attempt synchronously and always leaves the phase back on 'map', so a policy
+      // driving this loop never actually lands here mid-attempt.
       case 'copper':
       case 'copperResult':
         outcome = 'stalled';
@@ -369,30 +428,53 @@ export const simulateRun = (
     attunes: run.heroUpgrades.filter((u) => u.kind === 'attune').length,
     hasUnique: run.heroUpgrades.some((u) => u.kind === 'unique'),
     signatureBuff: run.signatureBuff,
+    copperBest: run.copperBest,
+    copperAttempts: run.copperAttempts,
   };
 };
 
-/** Buy the most expensive affordable card, repeatedly, until nothing else fits the purse. */
-const shopAtStore = (run: RunState, base: Registry): RunState => {
+/** Never sell down to a deck this thin — a thin deck decks out and self-damages on Nulls
+ *  (see [[adventure-deckout-was-killing-runs]]); staying well above the starter size
+ *  matters more than funding any one purchase. */
+const MIN_KEEP_DECK_FOR_SELL = 20;
+
+/**
+ * Buy for the shop visit. With no `cardScore` (DEFAULT_POLICY), this is unchanged: buy
+ * the most expensive affordable card, repeatedly. With one (a policy like SMART_POLICY),
+ * ranking switches to the scorer, and — since a scorer implies the policy actually knows
+ * what a bad card looks like — it will part with its single worst-fitting owned card
+ * first if that's what it takes to afford something better, never below the safe floor.
+ */
+const shopAtStore = (run: RunState, base: Registry, policy: RunPolicy): RunState => {
   if (run.phase.t !== 'store') return run;
   const at = run.map.nodes[run.phase.nodeId];
   const leader = base.leaders.get(run.leaderId);
   if (!at || !leader) return run;
   let cur = run;
+  const rank = (cardId: string): number => (policy.cardScore ? policy.cardScore(base, cur, cardId) : cardWeight(base, cardId));
+
+  if (policy.cardScore && cur.deck.length > MIN_KEEP_DECK_FOR_SELL) {
+    const worst = [...cur.deck].sort((a, b) => rank(a.cardId) - rank(b.cardId))[0];
+    if (worst && rank(worst.cardId) < 0) {
+      const next = sellCard(cur, base, worst.uid);
+      if (next !== cur) cur = next;
+    }
+  }
+
   for (let guard = 0; guard < 16; guard++) {
     const mods = aggregateMods(cur.relics);
     const offer = rollStoreOffer(base, at.seed, leader.element, mods.extraStoreSlots);
     const bought = new Set(cur.map.nodes[at.id]?.bought ?? []);
     let bestIdx = -1;
-    let bestPrice = -1;
+    let bestScore = -Infinity;
     offer.forEach((cardId, idx) => {
       if (bought.has(idx)) return;
       const card = base.cards.get(cardId);
       if (!card) return;
       const price = buyPrice(card, leader.element, mods);
-      // Price tracks cost tracks power under this pricing model, so "most expensive
-      // affordable" is the same greedy rule a player follows at a shop.
-      if (price <= cur.coins && price > bestPrice) { bestPrice = price; bestIdx = idx; }
+      if (price > cur.coins) return;
+      const s = rank(cardId);
+      if (s > bestScore) { bestScore = s; bestIdx = idx; }
     });
     if (bestIdx < 0) break;
     const next = buyCard(cur, base, bestIdx);
@@ -402,8 +484,11 @@ const shopAtStore = (run: RunState, base: Registry): RunState => {
   return cur;
 };
 
-/** Spend the Enhance node's one purchase: buff the best body, else attune. */
-const upgradeAtEnhance = (run: RunState, base: Registry): RunState => {
+/** Spend the Enhance node's one purchase: buff the best-fitting body, else attune. Ties
+ *  (the scorer values two owned cards the same) break toward whichever already carries
+ *  more enhancements — the closest thing to a "chosen finisher" without needing new state:
+ *  a card the plan already invested in stays the plan's investment. */
+const upgradeAtEnhance = (run: RunState, base: Registry, policy: RunPolicy): RunState => {
   if (run.phase.t !== 'enhance') return run;
   const at = run.map.nodes[run.phase.nodeId];
   const leader = base.leaders.get(run.leaderId);
@@ -411,14 +496,14 @@ const upgradeAtEnhance = (run: RunState, base: Registry): RunState => {
   const offer = rollEnhanceOffer(at.seed, run.act);
   const price = Math.round(offer.price * aggregateMods(run.relics).enhanceDiscount);
   if (run.coins >= price) {
-    // Put the buff on the biggest card it legally fits: an enhancement on a one-drop is
-    // the same price as one on a finisher.
+    const rank = (c: OwnedCard): number =>
+      (policy.cardScore ? policy.cardScore(base, run, c.cardId) : cardWeight(base, c.cardId)) + c.enhancements.length * 0.01;
     const eligible = run.deck
       .filter((c: OwnedCard) => {
         const card = base.cards.get(c.cardId);
         return card ? canApply(offer, card) : false;
       })
-      .sort((a, b) => cardWeight(base, b.cardId) - cardWeight(base, a.cardId));
+      .sort((a, b) => rank(b) - rank(a));
     const target = eligible[0];
     if (target) {
       const next = applyEnhancement(run, base, target.uid);
@@ -440,8 +525,10 @@ const useRestSite = (run: RunState, base: Registry, policy: RunPolicy): RunState
   const { nodeId } = run.phase;
   switch (policy.rest(run)) {
     case 'kindle': {
-      // Burn the two cheapest cards — the ones least likely to be the deck's plan.
-      const order = [...run.deck].sort((a, b) => cardWeight(base, a.cardId) - cardWeight(base, b.cardId));
+      // Burn the two worst-fitting cards (or, absent a scorer, the two cheapest) — the
+      // ones least likely to be the deck's plan.
+      const rank = (c: OwnedCard): number => (policy.cardScore ? policy.cardScore(base, run, c.cardId) : cardWeight(base, c.cardId));
+      const order = [...run.deck].sort((a, b) => rank(a) - rank(b));
       const [a, b] = order;
       if (!a || !b) return restHeal(run);
       const next = restKindle(run, a.uid, b.uid);
@@ -450,7 +537,8 @@ const useRestSite = (run: RunState, base: Registry, policy: RunPolicy): RunState
     case 'card': {
       const offer = restCardOffer(base, run, nodeId);
       if (offer.length === 0) return run;
-      const best = offer.reduce((x, id) => (cardWeight(base, id) > cardWeight(base, x) ? id : x), offer[0]!);
+      const rank = (id: string): number => (policy.cardScore ? policy.cardScore(base, run, id) : cardWeight(base, id));
+      const best = offer.reduce((x, id) => (rank(id) > rank(x) ? id : x), offer[0]!);
       return restTakeCard(run, base, best);
     }
     case 'heal':
