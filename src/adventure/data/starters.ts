@@ -33,8 +33,10 @@ export const ADVENTURE_STARTERS: Record<string, string[]> = {
   aleph: ['field-mouse', 'field-mouse', 'field-mouse', 'ember-pup', 'ember-pup', 'ember-pup', 'mend', 'frost-imp', 'frost-imp', 'briar-colt', 'briar-colt', 'briar-colt', 'gravel-hound', 'gravel-hound', 'gravel-hound', 'reef-darter', 'reef-darter', 'sharpened-stake'],
   // Control — stall tools plus enough walls to hide behind.
   phantom: ['river-minnow', 'river-minnow', 'target-spell', 'cold-spell', 'cold-spell', 'peel-back', 'peel-back', 'reef-darter', 'reef-darter', 'current-rider', 'current-rider', 'tide-serpent', 'tidecaller-adept', 'dream-eater', 'river-turtle', 'river-turtle', 'sleep-walker', 'frost-wall'],
-  // Combo — grant-foundations and bodies to bond onto them.
-  screyera: ['pebble-pup', 'pebble-pup', 'pebble-pup', 'quarry-hand', 'quarry-hand', 'launch-ramp', 'launch-ramp', 'reprisal', 'mud-crab', 'mud-crab', 'mud-crab', 'gravel-hound', 'gravel-hound', 'gravel-hound', 'oak-sentry', 'oak-sentry', 'ridge-walker', 'twin-fang-mount'],
+  // Combo — grant-foundations and bodies to bond onto them. ridge-walker -> venom-sniper:
+  // the archetype deck dropped ridge-walker for reach (Combo had zero cards that get past
+  // a held lane); same swap here so the starter isn't drawing a card no longer in the deck.
+  screyera: ['pebble-pup', 'pebble-pup', 'pebble-pup', 'quarry-hand', 'quarry-hand', 'launch-ramp', 'launch-ramp', 'reprisal', 'mud-crab', 'mud-crab', 'mud-crab', 'gravel-hound', 'gravel-hound', 'gravel-hound', 'oak-sentry', 'oak-sentry', 'venom-sniper', 'twin-fang-mount'],
   // Guardian — protection for the avatar plus a few sponges.
   ringleader: ['mend', 'mend', 'wind-redirect', 'peel-back', 'peel-back', 'iron-ward', 'iron-ward', 'iron-ward', 'cold-spell', 'field-mouse', 'field-mouse', 'mush-room', 'mush-room', 'mush-room', 'fog-creature', 'tidecaller-adept', 'crag-hawk', 'crag-hawk'],
   // Ramp — producers and groundwork. Ramp's archetype is almost entirely 5+ drops, so
@@ -43,14 +45,24 @@ export const ADVENTURE_STARTERS: Record<string, string[]> = {
   // runs got WORSE when starters grew (29.0 HP lost per win, dead on fight 1). A ramp
   // deck still has to survive to turn 5.
   corpselock: ['mend', 'mend', 'field-mouse', 'field-mouse', 'briar-colt', 'briar-colt', 'gravel-hound', 'gravel-hound', 'sun-priest', 'sun-priest', 'sun-priest', 'oak-sentry', 'oak-sentry', 'mud-crab', 'mana-geyser', 'mana-geyser', 'bulwark-toad', 'surge-sprite'],
-  // Deck Out — burden tools plus sleepy walls.
-  johnpork: ['river-minnow', 'river-minnow', 'hypnotic-patterns', 'hypnotic-patterns', 'cursed-gift', 'cursed-gift', 'cold-spell', 'cold-spell', 'peel-back', 'peel-back', 'displacement-wave', 'mind-leech', 'mind-leech', 'mind-leech', 'river-turtle', 'river-turtle', 'sleep-walker', 'sleep-walker'],
-  // Stall — walls, spikes, and sustain.
-  cleath: ['target-spell', 'target-spell', 'mend', 'mend', 'quarry-hand', 'quarry-hand', 'tremor', 'stone-footing', 'trench-turtle', 'trench-turtle', 'trench-turtle', 'spike-wall', 'spike-wall', 'spike-wall', 'bulwark-toad', 'iron-mantis', 'pebble-snake', 'ridge-walker'],
-  // Swarm — cheap bodies that refill themselves.
-  autopus: ['field-mouse', 'field-mouse', 'field-mouse', 'firebolt', 'firebolt', 'powder-monkey', 'powder-monkey', 'pocket-dimension', 'spore-bat', 'spore-bat', 'spore-bat', 'pyre-fiend', 'pyre-fiend', 'hive-spawn', 'hive-spawn', 'hive-spawn', 'swift-falcon', 'swift-falcon'],
-  // Attrition — spiky bodies the enemy bleeds on.
-  eksana: ['quarry-hand', 'quarry-hand', 'mud-crab', 'mud-crab', 'mud-crab', 'reprisal', 'tremor', 'gravel-hound', 'gravel-hound', 'ashen-bomber', 'ashen-bomber', 'plague-rat', 'plague-rat', 'whistle-blower', 'thorn-beast', 'thorn-beast', 'spike-wall', 'spike-wall'],
+  // Deck Out — rebuilt after the archetype's own rework replaced the old burden/sleep
+  // package with a Taunt wall + closer bodies (Deck Out: 18.4% -> 24.3% field, see
+  // deckDeckOut). Half the old starter no longer exists in the 30-card deck; this mirrors
+  // the archetype's current shape at 18 cards: cheap denial, the wall, then the closers
+  // (pipless beaters plus one Overshot body for reach).
+  johnpork: ['hypnotic-patterns', 'hypnotic-patterns', 'cursed-gift', 'cursed-gift', 'mud-crab', 'mud-crab', 'galatian-spirit', 'barbed-sentinel', 'barbed-sentinel', 'brackish-warden', 'brackish-warden', 'salt-golem', 'salt-golem', 'granite-ox', 'abyss-warden', 'abyss-warden', 'mountain-bull', 'frost-imp'],
+  // Stall — walls, spikes, and sustain. target-spell -> watchtowers: the archetype deck
+  // dropped target-spell for reach (Stall's whole plan is walling every lane, which made
+  // it unbreakable by anyone else too, and unable to close its own games).
+  cleath: ['watchtowers', 'watchtowers', 'mend', 'mend', 'quarry-hand', 'quarry-hand', 'tremor', 'stone-footing', 'trench-turtle', 'trench-turtle', 'trench-turtle', 'spike-wall', 'spike-wall', 'spike-wall', 'bulwark-toad', 'iron-mantis', 'pebble-snake', 'ridge-walker'],
+  // Swarm — cheap bodies that refill themselves. Dropped one powder-monkey for craftbee
+  // (reach — Branch Shot, alongside the deck's other evasive bodies) and bumped firebolt
+  // to x3 rather than running two craftbees, so the curve isn't overweighted top-end.
+  autopus: ['field-mouse', 'field-mouse', 'field-mouse', 'firebolt', 'firebolt', 'firebolt', 'powder-monkey', 'craftbee', 'pocket-dimension', 'spore-bat', 'spore-bat', 'spore-bat', 'pyre-fiend', 'pyre-fiend', 'hive-spawn', 'hive-spawn', 'hive-spawn', 'swift-falcon'],
+  // Attrition — spiky bodies the enemy bleeds on. spike-wall -> split-arrow: the archetype
+  // deck dropped spike-wall for reach (a wall-punish deck can't punish a wall it can't get
+  // past either).
+  eksana: ['quarry-hand', 'quarry-hand', 'mud-crab', 'mud-crab', 'mud-crab', 'reprisal', 'tremor', 'gravel-hound', 'gravel-hound', 'ashen-bomber', 'ashen-bomber', 'plague-rat', 'plague-rat', 'whistle-blower', 'thorn-beast', 'thorn-beast', 'split-arrow', 'split-arrow'],
   // Snowball — growth seeds and heals to keep them alive.
   noctua: ['field-mouse', 'field-mouse', 'field-mouse', 'mend', 'mend', 'briar-colt', 'briar-colt', 'mush-room', 'mush-room', 'strangleroot', 'chrysalis-grub', 'bloom-elk', 'bloom-elk', 'bloom-elk', 'surge-sprite', 'iron-seed', 'iron-seed', 'strings-of-heaven'],
   // Lane Control — displacement plus an evasive clock.
