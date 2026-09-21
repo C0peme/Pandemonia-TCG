@@ -88,12 +88,15 @@ jobs:
         run: |
           node -e '
             const fs = require("fs");
-            const files = fs.readdirSync("out").filter((f) => f.endsWith(".json"));
+            const path = require("path");
+            const files = fs.readdirSync("out", { recursive: true })
+              .filter((f) => f.endsWith(".json"));
             const rows = { full: [], bare: [] };
             for (const f of files) {
-              const kind = f.startsWith("full-") ? "full" : f.startsWith("bare-") ? "bare" : null;
+              const base = path.basename(f);
+              const kind = base.startsWith("full-") ? "full" : base.startsWith("bare-") ? "bare" : null;
               if (!kind) continue;
-              rows[kind].push(JSON.parse(fs.readFileSync(`out/${f}`, "utf8")));
+              rows[kind].push(JSON.parse(fs.readFileSync(path.join("out", f), "utf8")));
             }
             const print = (title, list) => {
               console.log(`\n${title}`);
