@@ -1,0 +1,115 @@
+# Per-boss difficulty report on hosted runners, one boss per runner.
+#
+# Every boss fights every leader's own unmodified 30-card starter deck at act-1 boss
+# terms — a fair, apples-to-apples comparison isolated from run-attrition/permadeath
+# sampling bias (see src/adventure/boss_balance.test.ts for the harness itself). Each
+# boss's fights are independent of every other boss's, so the work shards cleanly across
+# 13 runners.
+
+name: Boss Balance
+
+on:
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: Seeds per leader-vs-boss pairing
+        default: '4'
+      bare:
+        description: Also run the bare-archetype control (no bonusHp/twist/curse/hero override)
+        type: boolean
+        default: true
+  push:
+    branches: ['claude/**']
+    paths:
+      - '.github/workflows/boss-balance.yml'
+      - 'src/adventure/data/bosses.ts'
+      - 'src/adventure/trials.ts'
+
+concurrency:
+  group: boss-balance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boss:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        boss:
+          - warhost
+          - drowned-king
+          - overgrowth
+          - kedou-revolutionist
+          - aleph-infinitude
+          - phantom-warlords-daughter
+          - screyera-all-seeing
+          - ringleader-executioner
+          - false-hydra
+          - cleath-architect
+          - autopus-overflow
+          - eksana-nice
+          - noctua-death-artificer
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci || npm install
+      - name: Run ${{ matrix.boss }}
+        env:
+          RUN_BOSS_BALANCE: '1'
+          BOSS_ONLY: ${{ matrix.boss }}
+          BOSS_SEEDS: ${{ github.event.inputs.seeds || '4' }}
+          BOSS_BARE: ${{ (github.event.inputs.bare || 'true') == 'true' && '1' || '0' }}
+          BOSS_OUT_DIR: boss-out
+        run: |
+          npx vitest run src/adventure/boss_balance.test.ts --reporter=verbose --disable-console-intercept \
+            | tee boss-${{ matrix.boss }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boss-out-${{ matrix.boss }}
+          path: |
+            boss-${{ matrix.boss }}.txt
+            boss-out/*.json
+
+  report:
+    needs: boss
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          pattern: boss-out-*
+          merge-multiple: true
+      - name: Combine and write job summary
+        run: |
+          node -e '
+            const fs = require("fs");
+            const files = fs.readdirSync("out").filter((f) => f.endsWith(".json"));
+            const rows = { full: [], bare: [] };
+            for (const f of files) {
+              const kind = f.startsWith("full-") ? "full" : f.startsWith("bare-") ? "bare" : null;
+              if (!kind) continue;
+              rows[kind].push(JSON.parse(fs.readFileSync(`out/${f}`, "utf8")));
+            }
+            const print = (title, list) => {
+              console.log(`\n${title}`);
+              list.sort((a, b) => a.win - b.win);
+              for (const r of list) console.log(`  ${r.id.padEnd(28)} win=${r.win.toFixed(1).padStart(5)}%  n=${r.n}`);
+            };
+            print("Per-boss win rate (full boss):", rows.full);
+            if (rows.bare.length) print("Bare-archetype win rate (no boss dressing):", rows.bare);
+          ' | tee boss-report.txt
+          {
+            echo '## Boss balance'
+            echo '```'
+            cat boss-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boss-balance-report
+          path: boss-report.txt

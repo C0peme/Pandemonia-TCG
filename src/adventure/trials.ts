@@ -72,6 +72,16 @@ export const TWISTS: TrialTwist[] = [
   },
 
   // --- boss signatures (never rolled by Trial/Elite nodes) ---
+  //
+  // A symmetric twist is only worth keeping on a boss if it measurably favors the boss
+  // over the player — a rule applying equally to both sides doesn't actually help
+  // equally, since it interacts with each side's own deck shape. Measured 2026-09-21
+  // (every boss vs. all 13 leaders' own starter decks): Behind the Mask, Forge-Bound,
+  // The NICE Curse and Death Artificer all measured NEGATIVE or negligible for their
+  // boss (they made the fight easier for the player, not harder) and were removed —
+  // see bosses.ts for which bosses lost a twist. The still-listed ground-hazard twists
+  // below (Drowning Tide, Endless Growth, Plague Fields) measured strongly POSITIVE for
+  // their boss and were kept.
   {
     id: 'boss-drowned-tide', name: 'Drowning Tide', bossOnly: true,
     blurb: 'Tundra freezes anything entering either Ground lane, while the Shallows open the Water to everyone. Fight at sea, or fight frozen.',
@@ -90,36 +100,10 @@ export const TWISTS: TrialTwist[] = [
     places: [{ lane: 'ground1', cardId: 'sludge-pool' }, { lane: 'ground2', cardId: 'sludge-pool' }],
   },
   {
-    id: 'boss-behind-the-mask', name: 'Behind the Mask', bossOnly: true,
-    blurb: 'Lullaby Grove covers both Ground lanes — every unit entering the ground falls Asleep.',
-    kind: 'fixedEnvironments',
-    places: [{ lane: 'ground1', cardId: 'lullaby-grove' }, { lane: 'ground2', cardId: 'lullaby-grove' }],
-  },
-  {
     id: 'boss-serpents-loop', name: "Serpent's Loop", bossOnly: true,
     blurb: 'Shifting Sands covers both Ground lanes — every unit there wanders to a new lane each turn.',
     kind: 'fixedEnvironments',
     places: [{ lane: 'ground1', cardId: 'shifting-sands' }, { lane: 'ground2', cardId: 'shifting-sands' }],
-  },
-  {
-    id: 'boss-forge-bound', name: 'Forge-Bound', bossOnly: true,
-    blurb: 'Bunker covers both Ground lanes — every unit there gains Tough 1, forged into armor.',
-    kind: 'fixedEnvironments',
-    places: [{ lane: 'ground1', cardId: 'bunker' }, { lane: 'ground2', cardId: 'bunker' }],
-  },
-  {
-    id: 'boss-nice-curse', name: 'The NICE Curse', bossOnly: true,
-    blurb: 'Every unit has +0/+3 — and every unit that enters play is Poisoned.',
-    kind: 'composite',
-    twists: [
-      { id: 'boss-nice-curse-buff', name: 'The NICE Curse (buff)', blurb: '', kind: 'globalBuff', stat: { hp: 3 } },
-      { id: 'boss-nice-curse-poison', name: 'The NICE Curse (poison)', blurb: '', kind: 'globalOnPlayStatus', status: 'poison' },
-    ],
-  },
-  {
-    id: 'boss-death-artificer', name: 'Death Artificer', bossOnly: true,
-    blurb: 'Every unit is Zombified.',
-    kind: 'globalKeyword', keyword: 'zombified', value: true,
   },
   {
     id: 'boss-ignorance-is-bliss', name: 'Ignorance is Bliss', bossOnly: true,

@@ -36,12 +36,23 @@ export interface Boss {
 /**
  * Every gimmick is deterministic and fully stated — the player reads the rule on the
  * map and can plan a route, a deck, and a line of play around it before committing.
+ *
+ * A boss's `twistId`, when present, is a symmetric rule (applies to both sides), so it
+ * is only worth carrying if it measurably favors the BOSS more than the player — a
+ * symmetric rule doesn't help both sides equally in practice, since it interacts with
+ * each side's own deck shape. Measured 2026-09-21 (every boss vs. all 13 leaders' own
+ * starter decks, fair A/B against the same fight with the twist stripped): Warhost
+ * (Stampede), Autopus (Open Shallows), Phantom (Behind the Mask), Cleath (Forge-Bound),
+ * Eksana (The NICE Curse) and Noctua (Death Artificer) all measured NEGATIVE or
+ * negligible for their boss and had their twist removed (see trials.ts for the four
+ * that were also deleted from the twist table as now-unused). Drowning Tide, Endless
+ * Growth and Plague Fields measured strongly positive and were kept as-is.
  */
 export const BOSSES: Boss[] = [
   {
     id: 'warhost', name: 'Failed Heir', icon: '⚔',
-    gimmick: 'Every unit has +2 attack. Trades are brutal — nothing survives.',
-    leaderId: 'orsyric', twistId: 'stampede', bonusHp: 4,
+    gimmick: 'No tricks, just a full curated army and a leader who trades hard.',
+    leaderId: 'orsyric', bonusHp: 4,
   },
   {
     id: 'drowned-king', name: 'Guardian of Ruin', icon: '🌊',
@@ -65,8 +76,8 @@ export const BOSSES: Boss[] = [
   },
   {
     id: 'phantom-warlords-daughter', name: "Warlord's Daughter", icon: '💧',
-    gimmick: 'Lullaby Grove covers both Ground lanes — every unit entering the ground falls Asleep.',
-    leaderId: 'phantom', twistId: 'boss-behind-the-mask', bonusHp: 6,
+    gimmick: "She hides behind no trick — just her father's full curated army.",
+    leaderId: 'phantom', bonusHp: 6,
   },
   {
     id: 'screyera-all-seeing', name: 'The All-Seeing', icon: '🔮',
@@ -87,25 +98,25 @@ export const BOSSES: Boss[] = [
   },
   {
     id: 'cleath-architect', name: 'The Architect and the Builder', icon: '⛰',
-    gimmick: 'Bunker covers both Ground lanes, and Fortify now forges +1 attack alongside the HP.',
-    leaderId: 'cleath', twistId: 'boss-forge-bound', bonusHp: 6,
+    gimmick: 'Fortify now forges +1 attack alongside the HP.',
+    leaderId: 'cleath', bonusHp: 6,
     heroPowerOverride: (hp) => ({ ...hp, effects: hp.effects.map((e) => (e.kind === 'buff' ? { ...e, stat: { attack: 1, ...e.stat } } : e)) }),
   },
   {
     id: 'autopus-overflow', name: 'Integer Overflow', icon: '🐙',
-    gimmick: 'The Shallows fill the Water lane — every unit there gains Aquatic. Fallback Code now summons a Techtacle.',
-    leaderId: 'autopus', twistId: 'open-shallows', bonusHp: 4,
+    gimmick: 'Fallback Code now summons a Techtacle.',
+    leaderId: 'autopus', bonusHp: 4,
     heroPowerOverride: (hp) => ({ ...hp, effects: hp.effects.map((e) => (e.kind === 'summon' ? { ...e, cardId: 'critter-elite' } : e)) }),
   },
   {
     id: 'eksana-nice', name: 'Leader of NICE', icon: '🗡',
-    gimmick: 'Every unit has +0/+3 — and every unit that enters play is Poisoned. Attacking her is never free.',
-    leaderId: 'eksana', twistId: 'boss-nice-curse', bonusHp: 6,
+    gimmick: 'No tricks — just a leader whose whole army hits hard and holds up.',
+    leaderId: 'eksana', bonusHp: 6,
   },
   {
     id: 'noctua-death-artificer', name: 'Death Artificer', icon: '🦉',
-    gimmick: 'Every unit is Zombified. She wields power over unlife, not death.',
-    leaderId: 'noctua', twistId: 'boss-death-artificer', bonusHp: 6,
+    gimmick: 'She wields power over unlife, not death — her army was built to outlast yours.',
+    leaderId: 'noctua', bonusHp: 6,
   },
 ];
 

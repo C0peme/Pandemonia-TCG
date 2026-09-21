@@ -195,8 +195,14 @@ describe('globalOnPlayStatus (via buildRunRegistry)', () => {
     }
   });
 
-  it('composes with globalBuff via a composite twist (The NICE Curse)', () => {
-    const twist = trialById('boss-nice-curse')!;
+  it('composes with globalBuff via a composite twist', () => {
+    const twist: TrialTwist = {
+      id: 'x-composite', name: 'X', blurb: '', kind: 'composite',
+      twists: [
+        { id: 'x-buff', name: 'X buff', blurb: '', kind: 'globalBuff', stat: { hp: 3 } },
+        { id: 'x-poison', name: 'X poison', blurb: '', kind: 'globalOnPlayStatus', status: 'poison' },
+      ],
+    };
     const reg = buildRunRegistry(base, { deck: [], twist });
     const coal = reg.cards.get('coal-runner')!;
     if (coal.type !== 'unit') throw new Error('expected unit');
