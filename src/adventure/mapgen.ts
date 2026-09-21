@@ -34,8 +34,12 @@ export const generateMap = (seed: number, act: number): RunMap => {
   // for ~52 HP and handed ~36 — it could not be routed around, only lost to. 18% puts
   // a path at ~1.4 camps an act. If this drops, raise ECON.REST_HEAL_FRACTION to match
   // or runs go back to dying on arithmetic rather than on play.
+  // Trial's band was widened (+4pp, borrowed from combat) so a route actually crosses
+  // one occasionally — at the old 14% share, most runs measured under a strategy-aware
+  // policy walked past every Trial on the map despite it carrying the 2nd-highest route
+  // priority: scarcity, not routing, was starving it.
   const rollKind = (r: number): NodeKind =>
-    r < 0.38 ? 'combat' : r < 0.52 ? 'trial' : r < 0.65 ? 'store' : r < 0.76 ? 'enhance' : r < 0.94 ? 'rest' : 'event';
+    r < 0.34 ? 'combat' : r < 0.52 ? 'trial' : r < 0.65 ? 'store' : r < 0.76 ? 'enhance' : r < 0.94 ? 'rest' : 'event';
 
   const kinds: NodeKind[][] = widths.map((w, l) => {
     if (l === 0) return Array<NodeKind>(w).fill('combat');
@@ -77,7 +81,11 @@ export const generateMap = (seed: number, act: number): RunMap => {
   // the pre-boss layer) into Elites — the beefier, better-rewarded fights. Count grows
   // with the act. Trials remain what `rollKind` rolls (~15%); Elite is its own pass so a
   // few of the tougher fights are guaranteed per act rather than left to chance.
-  const eliteCount = Math.min(3, 1 + Math.floor(act / 2));
+  // Was `min(3, 1 + floor(act/2))` — act 1 guaranteed only a single Elite, and with
+  // branching paths a route could easily miss it entirely (measured: 7 Elite visits vs
+  // 12 Trial and 82 combat over 39 runs). One more per act keeps the same late-act cap
+  // while roughly doubling how often a route actually crosses one.
+  const eliteCount = Math.min(4, 2 + Math.floor(act / 2));
   const eliteSpots: { l: number; c: number }[] = [];
   for (let l = 2; l < L - 1; l++) kinds[l]!.forEach((k, c) => { if (k === 'combat') eliteSpots.push({ l, c }); });
   for (const spot of roll.shuffle(eliteSpots).slice(0, eliteCount)) kinds[spot.l]![spot.c] = 'elite';
