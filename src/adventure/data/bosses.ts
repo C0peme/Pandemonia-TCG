@@ -47,6 +47,19 @@ export interface Boss {
  * negligible for their boss and had their twist removed (see trials.ts for the four
  * that were also deleted from the twist table as now-unused). Drowning Tide, Endless
  * Growth and Plague Fields measured strongly positive and were kept as-is.
+ *
+ * `heroPowerOverride` is asymmetric by construction (it only ever changes the BOSS's own
+ * copy of the power), so it wasn't touched by the twist pass above — but the re-measure
+ * afterward showed two of them were doing the actual damage. Autopus's override
+ * (Fallback Code → summons a Techtacle: Lethal/TrueShield/Airborne) turned a 2-energy
+ * throwaway body into a repeatable 1-energy near-unkillable win condition — elsewhere in
+ * the card pool that same unit costs 6 energy and is normally earned only four-at-once as
+ * a one-time Signature spell. Cleath's override (Fortify also grants +1 attack) let its
+ * Taunt wall punch back every cast, turning a stall shell into one that out-races
+ * attackers too. Both measured FAR below their own bare-archetype baseline even after
+ * losing their twist (autopus 11.5% vs. 53.8% bare; cleath 26.9% vs. 55.8% bare) —
+ * measured 2026-09-22, removed both overrides rather than merely tone them down, matching
+ * the "no tricks, full curated army" pattern already used successfully by Eksana/Noctua.
  */
 export const BOSSES: Boss[] = [
   {
@@ -98,15 +111,13 @@ export const BOSSES: Boss[] = [
   },
   {
     id: 'cleath-architect', name: 'The Architect and the Builder', icon: '⛰',
-    gimmick: 'Fortify now forges +1 attack alongside the HP.',
+    gimmick: 'No tricks — just a wall of Taunt that refuses to fall.',
     leaderId: 'cleath', bonusHp: 6,
-    heroPowerOverride: (hp) => ({ ...hp, effects: hp.effects.map((e) => (e.kind === 'buff' ? { ...e, stat: { attack: 1, ...e.stat } } : e)) }),
   },
   {
     id: 'autopus-overflow', name: 'Integer Overflow', icon: '🐙',
-    gimmick: 'Fallback Code now summons a Techtacle.',
+    gimmick: 'No tricks — just a swarm that keeps rebuilding itself.',
     leaderId: 'autopus', bonusHp: 4,
-    heroPowerOverride: (hp) => ({ ...hp, effects: hp.effects.map((e) => (e.kind === 'summon' ? { ...e, cardId: 'critter-elite' } : e)) }),
   },
   {
     id: 'eksana-nice', name: 'Leader of NICE', icon: '🗡',

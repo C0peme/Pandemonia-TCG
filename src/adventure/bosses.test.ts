@@ -56,22 +56,9 @@ describe('boss heroPowerOverride', () => {
     expect(JSON.stringify(baseLeader.heroPower)).toBe(before); // untouched
   });
 
-  it("Cleath's Fortify also grants +1 attack alongside its HP", () => {
-    const boss = bossById('cleath-architect')!;
-    const baseLeader = base.leaders.get('cleath')!;
-    const overridden = boss.heroPowerOverride!(structuredClone(baseLeader.heroPower));
-    const buffEffect = overridden.effects.find((e) => e.kind === 'buff')!;
-    expect(buffEffect.stat).toEqual({ attack: 1, hp: 2 });
-    expect(baseLeader.heroPower.effects.find((e) => e.kind === 'buff')!.stat).toEqual({ hp: 2 }); // untouched
-  });
-
-  it("Autopus's Fallback Code summons a Techtacle instead of a Mechanical Failure", () => {
-    const boss = bossById('autopus-overflow')!;
-    const baseLeader = base.leaders.get('autopus')!;
-    const overridden = boss.heroPowerOverride!(structuredClone(baseLeader.heroPower));
-    const summonEffect = overridden.effects.find((e) => e.kind === 'summon')!;
-    expect(summonEffect.cardId).toBe('critter-elite');
-    expect(baseLeader.heroPower.effects.find((e) => e.kind === 'summon')!.cardId).toBe('critter-token'); // untouched
+  it('Cleath and Autopus carry no heroPowerOverride (removed 2026-09-22 — measured overtuned)', () => {
+    expect(bossById('cleath-architect')!.heroPowerOverride).toBeUndefined();
+    expect(bossById('autopus-overflow')!.heroPowerOverride).toBeUndefined();
   });
 
   it('applies cleanly through buildRunRegistry as the ENEMY leader, never leaking to the player copy', () => {
