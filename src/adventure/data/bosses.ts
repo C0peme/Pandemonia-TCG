@@ -60,6 +60,16 @@ export interface Boss {
  * losing their twist (autopus 11.5% vs. 53.8% bare; cleath 26.9% vs. 55.8% bare) —
  * measured 2026-09-22, removed both overrides rather than merely tone them down, matching
  * the "no tricks, full curated army" pattern already used successfully by Eksana/Noctua.
+ *
+ * Screyera's curse (`bossExtraDrawPerTurn`) had the same shape of problem: an extra draw
+ * per turn sounds like a pure boss buff, but it doubles how fast the BOSS itself burns
+ * through its own deck (see draw.ts) — so the boss decks out roughly twice as fast as
+ * normal, hits its hand cap sooner, and starts taking the deck-out Null-card self-damage
+ * (4 to its own leader per forgotten Null, see cards/special.ts) far earlier and more
+ * often than the player does. Measured 2026-09-22: Screyera's full config scored 21.1pp
+ * BELOW its own bare-archetype baseline (30.8% vs. 51.9%) — the single worst symmetric-
+ * looking-but-actually-self-harming gimmick found yet. Removed `bossExtraDrawPerTurn`,
+ * kept `playerMillPerTurn` (a pure player-side cost with no such backfire).
  */
 export const BOSSES: Boss[] = [
   {
@@ -94,9 +104,9 @@ export const BOSSES: Boss[] = [
   },
   {
     id: 'screyera-all-seeing', name: 'The All-Seeing', icon: '🔮',
-    gimmick: 'She already knows how this ends: she draws an extra card every turn, and you forget (mill) one every turn.',
+    gimmick: 'She already knows how this ends: you forget (mill) a card every turn.',
     leaderId: 'screyera', bonusHp: 4,
-    curse: { playerMillPerTurn: 1, bossExtraDrawPerTurn: 1 },
+    curse: { playerMillPerTurn: 1 },
   },
   {
     id: 'ringleader-executioner', name: "King's Personal Executioner", icon: '🐍',
