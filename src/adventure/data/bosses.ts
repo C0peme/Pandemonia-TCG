@@ -45,8 +45,28 @@ export interface Boss {
  * (Stampede), Autopus (Open Shallows), Phantom (Behind the Mask), Cleath (Forge-Bound),
  * Eksana (The NICE Curse) and Noctua (Death Artificer) all measured NEGATIVE or
  * negligible for their boss and had their twist removed (see trials.ts for the four
- * that were also deleted from the twist table as now-unused). Drowning Tide, Endless
- * Growth and Plague Fields measured strongly positive and were kept as-is.
+ * that were also deleted from the twist table as now-unused).
+ *
+ * "Measured X pp" in this file always means the delta in PLAYER win rate (full config
+ * minus bare archetype) from the fair A/B test in `boss_balance.test.ts` — a NEGATIVE
+ * delta means the dressing makes the fight harder (lower player win%, which is what a
+ * boss-strength lever is *for*), a POSITIVE delta means it makes the fight easier
+ * (higher player win%, i.e. it's undermining the boss). Getting that backwards is an easy
+ * mistake — this file did, for one round, on the next finding: Drowning Tide, Endless
+ * Growth and Plague Fields were originally read as "positive for the boss" and kept, but
+ * they carry the LARGEST positive deltas of any boss twist (aleph/Plague Fields +28.8pp,
+ * kedou/Scorched Ground +23.1pp, overgrowth/Endless Growth +13.5pp, drowned-king/Drowning
+ * Tide +11.5pp, false-hydra/Ignorance is Bliss +7.7pp — measured 2026-09-24, same fair
+ * test) — these ground-hazard/state twists were making their bosses among the EASIEST in
+ * the roster (75-84.6% player win, vs. a 26.9-84.6% full-roster spread at the time), the
+ * same "symmetric rule doesn't help both sides equally" failure mode as the twists removed
+ * above, just in the direction that undertunes rather than overtunes the boss. Removed
+ * `twistId` from all five for the same reason the first six were removed: Copers wants
+ * boss difficulty converging to one common level, not scattered across both tails.
+ * `scorched-ground` and the four bossOnly twists these bosses used to carry are left
+ * defined in trials.ts (unassigned, `scorched-ground` still rollable by ordinary
+ * Trial/Elite nodes) rather than deleted, since `trials.test.ts` still exercises them as
+ * the concrete fixtures for the general `fixedEnvironments`/`fixedUnits` twist mechanism.
  *
  * `heroPowerOverride` is asymmetric by construction (it only ever changes the BOSS's own
  * copy of the power), so it wasn't touched by the twist pass above — but the re-measure
@@ -79,23 +99,23 @@ export const BOSSES: Boss[] = [
   },
   {
     id: 'drowned-king', name: 'Guardian of Ruin', icon: '🌊',
-    gimmick: 'Tundra freezes anything entering either Ground lane, while the Shallows open the Water to everyone. Fight at sea, or fight frozen.',
-    leaderId: 'naife', twistId: 'boss-drowned-tide', bonusHp: 6,
+    gimmick: 'No tricks — just a leader who moves the board against you.',
+    leaderId: 'naife', bonusHp: 6,
   },
   {
     id: 'overgrowth', name: 'The Final Stage', icon: '🌿',
-    gimmick: 'Every unit has Growth +1/+1, and energy is fixed at 10 every turn for both of you. Win fast or be buried.',
-    leaderId: 'corpselock', twistId: 'boss-endless-growth', bonusHp: 6, energyOverride: 10,
+    gimmick: 'Energy is fixed at 10 every turn for both of you. Win fast, or be buried under an army that never stops arriving.',
+    leaderId: 'corpselock', bonusHp: 6, energyOverride: 10,
   },
   {
     id: 'kedou-revolutionist', name: 'Revolutionist Monk', icon: '🔥',
-    gimmick: 'Molten Floor covers both Ground lanes — units entering them are Burned. The cauldron never stops boiling.',
-    leaderId: 'kedou', twistId: 'scorched-ground', bonusHp: 6,
+    gimmick: 'No tricks — just a monk whose whole army hits hard and fast.',
+    leaderId: 'kedou', bonusHp: 6,
   },
   {
     id: 'aleph-infinitude', name: 'Infinitude', icon: '☠',
-    gimmick: 'Sludge Pool covers both Ground lanes — every unit entering the ground is Poisoned. The Heights and Water are clean.',
-    leaderId: 'aleph', twistId: 'boss-plague-fields', bonusHp: 6,
+    gimmick: 'No tricks — just a curated army built to grind you down.',
+    leaderId: 'aleph', bonusHp: 6,
   },
   {
     id: 'phantom-warlords-daughter', name: "Warlord's Daughter", icon: '💧',
@@ -116,8 +136,8 @@ export const BOSSES: Boss[] = [
   },
   {
     id: 'false-hydra', name: 'Ignorance is Bliss', icon: '🎭',
-    gimmick: "A mindless Follower waits in every lane, on both sides. Any that survive to their owner's next turn sacrifice themselves and mill a card — the price of the cult's bliss.",
-    leaderId: 'johnpork', twistId: 'boss-ignorance-is-bliss', bonusHp: 6,
+    gimmick: 'No tricks — just a cult leader whose flock hits harder than it looks.',
+    leaderId: 'johnpork', bonusHp: 6,
   },
   {
     id: 'cleath-architect', name: 'The Architect and the Builder', icon: '⛰',

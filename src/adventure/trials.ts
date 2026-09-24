@@ -79,9 +79,14 @@ export const TWISTS: TrialTwist[] = [
   // (every boss vs. all 13 leaders' own starter decks): Behind the Mask, Forge-Bound,
   // The NICE Curse and Death Artificer all measured NEGATIVE or negligible for their
   // boss (they made the fight easier for the player, not harder) and were removed —
-  // see bosses.ts for which bosses lost a twist. The still-listed ground-hazard twists
-  // below (Drowning Tide, Endless Growth, Plague Fields) measured strongly POSITIVE for
-  // their boss and were kept.
+  // see bosses.ts for which bosses lost a twist. Drowning Tide, Endless Growth, Plague
+  // Fields, Ignorance is Bliss and Scorched Ground were initially kept on a mis-signed
+  // read of the same data; re-measured 2026-09-24, they carried the LARGEST positive
+  // deltas of any boss twist (i.e. they helped the player most), so all five were
+  // unassigned from their bosses too. `scorched-ground` stays rollable by ordinary
+  // Trial/Elite nodes; the four `bossOnly` ones below are left defined, unassigned, since
+  // `trials.test.ts` still uses them as fixtures for the general twist mechanism — see
+  // bosses.ts for the full accounting.
   {
     id: 'boss-drowned-tide', name: 'Drowning Tide', bossOnly: true,
     blurb: 'Tundra freezes anything entering either Ground lane, while the Shallows open the Water to everyone. Fight at sea, or fight frozen.',
