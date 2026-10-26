@@ -81,15 +81,18 @@ export interface Boss {
  * measured 2026-09-22, removed both overrides rather than merely tone them down, matching
  * the "no tricks, full curated army" pattern already used successfully by Eksana/Noctua.
  *
- * Screyera's curse (`bossExtraDrawPerTurn`) had the same shape of problem: an extra draw
- * per turn sounds like a pure boss buff, but it doubles how fast the BOSS itself burns
- * through its own deck (see draw.ts) — so the boss decks out roughly twice as fast as
- * normal, hits its hand cap sooner, and starts taking the deck-out Null-card self-damage
- * (4 to its own leader per forgotten Null, see cards/special.ts) far earlier and more
- * often than the player does. Measured 2026-09-22: Screyera's full config scored 21.1pp
- * BELOW its own bare-archetype baseline (30.8% vs. 51.9%) — the single worst symmetric-
- * looking-but-actually-self-harming gimmick found yet. Removed `bossExtraDrawPerTurn`,
- * kept `playerMillPerTurn` (a pure player-side cost with no such backfire).
+ * Screyera's curse (`bossExtraDrawPerTurn`) was my first guess at the cause: an extra
+ * draw per turn sounds like a pure boss buff, but it doubles how fast the BOSS itself
+ * burns through its own deck (see draw.ts), risking the deck-out Null self-damage (4 to
+ * its own leader per forgotten Null, see cards/special.ts) earlier than the player.
+ * Removing just that piece (2026-09-22) proved the theory WRONG: the re-measurement came
+ * back at the exact same 30.8% full win rate — `bossExtraDrawPerTurn` had zero measurable
+ * effect either way. The actual cause was the other half, `playerMillPerTurn: 1` — a
+ * genuinely asymmetric, boss-favoring lever (it only costs the player, by design) that
+ * was simply pushing Screyera far harder than every other boss (30.8% full vs. 51.9%
+ * bare, a -21.1pp swing, vs. 0 to -19pp for bonusHp alone elsewhere in the roster).
+ * Removed the curse entirely 2026-10-26 rather than tune its rate, matching the "no
+ * tricks" pattern — there's no finer-grained knob than "mill 1/turn" to step down to.
  */
 export const BOSSES: Boss[] = [
   {
@@ -124,9 +127,8 @@ export const BOSSES: Boss[] = [
   },
   {
     id: 'screyera-all-seeing', name: 'The All-Seeing', icon: '🔮',
-    gimmick: 'She already knows how this ends: you forget (mill) a card every turn.',
+    gimmick: 'No tricks — just a leader who already knows how this ends.',
     leaderId: 'screyera', bonusHp: 4,
-    curse: { playerMillPerTurn: 1 },
   },
   {
     id: 'ringleader-executioner', name: "King's Personal Executioner", icon: '🐍',

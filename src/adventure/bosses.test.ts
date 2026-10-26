@@ -38,10 +38,10 @@ describe('boss curses (energyOverride / turnCardMod)', () => {
     expect(corpselock.energyOverride).toBe(10);
   });
 
-  it("Screyera's curse mills the player, with no twist and no self-harming extra draw", () => {
+  it('Screyera carries no curse, twist, or override (removed 2026-10-26 — measured outlier-hard)', () => {
     const screyera = bossById('screyera-all-seeing')!;
     expect(screyera.twistId).toBeUndefined();
-    expect(screyera.curse).toEqual({ playerMillPerTurn: 1 });
+    expect(screyera.curse).toBeUndefined();
   });
 });
 
