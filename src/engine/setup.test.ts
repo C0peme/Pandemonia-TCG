@@ -36,4 +36,12 @@ describe('initGame', () => {
     const b = initGame({ registry: testRegistry, decks: decks(), seed: 2 });
     expect(a.players[0].hand).not.toEqual(b.players[0].hand);
   });
+
+  it('gives the second player its secondPlayerBonus cards and first-turn energy', () => {
+    const s = initGame({ registry: testRegistry, decks: decks(), seed: 42, first: 1, secondPlayerBonus: { cards: 1, energy: 1 } });
+    expect(s.players[0].hand).toHaveLength(RULES.STARTING_HAND + 1);
+    expect(s.players[0].deck).toHaveLength(RULES.DECK_SIZE - RULES.STARTING_HAND - 1);
+    expect(s.players[0].energyNext).toBe(1);
+    expect(s.players[1].energy).toBe(1); // the first player is untouched
+  });
 });

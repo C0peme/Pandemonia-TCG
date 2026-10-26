@@ -38,7 +38,8 @@ import type { PlayerId } from '@engine/types';
  *   RUN_BOSS_BALANCE=1 npx vitest run src/adventure/boss_balance.test.ts \
  *     --reporter=verbose --disable-console-intercept
  *
- * Knobs: BOSS_SEEDS (seeds per pairing), BOSS_BARE, BOSS_SWAP, BOSS_ONLY (comma-separated
+ * Knobs: BOSS_COMP (second-player compensation variant), BOSS_SEEDS (seeds per
+ * pairing), BOSS_BARE, BOSS_SWAP, BOSS_ONLY (comma-separated
  * boss ids — lets the workflow shard one boss per runner), BOSS_OUT_DIR (JSON per row for
  * scripts/boss-combine.mjs).
  */
@@ -48,6 +49,16 @@ const RUN_BARE = process.env.BOSS_BARE === '1';
 const RUN_SWAP = process.env.BOSS_SWAP === '1';
 const ONLY = (process.env.BOSS_ONLY ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 const OUT_DIR = process.env.BOSS_OUT_DIR;
+// Candidate seat-order compensation for whoever moves second: 'none', 'card' (+1 opening
+// card), 'energy' (+1 energy on their first turn), or 'both'. Applies to every kind.
+const COMP = process.env.BOSS_COMP ?? 'none';
+const SECOND_BONUS = {
+  none: undefined,
+  card: { cards: 1 },
+  energy: { energy: 1 },
+  both: { cards: 1, energy: 1 },
+}[COMP];
+if (COMP !== 'none' && !SECOND_BONUS) throw new Error(`unknown BOSS_COMP ${COMP}`);
 
 const base = buildRegistry(starterCards, starterLeaders);
 const ACT = 1;
@@ -61,6 +72,7 @@ const asOwned = (leaderId: string): OwnedCard[] => {
 type Kind = 'full' | 'bare' | 'bare-bossfirst';
 interface Row {
   id: string;
+  comp: string;
   kind: Kind;
   win: number;
   n: number;
@@ -95,6 +107,7 @@ const fightOnce = (
     decks: [playerDeckLiteral, { ...enemyDeckLiteral, leaderId: ENEMY_LEADER_ID }],
     seed,
     first,
+    ...(SECOND_BONUS ? { secondPlayerBonus: SECOND_BONUS } : {}),
   });
   if (twist) initial = applyTrialToState(registry, initial, twist);
   if (opts.energyOverride !== undefined) {
@@ -131,13 +144,13 @@ const runConfig = (boss: Boss, kind: Kind): Row => {
       if (o.playerWon) { won++; vs[leader.id]!.w++; }
     }
   }
-  return { id: boss.id, kind, win: (won / total) * 100, n: total, stalls, avgTurns: turns / total, vs };
+  return { id: boss.id, comp: COMP, kind, win: (won / total) * 100, n: total, stalls, avgTurns: turns / total, vs };
 };
 
 const writeRow = (row: Row): void => {
   if (!OUT_DIR) return;
   mkdirSync(OUT_DIR, { recursive: true });
-  writeFileSync(`${OUT_DIR}/${row.kind}-${row.id}.json`, JSON.stringify(row), 'utf8');
+  writeFileSync(`${OUT_DIR}/${COMP}-${row.kind}-${row.id}.json`, JSON.stringify(row), 'utf8');
 };
 
 const bosses = ONLY.length ? BOSSES.filter((b) => ONLY.includes(b.id)) : BOSSES;
