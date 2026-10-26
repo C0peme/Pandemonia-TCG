@@ -13,9 +13,13 @@ on:
     inputs:
       seeds:
         description: Seeds per leader-vs-boss pairing
-        default: '4'
+        default: '8'
       bare:
         description: Also run the bare-archetype control (no bonusHp/twist/curse/hero override)
+        type: boolean
+        default: true
+      swap:
+        description: Also run the bare archetype with the BOSS going first (seat-order control)
         type: boolean
         default: true
   push:
@@ -24,6 +28,8 @@ on:
       - '.github/workflows/boss-balance.yml'
       - 'src/adventure/data/bosses.ts'
       - 'src/adventure/trials.ts'
+      - 'src/adventure/boss_balance.test.ts'
+      - 'scripts/boss-combine.mjs'
 
 concurrency:
   group: boss-balance-${{ github.ref }}
@@ -61,8 +67,9 @@ jobs:
         env:
           RUN_BOSS_BALANCE: '1'
           BOSS_ONLY: ${{ matrix.boss }}
-          BOSS_SEEDS: ${{ github.event.inputs.seeds || '4' }}
+          BOSS_SEEDS: ${{ github.event.inputs.seeds || '8' }}
           BOSS_BARE: ${{ (github.event.inputs.bare || 'true') == 'true' && '1' || '0' }}
+          BOSS_SWAP: ${{ (github.event.inputs.swap || 'true') == 'true' && '1' || '0' }}
           BOSS_OUT_DIR: boss-out
         run: |
           npx vitest run src/adventure/boss_balance.test.ts --reporter=verbose --disable-console-intercept \
@@ -79,6 +86,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: out
@@ -86,26 +94,7 @@ jobs:
           merge-multiple: true
       - name: Combine and write job summary
         run: |
-          node -e '
-            const fs = require("fs");
-            const path = require("path");
-            const files = fs.readdirSync("out", { recursive: true })
-              .filter((f) => f.endsWith(".json"));
-            const rows = { full: [], bare: [] };
-            for (const f of files) {
-              const base = path.basename(f);
-              const kind = base.startsWith("full-") ? "full" : base.startsWith("bare-") ? "bare" : null;
-              if (!kind) continue;
-              rows[kind].push(JSON.parse(fs.readFileSync(path.join("out", f), "utf8")));
-            }
-            const print = (title, list) => {
-              console.log(`\n${title}`);
-              list.sort((a, b) => a.win - b.win);
-              for (const r of list) console.log(`  ${r.id.padEnd(28)} win=${r.win.toFixed(1).padStart(5)}%  n=${r.n}`);
-            };
-            print("Per-boss win rate (full boss):", rows.full);
-            if (rows.bare.length) print("Bare-archetype win rate (no boss dressing):", rows.bare);
-          ' | tee boss-report.txt
+          node scripts/boss-combine.mjs out --json boss-report.json | tee boss-report.txt
           {
             echo '## Boss balance'
             echo '```'
@@ -115,4 +104,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: boss-balance-report
-          path: boss-report.txt
+          path: |
+            boss-report.txt
+            boss-report.json
