@@ -93,6 +93,23 @@ export interface Boss {
  * bare, a -21.1pp swing, vs. 0 to -19pp for bonusHp alone elsewhere in the roster).
  * Removed the curse entirely 2026-10-26 rather than tune its rate, matching the "no
  * tricks" pattern — there's no finer-grained knob than "mill 1/turn" to step down to.
+ * Re-measured after that fix: Screyera moved to 44.2% (up from 30.8%), landing in the
+ * middle of the roster as expected.
+ *
+ * That same 2026-10-26 pass also removed Overgrowth's `energyOverride: 10` (fixing both
+ * players' turn energy at 10 from turn 1) — the last untested symmetric mechanic in the
+ * table. Overgrowth's delta (full 42.3% vs. bare 61.5%, -19.2pp) was nearly 3x any other
+ * boss's bonusHp-alone delta (0 to -11.5pp) at the same +6 bonusHp, so the energy fix was
+ * the prime suspect; removed it to make Overgrowth a "no tricks" boss like several others.
+ *
+ * After this pass, every `twistId`/`curse`/`energyOverride` in the table has been
+ * individually measured and acted on — the only two mechanics left are Ring Leader's
+ * twist+override combo (measured -1.9pp, i.e. already well-tuned, left alone) and
+ * Overgrowth's bonusHp. The remaining full-roster spread (26.9%-73.1% as of this pass) is
+ * now explained by two things this file's mechanics can't touch: bonusHp itself (which
+ * Copers has said not to use as a lever) and each leader's own bare-archetype strength
+ * against the field (34.6%-73.1%) — that's a leader/card-design question for the separate
+ * meta-balance thread, not something this file's boss-only dressing can fix.
  */
 export const BOSSES: Boss[] = [
   {
@@ -107,8 +124,8 @@ export const BOSSES: Boss[] = [
   },
   {
     id: 'overgrowth', name: 'The Final Stage', icon: '🌿',
-    gimmick: 'Energy is fixed at 10 every turn for both of you. Win fast, or be buried under an army that never stops arriving.',
-    leaderId: 'corpselock', bonusHp: 6, energyOverride: 10,
+    gimmick: 'No tricks — just an army that never stops arriving.',
+    leaderId: 'corpselock', bonusHp: 6,
   },
   {
     id: 'kedou-revolutionist', name: 'Revolutionist Monk', icon: '🔥',

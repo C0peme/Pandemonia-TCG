@@ -33,9 +33,9 @@ describe('boss table', () => {
 });
 
 describe('boss curses (energyOverride / turnCardMod)', () => {
-  it("Corpselock fixes energy at 10 regardless of round", () => {
+  it('Corpselock carries no energyOverride (removed 2026-10-26 — measured outlier-hard atop bonusHp)', () => {
     const corpselock = bossById('overgrowth')!;
-    expect(corpselock.energyOverride).toBe(10);
+    expect(corpselock.energyOverride).toBeUndefined();
   });
 
   it('Screyera carries no curse, twist, or override (removed 2026-10-26 — measured outlier-hard)', () => {
