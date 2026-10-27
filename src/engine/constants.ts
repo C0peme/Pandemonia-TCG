@@ -32,6 +32,11 @@ export const RULES = {
 
   /** Hand & draw. */
   STARTING_HAND: 4,
+  // The player who moves second opens with this many extra cards. Measured 2026-10-26:
+  // moving first was worth +7.7pp of win rate on average (unevenly, 0 to +13.5pp by
+  // archetype); one extra card cut that to +0.8pp, within noise. +1 first-turn energy
+  // only reached +4.6pp.
+  SECOND_PLAYER_BONUS_CARDS: 1,
   DRAW_PER_TURN: 1,
   HAND_CAP: 10,
 

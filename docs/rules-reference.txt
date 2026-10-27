@@ -236,6 +236,8 @@ Standalone foundations can be targeted by spells/abilities and destroyed by dama
 --- HAND AND DECK ---
 
   - Starting hand: 4 cards (each player then draws on their first turn, opening at 5).
+  - The player who moves second starts with 1 extra card (opening at 6), offsetting the
+    tempo of moving first.
   - Draw 1 card at the start of each turn.
   - Hand cap: 10 cards. Cards drawn beyond the cap are discarded.
   - Deck-out: when a player draws from an empty deck, a Null card enters their hand. If a Null card dies in play, it deals damage directly to that player's own leader.

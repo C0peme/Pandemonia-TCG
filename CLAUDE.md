@@ -277,7 +277,7 @@ Horizontal strips at top (opponent) and bottom (player) of the field. The active
 ## Game Rules Summary
 
 Full rules are in `docs/rules-reference.txt`. Card/leader authoring guide is in `docs/card-creation-guide.txt`. Key constraints the engine enforces:
-- First player cannot attack on round 1
+- First player cannot attack on round 1; the second player opens with `RULES.SECOND_PLAYER_BONUS_CARDS` (1) extra card. Moving first was worth ~+7.7pp of win rate (unevenly by archetype) without it; the extra card cut that to within noise (`boss_balance.test.ts` seat-order sweep, `BOSS_COMP`).
 - Water lane: units without `aquatic` or `airborne` enter the `drowning` state (0 attack) and take `RULES.DROWN_DAMAGE` at the start of their owner's turn — a drowning unit is a temporary body-block on a clock, not permanent dead weight. `engine/drowning.ts` owns the rule (`reconcileDrowning`); it is re-evaluated on play, on relocation, and whenever Environment grants change (an env granting `aquatic` un-drowns).
 - Hand cap: 10 cards; excess discarded. Deck-out produces Null cards that damage own leader on death
 - Leaders start at 30 HP; Signature unlocks at HALF max HP (≤ 15 HP for the standard leader — dynamic, not fixed)

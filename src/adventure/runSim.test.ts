@@ -100,9 +100,11 @@ describe('simulateRun', () => {
 
   it('a policy override changes the run', () => {
     const greedy = simulateRun(base, 'orsyric', 9, fast);
-    // Skipping every reward card is a materially different player.
+    // Skipping every reward card is a materially different player. Compare the whole run,
+    // not deck size alone: a thinner deck can survive more fights and end up LARGER from
+    // camp cards, so "smaller deck" flips with any rule change that shifts fight odds.
     const lean = simulateRun(base, 'orsyric', 9, { ...fast, policy: { takeRewardCard: () => null } });
-    expect(lean.deckSize).toBeLessThan(greedy.deckSize);
+    expect({ fights: lean.fights, deck: lean.deckSize }).not.toEqual({ fights: greedy.fights, deck: greedy.deckSize });
   });
 
   it('DEFAULT_POLICY seeks a camp when wounded', () => {

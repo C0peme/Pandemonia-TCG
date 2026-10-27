@@ -11,11 +11,11 @@ const decks = (): [ReturnType<typeof makeDeck>, ReturnType<typeof makeDeck>] => 
 describe('initGame', () => {
   it('deals opening hands and draws for the first player', () => {
     const s = initGame({ registry: testRegistry, decks: decks(), seed: 42 });
-    // First player drew 1 on turn start (5 + 1), opponent still at 5.
+    // First player drew 1 on turn start; the second player opens with its bonus card(s).
     expect(s.players[0].hand).toHaveLength(RULES.STARTING_HAND + 1);
-    expect(s.players[1].hand).toHaveLength(RULES.STARTING_HAND);
+    expect(s.players[1].hand).toHaveLength(RULES.STARTING_HAND + RULES.SECOND_PLAYER_BONUS_CARDS);
     expect(s.players[0].deck).toHaveLength(RULES.DECK_SIZE - RULES.STARTING_HAND - 1);
-    expect(s.players[1].deck).toHaveLength(RULES.DECK_SIZE - RULES.STARTING_HAND);
+    expect(s.players[1].deck).toHaveLength(RULES.DECK_SIZE - RULES.STARTING_HAND - RULES.SECOND_PLAYER_BONUS_CARDS);
   });
 
   it('gives the active player round-1 energy', () => {
@@ -43,5 +43,11 @@ describe('initGame', () => {
     expect(s.players[0].deck).toHaveLength(RULES.DECK_SIZE - RULES.STARTING_HAND - 1);
     expect(s.players[0].energyNext).toBe(1);
     expect(s.players[1].energy).toBe(1); // the first player is untouched
+  });
+
+  it('can switch the second-player bonus off (the pre-2026-10 game)', () => {
+    const s = initGame({ registry: testRegistry, decks: decks(), seed: 42, secondPlayerBonus: { cards: 0 } });
+    expect(s.players[1].hand).toHaveLength(RULES.STARTING_HAND);
+    expect(s.players[1].energyNext ?? 0).toBe(0);
   });
 });

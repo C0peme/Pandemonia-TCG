@@ -49,16 +49,18 @@ const RUN_BARE = process.env.BOSS_BARE === '1';
 const RUN_SWAP = process.env.BOSS_SWAP === '1';
 const ONLY = (process.env.BOSS_ONLY ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 const OUT_DIR = process.env.BOSS_OUT_DIR;
-// Candidate seat-order compensation for whoever moves second: 'none', 'card' (+1 opening
-// card), 'energy' (+1 energy on their first turn), or 'both'. Applies to every kind.
-const COMP = process.env.BOSS_COMP ?? 'none';
+// Seat-order compensation for whoever moves second: 'rule' (the engine default,
+// RULES.SECOND_PLAYER_BONUS_CARDS), 'none' (no compensation, the pre-2026-10 game), 'card'
+// (+1 opening card), 'energy' (+1 energy on their first turn), or 'both'. Applies to every kind.
+const COMP = process.env.BOSS_COMP ?? 'rule';
 const SECOND_BONUS = {
-  none: undefined,
+  rule: undefined,
+  none: { cards: 0 },
   card: { cards: 1 },
   energy: { energy: 1 },
   both: { cards: 1, energy: 1 },
 }[COMP];
-if (COMP !== 'none' && !SECOND_BONUS) throw new Error(`unknown BOSS_COMP ${COMP}`);
+if (COMP !== 'rule' && !SECOND_BONUS) throw new Error(`unknown BOSS_COMP ${COMP}`);
 
 const base = buildRegistry(starterCards, starterLeaders);
 const ACT = 1;

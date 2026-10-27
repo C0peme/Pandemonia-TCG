@@ -25,7 +25,8 @@ export interface SetupOptions {
   first?: PlayerId;
   /** Compensation for the player who moves second, applied before the first turn:
    *  extra opening-hand cards and/or energy queued onto their first turn (`energyNext`).
-   *  Off by default; the boss harness uses it to measure candidate seat-order fixes. */
+   *  Defaults to the rule, `RULES.SECOND_PLAYER_BONUS_CARDS` cards; the boss harness
+   *  overrides it to measure alternatives (`{ cards: 0 }` is the old no-compensation game). */
   secondPlayerBonus?: { cards?: number; energy?: number };
 }
 
@@ -104,13 +105,10 @@ export const initGame = (opts: SetupOptions): GameState => {
   const p1 = buildPlayer(1, opts.decks[1], opts.registry, rng, p0.nextIid);
   rng = p1.rng;
 
-  const bonus = opts.secondPlayerBonus;
-  if (bonus) {
-    const second = (first === 0 ? p1 : p0).player;
-    const extra = second.deck.splice(0, Math.max(0, bonus.cards ?? 0));
-    second.hand.push(...extra);
-    if (bonus.energy) second.energyNext = (second.energyNext ?? 0) + bonus.energy;
-  }
+  const bonus = opts.secondPlayerBonus ?? { cards: RULES.SECOND_PLAYER_BONUS_CARDS };
+  const second = (first === 0 ? p1 : p0).player;
+  second.hand.push(...second.deck.splice(0, Math.max(0, bonus.cards ?? 0)));
+  if (bonus.energy) second.energyNext = (second.energyNext ?? 0) + bonus.energy;
 
   const base: GameState = {
     rng,

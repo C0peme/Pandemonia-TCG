@@ -19,8 +19,8 @@ on:
         type: boolean
         default: true
       comps:
-        description: JSON list of second-player compensation variants (none, card, energy, both)
-        default: '["none"]'
+        description: JSON list of second-player compensation variants (rule, none, card, energy, both)
+        default: '["rule"]'
       swap:
         description: Also run the bare archetype with the BOSS going first (seat-order control)
         type: boolean
@@ -44,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        comp: ${{ fromJSON(github.event.inputs.comps || '["none"]') }}
+        comp: ${{ fromJSON(github.event.inputs.comps || '["rule"]') }}
         boss:
           - warhost
           - drowned-king
