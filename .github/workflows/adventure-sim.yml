@@ -28,6 +28,9 @@ on:
       win_heal:
         description: Share of max HP recovered after each won battle (blank = ECON default)
         default: ''
+      mode:
+        description: "runs (whole-run report) or fights (single-fight odds at full HP)"
+        default: runs
       second_cards:
         description: Extra opening cards for the second seat, always the enemy (blank = rule)
         default: ''
@@ -36,7 +39,7 @@ on:
     paths: ['.github/workflows/adventure-sim.yml']
 
 concurrency:
-  group: adventure-sim-${{ github.ref }}-${{ github.event.inputs.win_heal }}-${{ github.event.inputs.second_cards }}
+  group: adventure-sim-${{ github.ref }}-${{ github.event.inputs.win_heal }}-${{ github.event.inputs.second_cards }}-${{ github.event.inputs.mode }}
   cancel-in-progress: true
 
 jobs:
@@ -75,8 +78,9 @@ jobs:
           ADV_ACTS: ${{ github.event.inputs.acts || '3' }}
           ADV_WIN_HEAL: ${{ github.event.inputs.win_heal }}
           ADV_SECOND_CARDS: ${{ github.event.inputs.second_cards }}
+          SIM_FILE: ${{ github.event.inputs.mode == 'fights' && 'fight_odds' || 'adventure_sim' }}
         run: |
-          npx vitest run src/adventure/adventure_sim.test.ts --reporter=verbose --disable-console-intercept \
+          npx vitest run src/adventure/$SIM_FILE.test.ts --reporter=verbose --disable-console-intercept \
             | tee adventure-${{ matrix.leader }}.txt
       - uses: actions/upload-artifact@v4
         with:
