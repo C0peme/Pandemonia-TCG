@@ -53,9 +53,16 @@ export interface Encounter {
  */
 const DECK_FLOOR = 18;
 
+/**
+ * Cards the enemy's trimmed deck gains per map layer. This is the act's difficulty
+ * curve: the trim is cheapest-first, so every added card is a pricier one from the full
+ * archetype. Exported as a dial so the sims can A/B it on one build.
+ */
+export const ENCOUNTER_SCALING = { DECK_PER_LAYER: 3 };
+
 const encounterDeckSize = (kind: MapNode['kind'], layer: number, act: number): number => {
   const depth = kind === 'elite' ? layer + 4 : layer;
-  return Math.min(RULES.DECK_SIZE, DECK_FLOOR + 3 * depth + 6 * (act - 1));
+  return Math.min(RULES.DECK_SIZE, DECK_FLOOR + ENCOUNTER_SCALING.DECK_PER_LAYER * depth + 6 * (act - 1));
 };
 
 /**

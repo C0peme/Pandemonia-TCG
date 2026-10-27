@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import { buildRegistry } from '@cards/registry';
 import { starterCards, starterLeaders } from '@cards/data/starter';
 import { startRun } from '@adventure/run';
-import { buildFight } from '@adventure/encounters';
+import { buildFight, ENCOUNTER_SCALING } from '@adventure/encounters';
 import { playOutGame } from '@engine/sim';
 import type { MapNode, RunState } from '@adventure/schema';
 
@@ -17,10 +17,11 @@ import type { MapNode, RunState } from '@adventure/schema';
  *   RUN_BALANCE=1 ADV_LEADERS=phantom npx vitest run src/adventure/fight_odds.test.ts \
  *     --reporter=verbose --disable-console-intercept
  *
- * Knobs: ADV_LEADERS, FIGHT_SEEDS (fights per cell, default 8).
+ * Knobs: ADV_LEADERS, FIGHT_SEEDS (fights per cell, default 8), ADV_DECK_PER_LAYER.
  */
 const RUN_BALANCE = process.env.RUN_BALANCE === '1';
 const SEEDS = Number(process.env.FIGHT_SEEDS ?? 8);
+if (process.env.ADV_DECK_PER_LAYER) ENCOUNTER_SCALING.DECK_PER_LAYER = Number(process.env.ADV_DECK_PER_LAYER);
 const ONLY = (process.env.ADV_LEADERS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 const base = buildRegistry(starterCards, starterLeaders);
 
@@ -45,7 +46,7 @@ const at = (run: RunState, kind: MapNode['kind'], layer: number): { run: RunStat
 describe.skipIf(!RUN_BALANCE)('adventure fight odds', () => {
   it('prints win rate and HP cost per act-1 fight', { timeout: 36_000_000 }, () => {
     const leaders = (ONLY.length ? starterLeaders.filter((l) => ONLY.includes(l.id)) : starterLeaders).map((l) => l.id);
-    console.log(`\n=== Adventure fight odds · ${SEEDS} fights/cell · full HP · PLANNING ===`);
+    console.log(`\n=== Adventure fight odds · ${SEEDS} fights/cell · full HP · deck/layer ${ENCOUNTER_SCALING.DECK_PER_LAYER} · PLANNING ===`);
     console.log('Leader'.padEnd(12) + CELLS.map((c) => c.label.padStart(22)).join(''));
     for (const leaderId of leaders) {
       const cells = CELLS.map(({ kind, layer }) => {
