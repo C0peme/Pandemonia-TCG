@@ -63,8 +63,8 @@ const JOHNPORK_POWERS: Record<string, (hp: Leader['heroPower']) => Leader['heroP
   current: (hp) => hp,
   forget1: (hp) => ({ ...hp, effects: hp.effects.map((e) => (e.kind === 'forget' ? { ...e, amount: 1 } : e)), text: 'The opponent forgets 1 card from their deck. Heal your leader +1.' }),
   cost1: (hp) => ({ ...hp, cost: { energy: 1 } }),
-  forget1cost1: (hp) => ({ ...JOHNPORK_POWERS.forget1(hp), cost: { energy: 1 } }),
-  forget1cost2: (hp) => ({ ...JOHNPORK_POWERS.forget1(hp), cost: { energy: 2 } }),
+  forget1cost1: (hp) => ({ ...JOHNPORK_POWERS.forget1!(hp), cost: { energy: 1 } }),
+  forget1cost2: (hp) => ({ ...JOHNPORK_POWERS.forget1!(hp), cost: { energy: 2 } }),
   noMill: (hp) => ({ ...hp, effects: hp.effects.filter((e) => e.kind !== 'forget'), text: 'Heal your leader +1.' }),
 };
 const johnporkPower = JOHNPORK_POWERS[JOHNPORK_VARIANT];
