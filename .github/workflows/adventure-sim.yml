@@ -28,12 +28,15 @@ on:
       win_heal:
         description: Share of max HP recovered after each won battle (blank = ECON default)
         default: ''
+      second_cards:
+        description: Extra opening cards for the second seat, always the enemy (blank = rule)
+        default: ''
   push:
     branches: ['claude/**']
     paths: ['.github/workflows/adventure-sim.yml']
 
 concurrency:
-  group: adventure-sim-${{ github.ref }}-${{ github.event.inputs.win_heal }}
+  group: adventure-sim-${{ github.ref }}-${{ github.event.inputs.win_heal }}-${{ github.event.inputs.second_cards }}
   cancel-in-progress: true
 
 jobs:
@@ -71,6 +74,7 @@ jobs:
           ADV_RUNS: ${{ github.event.inputs.runs || '10' }}
           ADV_ACTS: ${{ github.event.inputs.acts || '3' }}
           ADV_WIN_HEAL: ${{ github.event.inputs.win_heal }}
+          ADV_SECOND_CARDS: ${{ github.event.inputs.second_cards }}
         run: |
           npx vitest run src/adventure/adventure_sim.test.ts --reporter=verbose --disable-console-intercept \
             | tee adventure-${{ matrix.leader }}.txt
