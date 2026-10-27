@@ -4,7 +4,7 @@ import { starterRegistry, starterDecks } from '@cards/data/starter';
 import { expandDeck, expandKeywordEffects, type Registry } from '@cards/registry';
 import { NULL_CARD_ID, NULL_VARIANTS } from '@cards/special';
 import { simulateGame } from '@engine/sim';
-import type { Deck } from '@cards/schema';
+import type { Deck, Leader } from '@cards/schema';
 import type { PlayerId } from '@engine/types';
 
 /**
@@ -49,9 +49,24 @@ const SETUP = SECOND_CARDS === '' ? {} : { secondPlayerBonus: { cards: Number(SE
 const NULL_VARIANT = process.env.META_NULL || 'current';
 const variantCard = NULL_VARIANTS[NULL_VARIANT];
 if (!variantCard) throw new Error(`unknown META_NULL ${NULL_VARIANT}`);
-const REGISTRY: Registry = NULL_VARIANT === 'current'
+const NULL_REGISTRY: Registry = NULL_VARIANT === 'current'
   ? starterRegistry
   : { ...starterRegistry, cards: new Map(starterRegistry.cards).set(NULL_CARD_ID, expandKeywordEffects(variantCard)) };
+// Candidate John Pork (Deck Out) hero powers, for retuning the deck after the last-stand Null
+// removed the counter to its deck-emptying plan. Sweet Liquor is cast ~12x/game, so its mill
+// rate is the deck's engine: `forget1` halves it, `cost1` makes each cast compete for energy.
+const JOHNPORK_VARIANT = process.env.META_JOHNPORK || 'current';
+const JOHNPORK_POWERS: Record<string, (hp: Leader['heroPower']) => Leader['heroPower']> = {
+  current: (hp) => hp,
+  forget1: (hp) => ({ ...hp, effects: hp.effects.map((e) => (e.kind === 'forget' ? { ...e, amount: 1 } : e)), text: 'The opponent forgets 1 card from their deck. Heal your leader +1.' }),
+  cost1: (hp) => ({ ...hp, cost: { energy: 1 } }),
+};
+const johnporkPower = JOHNPORK_POWERS[JOHNPORK_VARIANT];
+if (!johnporkPower) throw new Error(`unknown META_JOHNPORK ${JOHNPORK_VARIANT}`);
+const johnpork = NULL_REGISTRY.leaders.get('johnpork')!;
+const REGISTRY: Registry = JOHNPORK_VARIANT === 'current'
+  ? NULL_REGISTRY
+  : { ...NULL_REGISTRY, leaders: new Map(NULL_REGISTRY.leaders).set('johnpork', { ...johnpork, heroPower: johnporkPower(johnpork.heroPower) }) };
 
 interface CardAggJson {
   inDeck: number;

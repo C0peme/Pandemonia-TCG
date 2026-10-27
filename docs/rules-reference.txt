@@ -240,7 +240,9 @@ Standalone foundations can be targeted by spells/abilities and destroyed by dama
     tempo of moving first.
   - Draw 1 card at the start of each turn.
   - Hand cap: 10 cards. Cards drawn beyond the cap are discarded.
-  - Deck-out: when a player draws from an empty deck, a Null card enters their hand. If a Null card dies in play, it deals damage directly to that player's own leader.
+  - Deck-out: when a player draws from an empty deck, a Null card enters their hand: a free 4/4
+    Airborne last stand that attacks once and then crumbles. If a Null card dies in play
+    (crumbling included), or is discarded, it deals 4 damage directly to that player's own leader.
   - Max 3 copies of any single card in a deck.
   - Deck size: exactly 30 cards.
 
