@@ -77,9 +77,28 @@ const JOHNPORK_POWERS: Record<string, (hp: Leader['heroPower']) => Leader['heroP
 const johnporkPower = JOHNPORK_POWERS[JOHNPORK_VARIANT];
 if (!johnporkPower) throw new Error(`unknown META_JOHNPORK ${JOHNPORK_VARIANT}`);
 const johnpork = NULL_REGISTRY.leaders.get('johnpork')!;
-const REGISTRY: Registry = JOHNPORK_VARIANT === 'current'
+const JP_REGISTRY: Registry = JOHNPORK_VARIANT === 'current'
   ? NULL_REGISTRY
   : { ...NULL_REGISTRY, leaders: new Map(NULL_REGISTRY.leaders).set('johnpork', { ...johnpork, heroPower: johnporkPower(johnpork.heroPower) }) };
+// Candidate Cleath (Stall) hero powers. Stall is the field's floor (41.0%, run 40543411079)
+// and its boss is the one outlier left in the boss sweep (60.6% player wins at n=312 against a
+// 37.5-49.7% pack, run 40562935494), so one fix to the deck should move both. Its games run
+// 41-43 turns: it walls up and cannot close. `atk1` adds +1 attack to Fortify's +2 HP and
+// Taunt, `hp3` grows the wall, `cost0` makes it free, `heal` adds a leader heal.
+const CLEATH_VARIANT = process.env.META_CLEATH || 'current';
+const CLEATH_POWERS: Record<string, (hp: Leader['heroPower']) => Leader['heroPower']> = {
+  current: (hp) => hp,
+  atk1: (hp) => ({ ...hp, effects: hp.effects.map((e) => (e.kind === 'buff' ? { ...e, stat: { ...e.stat, attack: 1 } } : e)), text: 'Give an allied unit +1/+2 and Taunt.' }),
+  hp3: (hp) => ({ ...hp, effects: hp.effects.map((e) => (e.kind === 'buff' ? { ...e, stat: { ...e.stat, hp: 3 } } : e)), text: 'Give an allied unit +3 HP and Taunt.' }),
+  cost0: (hp) => ({ ...hp, cost: { energy: 0 } }),
+  heal: (hp) => ({ ...hp, effects: [...hp.effects, { kind: 'heal', amount: 1, target: 'leader' }], text: hp.text + ' Heal your leader +1.' }),
+};
+const cleathPower = CLEATH_POWERS[CLEATH_VARIANT];
+if (!cleathPower) throw new Error(`unknown META_CLEATH ${CLEATH_VARIANT}`);
+const cleath = JP_REGISTRY.leaders.get('cleath')!;
+const REGISTRY: Registry = CLEATH_VARIANT === 'current'
+  ? JP_REGISTRY
+  : { ...JP_REGISTRY, leaders: new Map(JP_REGISTRY.leaders).set('cleath', { ...cleath, heroPower: cleathPower(cleath.heroPower) }) };
 
 interface CardAggJson {
   inDeck: number;

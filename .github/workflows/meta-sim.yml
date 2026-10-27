@@ -30,6 +30,9 @@ on:
       johnpork:
         description: John Pork hero power variant (current, forget1, cost1, forget1cost1, forget1cost2, original, cost2, cost3, noMill — see meta_shard.test.ts)
         default: 'current'
+      cleath:
+        description: Cleath hero power variant (current, atk1, hp3, cost0, heal — see meta_shard.test.ts)
+        default: 'current'
   push:
     branches: ['claude/**']
     # A balance change should measure itself. The trigger used to be this workflow file alone,
@@ -52,7 +55,7 @@ on:
 
 concurrency:
   # Per variant too, so A/B dispatches of different Null designs run side by side.
-  group: meta-sim-${{ github.ref }}-${{ github.event.inputs.null_variant || 'current' }}-${{ github.event.inputs.second_cards || 'rule' }}-${{ github.event.inputs.johnpork || 'current' }}
+  group: meta-sim-${{ github.ref }}-${{ github.event.inputs.null_variant || 'current' }}-${{ github.event.inputs.second_cards || 'rule' }}-${{ github.event.inputs.johnpork || 'current' }}-${{ github.event.inputs.cleath || 'current' }}
   cancel-in-progress: true
 
 jobs:
@@ -106,6 +109,7 @@ jobs:
           META_SECOND_CARDS: ${{ github.event.inputs.second_cards || '' }}
           META_NULL: ${{ github.event.inputs.null_variant || 'current' }}
           META_JOHNPORK: ${{ github.event.inputs.johnpork || 'current' }}
+          META_CLEATH: ${{ github.event.inputs.cleath || 'current' }}
         run: npx vitest run src/cards/meta_shard.test.ts --reporter=verbose --disable-console-intercept
       - uses: actions/upload-artifact@v4
         with:
