@@ -25,12 +25,15 @@ on:
       acts:
         description: Acts a run must clear to count as cleared
         default: '3'
+      win_heal:
+        description: Share of max HP recovered after each won battle (blank = ECON default)
+        default: ''
   push:
     branches: ['claude/**']
     paths: ['.github/workflows/adventure-sim.yml']
 
 concurrency:
-  group: adventure-sim-${{ github.ref }}
+  group: adventure-sim-${{ github.ref }}-${{ github.event.inputs.win_heal }}
   cancel-in-progress: true
 
 jobs:
@@ -67,6 +70,7 @@ jobs:
           ADV_LEADERS: ${{ matrix.leader }}
           ADV_RUNS: ${{ github.event.inputs.runs || '10' }}
           ADV_ACTS: ${{ github.event.inputs.acts || '3' }}
+          ADV_WIN_HEAL: ${{ github.event.inputs.win_heal }}
         run: |
           npx vitest run src/adventure/adventure_sim.test.ts --reporter=verbose --disable-console-intercept \
             | tee adventure-${{ matrix.leader }}.txt

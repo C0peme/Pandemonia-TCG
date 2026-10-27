@@ -61,6 +61,12 @@ export const ECON = {
   /** Kindle: burns 2 owned cards for a bigger, still-free heal than plain Rest. */
   KINDLE_HEAL_FRACTION: 0.65,
   KINDLE_BURN_COUNT: 2,
+  /**
+   * Share of max HP recovered after every won battle (0 = none). The act asks for more
+   * HP than camps can pay back: runs still win ~3 fights at ~10 HP each and die in act 1
+   * on 30 HP. This is the player-side dial for that bill; enemy and boss HP stay fixed.
+   */
+  WIN_HEAL_FRACTION: 0,
   /** Rest Site attunement: base + per attune already owned. */
   TRAIN_BASE: 60,
   TRAIN_PER_LEVEL: 40,
@@ -69,6 +75,10 @@ export const ECON = {
 /** HP a Rest Site heal restores, rounded up to an even number (min 2). */
 export const restHealAmount = (maxHp: number): number =>
   Math.max(2, 2 * Math.ceil((maxHp * ECON.REST_HEAL_FRACTION) / 2));
+
+/** HP recovered after a won battle (0 when the dial is off), rounded up to an even number. */
+export const winHealAmount = (maxHp: number): number =>
+  ECON.WIN_HEAL_FRACTION > 0 ? 2 * Math.ceil((maxHp * ECON.WIN_HEAL_FRACTION) / 2) : 0;
 
 /** HP a Kindle service restores — bigger than plain Rest, paid in cards not coins. */
 export const kindleHealAmount = (maxHp: number): number =>

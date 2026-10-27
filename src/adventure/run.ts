@@ -10,7 +10,7 @@ import type { MapNode, OwnedCard, RunState } from '@adventure/schema';
 import type { Element } from '@cards/schema';
 import { generateMap } from '@adventure/mapgen';
 import { ADVENTURE_STARTERS } from '@adventure/data/starters';
-import { buyPrice, sellPrice, rollStoreOffer, rollRewardCard, rollRewardChoices, combatReward, attuneCost, restHealAmount, kindleHealAmount, ECON } from '@adventure/economy';
+import { buyPrice, sellPrice, rollStoreOffer, rollRewardCard, rollRewardChoices, combatReward, attuneCost, restHealAmount, kindleHealAmount, winHealAmount, ECON } from '@adventure/economy';
 import { RULES } from '@engine/constants';
 import { rollEnhanceOffer, canApply, applyEnhance } from '@adventure/enhance';
 import { aggregateMods, rollRelicChoices } from '@adventure/relics';
@@ -127,6 +127,7 @@ export const resolveCombat = (run: RunState, registry: Registry, won: boolean, p
   if (playerHp !== undefined && Number.isFinite(playerHp)) {
     next.hp = Math.max(1, Math.min(next.maxHp, Math.floor(playerHp)));
   }
+  next.hp = Math.min(next.maxHp, next.hp + winHealAmount(next.maxHp));
   const coins = combatReward(rewardKind(at.kind), at.layer, run.act);
   // Card pick: Elites offer a wider 5-card choice; Trials offer NONE (their reward is
   // the 2x coins + a relic); everything else the usual 3.

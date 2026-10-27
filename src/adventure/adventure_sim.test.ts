@@ -2,6 +2,7 @@ import { describe, it } from 'vitest';
 import { buildRegistry } from '@cards/registry';
 import { starterCards, starterLeaders } from '@cards/data/starter';
 import { runBatchForLeader, type RunBatchResult } from '@adventure/runSim';
+import { ECON } from '@adventure/economy';
 
 /**
  * Headless Adventure-run report — the run-level counterpart to `cards/meta_sim.test.ts`.
@@ -17,11 +18,13 @@ import { runBatchForLeader, type RunBatchResult } from '@adventure/runSim';
  * Knobs: ADV_RUNS (runs per leader), ADV_ACTS (acts before a run counts as cleared),
  * ADV_LEADERS (comma-separated leader ids, default all 13), USE_PLAN=0 for the fast
  * greedy AI — which measures a DIFFERENT game and must never be used for balance.
+ * ADV_WIN_HEAL overrides ECON.WIN_HEAL_FRACTION for a same-build A/B.
  */
 const RUNS = Number(process.env.ADV_RUNS ?? 10);
 const ACTS = Number(process.env.ADV_ACTS ?? 3);
 const USE_PLAN = process.env.USE_PLAN !== '0';
 const RUN_BALANCE = process.env.RUN_BALANCE === '1';
+if (process.env.ADV_WIN_HEAL) (ECON as { WIN_HEAL_FRACTION: number }).WIN_HEAL_FRACTION = Number(process.env.ADV_WIN_HEAL);
 const ONLY = (process.env.ADV_LEADERS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
 const base = buildRegistry(starterCards, starterLeaders);
@@ -33,7 +36,7 @@ describe.skipIf(!RUN_BALANCE)('adventure run sim', () => {
   it('prints a per-leader run report', { timeout: 36_000_000 }, () => {
     const leaders = (ONLY.length ? starterLeaders.filter((l) => ONLY.includes(l.id)) : starterLeaders).map((l) => l.id);
     console.log(
-      `\n=== Adventure Runs · ${RUNS} runs/leader · ${ACTS} acts` + (USE_PLAN ? ' · PLANNING' : ' · GREEDY') + ' ===',
+      `\n=== Adventure Runs · ${RUNS} runs/leader · ${ACTS} acts · win heal ${ECON.WIN_HEAL_FRACTION}` + (USE_PLAN ? ' · PLANNING' : ' · GREEDY') + ' ===',
     );
     console.log(
       'Leader'.padEnd(12) +
