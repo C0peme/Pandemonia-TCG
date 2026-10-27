@@ -54,12 +54,15 @@ const NULL_REGISTRY: Registry = NULL_VARIANT === 'current'
   : { ...starterRegistry, cards: new Map(starterRegistry.cards).set(NULL_CARD_ID, expandKeywordEffects(variantCard)) };
 // Candidate John Pork (Deck Out) hero powers, for retuning the deck after the last-stand Null
 // removed the counter to its deck-emptying plan. Sweet Liquor is cast ~12x/game, so its mill
-// rate is the deck's engine: `forget1` halves it, `cost1` makes each cast compete for energy.
+// rate looked like the deck's engine: `forget1` halves it, `cost1` makes each cast compete for
+// energy. Both left Deck Out at ~80% (runs 40476851826, 40476855551), so `noMill` drops the mill
+// outright to test whether the mill is what wins at all.
 const JOHNPORK_VARIANT = process.env.META_JOHNPORK || 'current';
 const JOHNPORK_POWERS: Record<string, (hp: Leader['heroPower']) => Leader['heroPower']> = {
   current: (hp) => hp,
   forget1: (hp) => ({ ...hp, effects: hp.effects.map((e) => (e.kind === 'forget' ? { ...e, amount: 1 } : e)), text: 'The opponent forgets 1 card from their deck. Heal your leader +1.' }),
   cost1: (hp) => ({ ...hp, cost: { energy: 1 } }),
+  noMill: (hp) => ({ ...hp, effects: hp.effects.filter((e) => e.kind !== 'forget'), text: 'Heal your leader +1.' }),
 };
 const johnporkPower = JOHNPORK_POWERS[JOHNPORK_VARIANT];
 if (!johnporkPower) throw new Error(`unknown META_JOHNPORK ${JOHNPORK_VARIANT}`);
