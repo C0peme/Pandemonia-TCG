@@ -24,6 +24,9 @@ on:
       second_cards:
         description: Override the second player's extra opening cards (blank = the rule)
         default: ''
+      null_variant:
+        description: Null design to measure (current, noTaunt, lastStand — see src/cards/special.ts)
+        default: 'current'
   push:
     branches: ['claude/**']
     # A balance change should measure itself. The trigger used to be this workflow file alone,
@@ -45,7 +48,8 @@ on:
       - 'src/cards/budget.ts'
 
 concurrency:
-  group: meta-sim-${{ github.ref }}
+  # Per variant too, so A/B dispatches of different Null designs run side by side.
+  group: meta-sim-${{ github.ref }}-${{ github.event.inputs.null_variant || 'current' }}-${{ github.event.inputs.second_cards || 'rule' }}
   cancel-in-progress: true
 
 jobs:
@@ -97,6 +101,7 @@ jobs:
           META_GAMES: ${{ needs.prep.outputs.games }}
           META_SEED: ${{ needs.prep.outputs.seed }}
           META_SECOND_CARDS: ${{ github.event.inputs.second_cards || '' }}
+          META_NULL: ${{ github.event.inputs.null_variant || 'current' }}
         run: npx vitest run src/cards/meta_shard.test.ts --reporter=verbose --disable-console-intercept
       - uses: actions/upload-artifact@v4
         with:

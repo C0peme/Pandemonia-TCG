@@ -1,7 +1,8 @@
 import { describe, it } from 'vitest';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { starterRegistry, starterDecks } from '@cards/data/starter';
-import { expandDeck } from '@cards/registry';
+import { expandDeck, expandKeywordEffects, type Registry } from '@cards/registry';
+import { NULL_CARD_ID, NULL_VARIANTS } from '@cards/special';
 import { simulateGame } from '@engine/sim';
 import type { Deck } from '@cards/schema';
 import type { PlayerId } from '@engine/types';
@@ -44,6 +45,13 @@ const RUN_BALANCE = process.env.RUN_BALANCE === '1';
 // Override RULES.SECOND_PLAYER_BONUS_CARDS for an A/B on one build ('' = the rule).
 const SECOND_CARDS = process.env.META_SECOND_CARDS ?? '';
 const SETUP = SECOND_CARDS === '' ? {} : { secondPlayerBonus: { cards: Number(SECOND_CARDS) } };
+// Swap in a candidate Null design (special.ts NULL_VARIANTS) for an A/B on one build.
+const NULL_VARIANT = process.env.META_NULL || 'current';
+const variantCard = NULL_VARIANTS[NULL_VARIANT];
+if (!variantCard) throw new Error(`unknown META_NULL ${NULL_VARIANT}`);
+const REGISTRY: Registry = NULL_VARIANT === 'current'
+  ? starterRegistry
+  : { ...starterRegistry, cards: new Map(starterRegistry.cards).set(NULL_CARD_ID, expandKeywordEffects(variantCard)) };
 
 interface CardAggJson {
   inDeck: number;
@@ -117,7 +125,7 @@ describe.skipIf(!RUN_BALANCE)('meta shard', () => {
         // matrix is unchanged; only the discarded second side is now kept.
         const aSide: PlayerId = g % 2 === 0 ? 0 : 1;
         const seated: [Deck, Deck] = aSide === 0 ? [a, b] : [b, a];
-        const r = simulateGame(starterRegistry, seated, seed, USE_PLAN, SETUP);
+        const r = simulateGame(REGISTRY, seated, seed, USE_PLAN, SETUP);
         const aWon = r.winner === aSide;
         const bSide: PlayerId = aSide === 0 ? 1 : 0;
         if (aWon) iWins += 1;
