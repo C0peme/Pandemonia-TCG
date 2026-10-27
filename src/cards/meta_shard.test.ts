@@ -65,6 +65,11 @@ const JOHNPORK_POWERS: Record<string, (hp: Leader['heroPower']) => Leader['heroP
   cost1: (hp) => ({ ...hp, cost: { energy: 1 } }),
   forget1cost1: (hp) => ({ ...JOHNPORK_POWERS.forget1!(hp), cost: { energy: 1 } }),
   forget1cost2: (hp) => ({ ...JOHNPORK_POWERS.forget1!(hp), cost: { energy: 2 } }),
+  // Higher mill prices (Copers, 2026-10-27: Sweet Liquor was cut 1e -> 0e and given a heal when
+  // the deck was weak under the old Null, so it is now too cheap). `original` is the pre-cut power.
+  original: (hp) => ({ ...hp, cost: { energy: 1 }, effects: hp.effects.filter((e) => e.kind !== 'heal'), text: 'The opponent forgets 2 cards from their deck.' }),
+  cost2: (hp) => ({ ...hp, cost: { energy: 2 } }),
+  cost3: (hp) => ({ ...hp, cost: { energy: 3 } }),
   noMill: (hp) => ({ ...hp, effects: hp.effects.filter((e) => e.kind !== 'forget'), text: 'Heal your leader +1.' }),
 };
 const johnporkPower = JOHNPORK_POWERS[JOHNPORK_VARIANT];
