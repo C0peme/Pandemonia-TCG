@@ -25,7 +25,7 @@ on:
         description: Override the second player's extra opening cards (blank = the rule)
         default: ''
       null_variant:
-        description: Null design to measure (current, legacy, noTaunt — see src/cards/special.ts)
+        description: Null design to measure (current, legacy, noTaunt, lastStand2 — see src/cards/special.ts)
         default: 'current'
       johnpork:
         description: John Pork hero power variant (current, forget1, cost1, forget1cost1, forget1cost2, noMill — see meta_shard.test.ts)
