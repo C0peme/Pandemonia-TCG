@@ -28,7 +28,7 @@ on:
         description: Null design to measure (current, legacy, noTaunt — see src/cards/special.ts)
         default: 'current'
       johnpork:
-        description: John Pork hero power variant (current, forget1, cost1, noMill — see meta_shard.test.ts)
+        description: John Pork hero power variant (current, forget1, cost1, forget1cost1, forget1cost2, noMill — see meta_shard.test.ts)
         default: 'current'
   push:
     branches: ['claude/**']
