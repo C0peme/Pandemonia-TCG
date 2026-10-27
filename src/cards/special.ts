@@ -16,7 +16,7 @@ export const NULL_CARD_ID = '__null__';
  * it leaves the game without ever being played (forgotten, expelled into a full hand, or
  * drawn into a full hand). Decking out is a slow bleed no matter how the Null is shed.
  */
-export const NULL_KAMIKAZE_DAMAGE = 4;
+export const NULL_KAMIKAZE_DAMAGE = 4; // fixed by design: the 4s echo "404" (Copers), so tune around it
 
 // Everything but Taunt; the live Null adds it back, the candidate redesigns below do not.
 const NULL_KEYWORDS_NO_TAUNT = {
@@ -60,10 +60,6 @@ export const NULL_VARIANTS: Record<string, Card> = {
   current: NULL_CARD,
   legacy: nullCard({ ...NULL_KEYWORDS_NO_TAUNT, taunt: true }, NULL_TEXT),
   noTaunt: nullCard(NULL_KEYWORDS_NO_TAUNT, NULL_TEXT),
-  // Candidate: the crumble costs its owner 2, not 4, so a decked-out player bleeds slower.
-  // Under the live Null any mill rate the Deck Out leader can reach wins ~66-90% of games,
-  // and no mill at all drops it to 41%. Discarding a Null still costs the full 4 (hand.ts).
-  lastStand2: nullCard({ ...NULL_KEYWORDS_NO_TAUNT, brittle: true, kamikaze: { kind: 'damage', amount: 2, target: 'ally' } }, LAST_STAND_TEXT),
 };
 
 export const SPECIAL_CARDS: Card[] = [NULL_CARD];
