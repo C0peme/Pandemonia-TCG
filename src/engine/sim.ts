@@ -4,7 +4,7 @@
  * many games gives statistically meaningful per-card signal (play rate, win rate when played)
  * that a single match can't.
  */
-import { initGame } from '@engine/setup';
+import { initGame, type SetupOptions } from '@engine/setup';
 import { applyAction } from '@engine/engine';
 import { greedyAction, planTurn } from '@engine/ai';
 import { LANES } from '@engine/constants';
@@ -48,8 +48,14 @@ export interface GameResult {
  * Aggro 49 -> 63) and flatters decks that just play the biggest thing each turn.
  * Cost: ~15 s/game vs ~0.3 s/game.
  */
-export function simulateGame(registry: Registry, decks: [Deck, Deck], seed: number, usePlan = true): GameResult {
-  return playOutGame(registry, initGame({ registry, decks, seed }), usePlan);
+export function simulateGame(
+  registry: Registry,
+  decks: [Deck, Deck],
+  seed: number,
+  usePlan = true,
+  setup: Pick<SetupOptions, 'secondPlayerBonus'> = {},
+): GameResult {
+  return playOutGame(registry, initGame({ registry, decks, seed, ...setup }), usePlan);
 }
 
 /**

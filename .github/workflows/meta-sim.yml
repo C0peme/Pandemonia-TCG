@@ -21,6 +21,9 @@ on:
       seed:
         description: Base seed
         default: '1'
+      second_cards:
+        description: Override the second player's extra opening cards (blank = the rule)
+        default: ''
   push:
     branches: ['claude/**']
     # A balance change should measure itself. The trigger used to be this workflow file alone,
@@ -93,6 +96,7 @@ jobs:
           META_SHARDS: ${{ needs.prep.outputs.count }}
           META_GAMES: ${{ needs.prep.outputs.games }}
           META_SEED: ${{ needs.prep.outputs.seed }}
+          META_SECOND_CARDS: ${{ github.event.inputs.second_cards || '' }}
         run: npx vitest run src/cards/meta_shard.test.ts --reporter=verbose --disable-console-intercept
       - uses: actions/upload-artifact@v4
         with:

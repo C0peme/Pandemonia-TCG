@@ -41,6 +41,9 @@ const SEED_BASE = Number(process.env.META_SEED ?? 1);
 const USE_PLAN = process.env.USE_PLAN !== '0';
 const OUT_DIR = process.env.META_OUT ?? 'meta-out';
 const RUN_BALANCE = process.env.RUN_BALANCE === '1';
+// Override RULES.SECOND_PLAYER_BONUS_CARDS for an A/B on one build ('' = the rule).
+const SECOND_CARDS = process.env.META_SECOND_CARDS ?? '';
+const SETUP = SECOND_CARDS === '' ? {} : { secondPlayerBonus: { cards: Number(SECOND_CARDS) } };
 
 interface CardAggJson {
   inDeck: number;
@@ -114,7 +117,7 @@ describe.skipIf(!RUN_BALANCE)('meta shard', () => {
         // matrix is unchanged; only the discarded second side is now kept.
         const aSide: PlayerId = g % 2 === 0 ? 0 : 1;
         const seated: [Deck, Deck] = aSide === 0 ? [a, b] : [b, a];
-        const r = simulateGame(starterRegistry, seated, seed, USE_PLAN);
+        const r = simulateGame(starterRegistry, seated, seed, USE_PLAN, SETUP);
         const aWon = r.winner === aSide;
         const bSide: PlayerId = aSide === 0 ? 1 : 0;
         if (aWon) iWins += 1;
