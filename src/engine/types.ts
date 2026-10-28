@@ -142,6 +142,8 @@ export interface PlayerState {
   deck: CardInstance[];
   discard: CardInstance[];
   lanes: Lanes;
+  /** Leader Skill cast at least once this turn. Only GATES a regular (energy-only) skill;
+   *  an elemental skill repeats while the bank pays for it (see leaderSkill.ts). */
   heroPowerUsed: boolean;
   /**
    * Energy QUEUED for this player's next turn, added on top of the round number in

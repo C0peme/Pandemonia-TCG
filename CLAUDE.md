@@ -72,6 +72,20 @@ base, preserving the Foundation's own `hp` and `iid`. Skipping that re-bond leav
 FoundationInstance claiming grants that are no longer present, and a later revert then
 splices triggers off the NEW form and deletes keywords it owns.
 
+### Leader Skills: elemental (repeatable) vs regular (once per turn)
+
+`engine/leaderSkill.ts` is the one rule, shared by the reducer, `legalActions`, the AI and
+the skill button. The kind is read off the cost shape, no flag: a skill with element pips is
+ELEMENTAL — repeatable any number of times per turn, its pips paid from the bank ONLY (no
+fallback to generic energy, unlike card pips in `settleCost`). That gate is what bounds it:
+the bank fills only from leftover energy and is capped per element, so the ceiling is
+`cap / pips` casts a turn. An energy-only skill is REGULAR — once per turn via
+`heroPowerUsed`. Every standard leader is elemental except Orsyric (rushdown wants Mind Whip
+live from round 1, before any bank). Use `canUseSkill`/`skillCastsAvailable`; never read
+`heroPowerUsed` as "can't cast". The AI banks toward its skill element (`computeBank`'s
+`skillDemand` stage) and credits surplus skill-element bank at `bankFuture` — without that it
+never has fuel and stops casting.
+
 ### Drowning and unit attack
 
 `engine/drowning.ts` owns the Water rule. While a unit is `drowning`, its live `attack` is
@@ -243,6 +257,7 @@ Tests use the helpers in `src/engine/testkit.ts`:
 | `src/engine/board.ts` | `locateUnit`, `buffUnit`, `createUnitInstance`, `applyStatusEffect`, `relocateUnit`/`vacateSlot` (shared move/back-promotion) |
 | `src/engine/damage.ts` | `mitigate`, `damageLeader`, `healUnit`, `healLeader` |
 | `src/engine/draw.ts` | `drawCard` — handles deck-out Null cards |
+| `src/engine/leaderSkill.ts` | `canUseSkill`, `isRepeatableSkill`, `skillCastsAvailable` — Leader Skill usage rule |
 | `src/engine/hand.ts` | `addCardToHand`, `forgetCard` — enforces hand cap |
 | `src/engine/testkit.ts` | Test fixtures: `blankState`, `unit`, `place`, `testRegistry` |
 | `src/engine/sim.ts` | Headless AI-vs-AI balance sim; `playOutGame` plays an already-built state |

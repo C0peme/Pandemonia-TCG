@@ -373,7 +373,9 @@ Leaders are objects in the rawLeaders array.
   name            string
   element         "fire" | "water" | "nature" | "earth"
   elementCaps     { fire: N, water: N, nature: N, earth: N }  — must sum to exactly 8
-  heroPower       { name, cost, hpCost?, effects, text? }  — usable once per turn
+  heroPower       { name, cost, hpCost?, effects, text? }  — element pips in `cost` make it
+                  REPEATABLE (pips paid from the bank only; per-turn ceiling = cap / pips);
+                  an energy-only cost makes it once per turn
   signatureCardId string — card delivered to hand when leader HP drops to HALF its max
                            (15 for the standard 30-HP leader; scales for other max HP)
 

@@ -590,6 +590,10 @@ export function recommendedEnergy(card: any, lookup: Lookup = () => undefined): 
 // leaders — the disparity table is readable without pinning it. It only matters when
 // converting a value into a recommended cost, which is why it is calibrated from field
 // measurement rather than assumed.
+//
+// Elemental skills (pips in the cost, see engine/leaderSkill.ts) are no longer once per turn:
+// they repeat while the bank pays, up to cap / pips casts a turn. The ratio below is still
+// per CAST, which is the comparison that matters; the per-turn ceiling is the leader's cap.
 
 /** Recurrence premium for an unconditional every-turn effect. Calibrated in Phase 2. */
 export const HERO_RECUR_MULT = 1.4;
