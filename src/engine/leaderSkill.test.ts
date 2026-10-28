@@ -57,8 +57,8 @@ describe('Leader Skill costs', () => {
   });
 
   it('counts the casts the resources allow', () => {
-    const s = seat('phantom', { water: 4 });
-    expect(skillCastsAvailable(s.players[0], starterRegistry.leaders.get('phantom')!.heroPower)).toBe(2);
+    const s = seat('cleath', { earth: 3 });
+    expect(skillCastsAvailable(s.players[0], starterRegistry.leaders.get('cleath')!.heroPower)).toBe(3);
     const screyera = seat('screyera', { earth: 3 });
     screyera.players[0].leaderHp = 2; // HP cost 1 may only be paid while it leaves the leader alive
     expect(skillCastsAvailable(screyera.players[0], starterRegistry.leaders.get('screyera')!.heroPower)).toBe(1);
