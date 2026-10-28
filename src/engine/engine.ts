@@ -20,6 +20,7 @@ import { resolveEndOfTurn } from '@engine/endOfTurn';
 import type { ApplyResult, GameEvent } from '@engine/events';
 import { applyFoundation } from '@engine/foundation';
 import { applyStatus } from '@engine/status';
+import { canUseSkill } from '@engine/leaderSkill';
 import { addAttack, reconcileDrowning } from '@engine/drowning';
 import { beginTurn } from '@engine/turn';
 import {
@@ -329,17 +330,14 @@ const heroPower = (
 ): ApplyResult => {
   const draft: GameState = structuredClone(state);
   const player = draft.players[draft.active];
-  if (player.heroPowerUsed) return err(state, 'Hero power already used this turn');
   const leader = registry.leaders.get(player.leaderId);
   if (!leader) return err(state, `Unknown leader: ${player.leaderId}`);
 
-  const afford = canAfford(player, leader.heroPower.cost);
-  if (!afford.ok) return err(state, afford.reason ?? 'Cannot afford');
-
-  // Optional HP cost is paid from the caster's own leader. It cannot be self-lethal:
-  // the leader must have strictly more HP than the cost.
+  // Once-per-turn (regular skills), the bank-only pip gate (elemental skills), energy and
+  // the non-lethal HP cost — one shared rule, see leaderSkill.ts.
+  const usable = canUseSkill(player, leader.heroPower);
+  if (!usable.ok) return err(state, usable.reason ?? 'Cannot use Leader Skill');
   const hpCost = leader.heroPower.hpCost ?? 0;
-  if (hpCost > 0 && player.leaderHp <= hpCost) return err(state, 'Not enough HP to pay the hero power');
 
   payInline(player, leader.heroPower.cost);
   player.heroPowerUsed = true;
@@ -766,9 +764,8 @@ const spellPlays = (state: GameState, player: PlayerState, iid: string, def: Spe
 };
 
 const heroPowerPlays = (registry: Registry, state: GameState, player: PlayerState): Action[] => {
-  if (player.heroPowerUsed) return [];
   const leader = registry.leaders.get(player.leaderId);
-  if (!leader || !canAfford(player, leader.heroPower.cost).ok) return [];
+  if (!leader || !canUseSkill(player, leader.heroPower).ok) return [];
   const combos = targetCombos(state, leader.heroPower.effects);
   if (!combos) return [];
   const lanes: Array<LaneId | undefined> = leader.heroPower.effects.some((e) => e.kind === 'move') ? [...LANES] : [undefined];

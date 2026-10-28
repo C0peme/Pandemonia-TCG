@@ -5,6 +5,7 @@ import type { Card, Effect, Keywords } from '@cards/schema';
 import type { EnvironmentInstance, GameState, Lane, PlayerId, PlayerState, UnitInstance } from '@engine/types';
 import { formatCost, listAbilities, listStatuses, STATUS_INFO, ELEMENT_NAME, type NamedAbility } from '@cards/abilities';
 import { ElementRune } from '@ui/ElementRune';
+import { canUseSkill as skillUsable, isRepeatableSkill } from '@engine/leaderSkill';
 import { Emblem } from '@ui/Emblem';
 import type { DebugKeyword } from '@engine/actions';
 import { useGame, type CombatAnim, type CombatPhase } from '@ui/useGame';
@@ -433,6 +434,11 @@ function LeaderBox({
   const leaderSkill = canUseSkill ? leaderDef?.heroPower : undefined;
   const heroActive = g.sel.kind === 'hero';
   const heroEffect = leaderSkill?.text ?? leaderSkill?.effects.map(effectLine).join('; ') ?? '';
+  // Regular (energy-only) skills are once per turn and read "Used" after; elemental skills
+  // repeat while the bank pays, so they only ever grey out for want of fuel.
+  const skillRepeatable = leaderSkill ? isRepeatableSkill(leaderSkill) : false;
+  const skillSpent = !skillRepeatable && player.heroPowerUsed;
+  const skillReady = leaderSkill ? skillUsable(player, leaderSkill) : { ok: false };
   return (
     <div
       data-leader={player.id}
@@ -473,10 +479,10 @@ function LeaderBox({
       </div>
       {canUseSkill && leaderSkill && (
         <button
-          className={`leader__skill${player.heroPowerUsed ? ' leader__skill--used' : ''}${heroActive ? ' leader__skill--active' : ''}${g.hintMode && !player.heroPowerUsed ? ' leader__skill--hint' : ''}`}
-          disabled={player.heroPowerUsed}
+          className={`leader__skill${!skillReady.ok ? ' leader__skill--used' : ''}${heroActive ? ' leader__skill--active' : ''}${g.hintMode && skillReady.ok ? ' leader__skill--hint' : ''}`}
+          disabled={!skillReady.ok}
           onClick={(e) => { e.stopPropagation(); g.selectHero(); }}
-          title={`${leaderSkill.name} — ${heroEffect} (cost ${formatCost(leaderSkill.cost)})`}
+          title={`${leaderSkill.name} — ${heroEffect} (cost ${formatCost(leaderSkill.cost)}${leaderSkill.hpCost ? ` + ${leaderSkill.hpCost} HP` : ''}${skillRepeatable ? ', paid from your bank; repeatable' : ', once per turn'})${skillReady.ok ? '' : ` — ${skillReady.reason ?? 'unavailable'}`}`}
         >
           <span className="leader__skill-icon">{heroSkillIcon(leaderSkill.effects)}</span>
           <span className="leader__skill-body">
@@ -484,7 +490,7 @@ function LeaderBox({
             <span className="leader__skill-effect">{heroEffect}</span>
           </span>
           <span className="leader__skill-cost">
-            {player.heroPowerUsed
+            {skillSpent
               ? <span className="leader__skill-used">✓ Used</span>
               : (() => {
                   // A power that queues energy back (Cancerous Growth: spend 2, get 2 next
@@ -493,7 +499,13 @@ function LeaderBox({
                     (s, e) => s + (e.kind === 'energyNext' ? (e.amount ?? 0) : 0), 0);
                   return (
                     <>
-                      <span className="herocost__energy">↯{leaderSkill.cost.energy}</span>
+                      {(leaderSkill.cost.energy > 0 || !skillRepeatable) && <span className="herocost__energy">↯{leaderSkill.cost.energy}</span>}
+                      {(leaderSkill.cost.elements ?? []).map((req, i) => (
+                        <span key={i} className="herocost__pip" title={`${req.amount} banked ${req.type}`}>
+                          {req.amount}<ElementRune element={req.type} size={13} />
+                        </span>
+                      ))}
+                      {skillRepeatable && <span className="herocost__repeat" title="Repeatable: cast again while your bank can pay">↻</span>}
                       {back > 0 && <span className="herocost__return" title={`Returns ${back} energy next round`}>+{back} next</span>}
                     </>
                   );

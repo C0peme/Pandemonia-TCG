@@ -30,6 +30,7 @@ import { resolveCombat } from '@engine/combat';
 import { resolveEndOfTurn } from '@engine/endOfTurn';
 import { locateUnit } from '@engine/board';
 import { signatureThreshold } from '@engine/damage';
+import { skillCastsAvailable, skillPips } from '@engine/leaderSkill';
 import { opponentOf, type GameState, type PlayerId, type UnitInstance } from '@engine/types';
 import { NULL_CARD_ID } from '@cards/special';
 
@@ -384,9 +385,15 @@ const deckValue = (W: EvalWeights, cards: number): number => {
  *  - Banking beyond what the HAND wants is no longer worthless, because the deck is full of
  *    cards that will want it later. That is credited separately at `bankFuture`, well below
  *    face value: it is real, but it is speculative and competes with spending the energy now.
+ *  - An elemental Leader Skill is paid from the bank ONLY (leaderSkill.ts), so a surplus point
+ *    of its element is also skill fuel, always wanted. It is credited at `bankFuture` too, not
+ *    `bank`: valuing fuel at face would make the AI hoard it rather than cast, whereas the old
+ *    1-energy skills cost it roughly that much (leftover energy only ever banked as surplus).
  */
 const bankValue = (W: EvalWeights, registry: Registry, p: GameState['players'][PlayerId]): number => {
   let v = 0;
+  const leader = registry.leaders.get(p.leaderId);
+  const fuel = leader ? skillPips(leader.heroPower) : {};
   for (const el of ELEMENTS) {
     let handDemand = 0;
     for (const inst of p.hand) {
@@ -399,6 +406,10 @@ const bankValue = (W: EvalWeights, registry: Registry, p: GameState['players'][P
 
     const surplus = banked - spentNow;
     if (surplus <= 0) continue;
+    if (fuel[el]) {
+      v += surplus * W.bankFuture; // all of it fuels the skill, whatever the deck wants
+      continue;
+    }
     let deckDemand = 0;
     for (const inst of p.deck) {
       const def = registry.cards.get(inst.cardId);
@@ -884,6 +895,7 @@ const distributeBank = (
   leftover: number,
   handDemand: Record<Element, number>,
   deckDemand: Record<Element, number>,
+  skillDemand: Record<Element, number>,
 ): Partial<Record<Element, number>> => {
   const p = state.players[state.active];
   const applied: Partial<Record<Element, number>> = {};
@@ -901,8 +913,9 @@ const distributeBank = (
     }
   };
   fillBy((el) => handDemand[el]); // 1. cards in hand, this turn
-  fillBy((el) => deckDemand[el]); // 2. cards still in the deck, future turns
-  fillBy(() => 1); // 3. overflow anywhere with room (otherwise the energy is lost)
+  fillBy((el) => skillDemand[el]); // 2. the Leader Skill's element: always "in hand", bank-only
+  fillBy((el) => deckDemand[el]); // 3. cards still in the deck, future turns
+  fillBy(() => 1); // 4. overflow anywhere with room (otherwise the energy is lost)
   return applied;
 };
 
@@ -920,7 +933,13 @@ const computeBank = (registry: Registry, state: GameState): Partial<Record<Eleme
     const def = registry.cards.get(inst.cardId);
     for (const req of def?.cost.elements ?? []) deckDemand[req.type] += req.amount;
   }
-  const applied = distributeBank(state, p.energy, handDemand, deckDemand);
+  // An elemental Leader Skill can ONLY be paid from the bank, and repeats, so its element
+  // wants filling to the cap. Without this the AI banked by card pips alone and simply never
+  // had the fuel to cast its skill.
+  const skillDemand: Record<Element, number> = { fire: 0, water: 0, nature: 0, earth: 0 };
+  const leader = registry.leaders.get(p.leaderId);
+  for (const el of Object.keys(leader ? skillPips(leader.heroPower) : {}) as Element[]) skillDemand[el] = p.elementCaps[el];
+  const applied = distributeBank(state, p.energy, handDemand, deckDemand, skillDemand);
   return Object.keys(applied).length ? applied : undefined;
 };
 
@@ -1083,9 +1102,11 @@ const maxPlausibleDamage = (registry: Registry, state: GameState): number => {
       for (const e of def.effects) if (e.kind === 'damage' && e.amount && e.target !== 'self' && e.target !== 'ally') dmg += e.amount;
     }
   }
-  if (!p.heroPowerUsed) {
-    const leader = registry.leaders.get(p.leaderId);
-    for (const e of leader?.heroPower.effects ?? []) if (e.kind === 'damage' && e.amount) dmg += e.amount;
+  const leader = registry.leaders.get(p.leaderId);
+  if (leader) {
+    // Repeatable (elemental) skills count once per cast the bank can pay for.
+    const casts = skillCastsAvailable(p, leader.heroPower);
+    for (const e of leader.heroPower.effects) if (e.kind === 'damage' && e.amount) dmg += e.amount * casts;
   }
   return dmg;
 };
