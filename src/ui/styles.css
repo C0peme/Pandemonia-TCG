@@ -975,6 +975,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-hero__effect { font-size: 10px; color: #c8c2e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 .btn-hero__cost { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
 .herocost__energy { font-weight: 800; font-size: 13px; color: #ffe49a; }
+.herocost__pip { display: inline-flex; align-items: center; gap: 1px; font-weight: 800; font-size: 13px; color: #ffe49a; }
+.herocost__repeat { font-size: 12px; opacity: 0.8; color: #ffe49a; }
 .btn-hero__used { font-size: 11px; font-weight: 700; color: #8b909c; }
 .btn-sac { background: #5a2d2d; border-color: #7a3a3a; font-weight: 700; }
 .btn-debug { background: #2a2a1a; border-color: #555520; }

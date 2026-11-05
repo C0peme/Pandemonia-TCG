@@ -24,7 +24,10 @@ Foundations occupy a standalone slot in a lane. They bond to the next unit place
 
 Each leader has:
   - 30 HP
-  - A Hero Power (active ability with an energy cost, usable once per turn)
+  - A Hero Power / Leader Skill. An ELEMENTAL skill (cost in element pips) is paid from the
+    element bank only (no fallback to generic energy) and may be used any number of times
+    per turn while the bank can pay. A REGULAR skill (energy cost only, e.g. Orsyric's Mind
+    Whip) is usable once per turn.
   - Four element banking caps (fire, water, nature, earth), each between 1–4, summing to exactly 8
   - A Signature Card — delivered to hand when the leader's HP drops to HALF their own maximum HP or below
     (triggers once). For the standard 30 HP leader that's 15, but the rule is proportional, not a fixed
@@ -67,7 +70,7 @@ Producer units bank element energy for their owner at the end of each of their o
    - Cast spells (pay cost, resolve effects)
    - Play foundations (pay cost, place in a lane as a standalone)
    - Play environments (pay cost, place in a lane)
-   - Use Hero Power (pay cost, once per turn)
+   - Use Hero Power (pay cost; elemental skills repeat while the bank pays, regular ones once per turn)
 
 3. End Turn (resolves in this order, for the player whose turn is ending)
    - End-of-turn triggers resolve FIRST, for the active player's units, right after their Declare

@@ -638,7 +638,7 @@ function LeaderCard({ leader, registry, onEdit }: { leader: Leader; registry: im
         <div className="leadercard__skill">
           <div className="leadercard__skill-head">
             <span className="leadercard__skill-name">{leader.heroPower.name}</span>
-            <span className="leadercard__skill-cost">↯{leader.heroPower.cost.energy}</span>
+            <span className="leadercard__skill-cost" title={(leader.heroPower.cost.elements?.length ? 'Paid from the bank; repeatable' : 'Once per turn')}>↯{formatCost(leader.heroPower.cost)}{leader.heroPower.cost.elements?.length ? ' ↻' : ''}</span>
           </div>
           <div className="leadercard__skill-text">{skillText}</div>
         </div>
