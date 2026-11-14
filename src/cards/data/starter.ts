@@ -460,10 +460,10 @@ export const deckCombo = parseDeck({ name: 'Combo', leaderId: 'screyera', cards:
 // Protection (shield, heal, True Shield) and freeze/sleep control buy the turns needed; Lull is the
 // panic-button "survive to Signature" finisher.
 export const deckTempo = parseDeck({ name: 'Guardian', leaderId: 'ringleader', cards: [
-  { cardId: 'mend', count: 2 }, { cardId: 'field-mouse', count: 1 },
+  { cardId: 'mend', count: 2 }, { cardId: 'field-mouse', count: 3 }, // +2: River Turtle x2 -> Field Mouse x2 (the 0/1 body for 4e + 2 pips was Guardian's worst card, 36-38% win in every sweep; the deck lacked cheap plays and the leader-unit already provides the wall). Probe (noisy): 58 -> 67%.
   { cardId: 'iron-ward', count: 3 }, { cardId: 'frostbite-harpoon', count: 2 }, { cardId: 'peel-back', count: 2 },
   { cardId: 'wind-redirect', count: 2 },
-  { cardId: 'frost-wall', count: 2 }, { cardId: 'river-turtle', count: 2 },
+  { cardId: 'frost-wall', count: 2 }, 
   { cardId: 'mush-room', count: 3 }, { cardId: 'lullaby-spirit', count: 2 }, { cardId: 'crag-hawk', count: 3 }, { cardId: 'fog-creature', count: 2 },
   { cardId: 'tidecaller-adept', count: 2 },
   { cardId: 'ward-stone', count: 2 },
