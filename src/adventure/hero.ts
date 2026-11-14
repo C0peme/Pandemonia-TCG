@@ -84,11 +84,11 @@ export const LEADER_UPGRADES: Record<string, LeaderUpgrade> = {
     desc: 'Scry also makes the opponent forget 1 card.',
     power: also({ kind: 'forget', amount: 1, target: 'enemy' }),
   },
-  // The executioner keeps appointments: no blood price, and the portal moves him.
+  // The executioner keeps appointments: the portal moves him.
   ringleader: {
     name: 'Busy Schedule',
     icon: '🎩',
-    desc: 'Modification costs no HP and also relocates your leader-unit.',
+    desc: 'Modification also relocates your leader-unit.',
     power: (hp) => {
       const next: HeroPower = { ...hp, effects: [...hp.effects, { kind: 'move', target: 'leaderUnit' }] };
       delete next.hpCost;
@@ -99,7 +99,7 @@ export const LEADER_UPGRADES: Record<string, LeaderUpgrade> = {
   corpselock: {
     name: 'Metastasis',
     icon: '🦠',
-    desc: 'Cancerous Growth no longer has to be repaid — the growth outruns the debt.',
+    desc: 'Cancerous Growth also gives you 1 more energy next round — the growth keeps spreading.',
     power: also({ kind: 'energyNext', amount: 1 }),
   },
   // The bartender drinks with the house.

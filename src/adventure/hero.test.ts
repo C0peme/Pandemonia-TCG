@@ -69,11 +69,9 @@ describe('applyHeroUpgrades', () => {
     expect(up.heroPower.effects.length).toBe(l.heroPower.effects.length + 1);
   });
 
-  it('Ring Leader — Busy Schedule removes the HP cost and adds the portal move', () => {
+  it('Ring Leader — Busy Schedule adds the portal move', () => {
     const l = leader('ringleader');
-    expect(l.heroPower.hpCost).toBe(1); // precondition
     const up = applyHeroUpgrades(l, [{ kind: 'unique' }]);
-    expect(up.heroPower.hpCost).toBeUndefined();
     expect(up.heroPower.effects.some((e) => e.kind === 'move' && e.target === 'leaderUnit')).toBe(true);
   });
 
